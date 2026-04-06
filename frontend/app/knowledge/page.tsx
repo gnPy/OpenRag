@@ -247,9 +247,15 @@ function SearchPage() {
     refetchInterval: 5000,
     enabled: !isWildcardQuery,
   });
+  const { warnings: searchWarnings } = searchData as SearchResult;
 
-  const { files: searchFiles, warnings: searchWarnings } =
-    searchData as SearchResult;
+  // Merge data from whichever source is active
+  const effectiveData: File[] = isWildcardQuery
+    ? (listFilesData?.files ?? [])
+    : (searchData as File[]);
+  const isLoading = isWildcardQuery ? isListFilesLoading : isSearchLoading;
+  const error = isWildcardQuery ? listFilesError : searchError;
+  const isError = isWildcardQuery ? isListFilesError : isSearchError;
 
   // Merge data from whichever source is active
   const effectiveData: File[] = isWildcardQuery
