@@ -1,4 +1,3 @@
-from config.paths import get_flows_path
 import asyncio
 import os
 import threading
@@ -8,6 +7,15 @@ from utils.env_utils import get_env_int, get_env_float
 import httpx
 from agentd.patch import patch_openai_with_mcp
 from dotenv import load_dotenv
+
+from dotenv import load_dotenv
+load_dotenv(override=False)
+load_dotenv("../", override=False)
+
+from config.paths import get_flows_path
+from utils.env_utils import get_env_int, get_env_float
+
+import httpx
 from openai import AsyncOpenAI
 from opensearchpy import AsyncOpenSearch
 from opensearchpy._async.http_aiohttp import AIOHttpConnection
@@ -16,11 +24,7 @@ from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL
 from utils.container_utils import get_container_host
 from utils.embedding_fields import build_knn_vector_field
 from utils.logging_config import get_logger
-# Import configuration manager
 from .config_manager import config_manager
-
-load_dotenv(override=False)
-load_dotenv("../", override=False)
 
 logger = get_logger(__name__)
 
