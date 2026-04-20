@@ -24,6 +24,7 @@ import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
 import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdown";
+import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
 import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
 import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -52,7 +53,6 @@ import SharePointIcon from "../../components/icons/share-point-logo";
 import { useDeleteDocument } from "../api/mutations/useDeleteDocument";
 import { useRefreshOpenragDocs } from "../api/mutations/useRefreshOpenragDocs";
 import { useSyncAllConnectors } from "../api/mutations/useSyncConnector";
-import { useGetCurrentUserQuery } from "../api/queries/useGetCurrentUserQuery";
 
 // Function to get the appropriate icon for a connector type
 function getSourceIcon(connectorType?: string) {
@@ -105,7 +105,6 @@ function SearchPage() {
   const deleteDocumentMutation = useDeleteDocument();
   const syncAllConnectorsMutation = useSyncAllConnectors();
   const refreshOpenragDocsMutation = useRefreshOpenragDocs();
-  const { data: currentUser } = useGetCurrentUserQuery();
 
   useEffect(() => {
     refreshTasks();
@@ -596,8 +595,6 @@ function SearchPage() {
           <KnowledgeActionsDropdown
             filename={data?.filename || ""}
             connectorType={data?.connector_type}
-            owner={data?.owner}
-            currentUserId={currentUser?.user_id}
           />
         );
       },
@@ -706,7 +703,35 @@ function SearchPage() {
           </h2>
         </div>
         {isCloudBrand ? (
-          <KnowledgeSearchBar />
+          <div className="relative overflow-hidden h-12 shrink-0">
+            <div
+              className={cn(
+                "transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "-translate-y-full pointer-events-none select-none"
+                  : "translate-y-0",
+              )}
+            >
+              <KnowledgeSearchBar />
+            </div>
+            <div
+              className={cn(
+                "absolute top-0 left-0 right-0 h-12 transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "translate-y-0"
+                  : "translate-y-full pointer-events-none select-none",
+              )}
+            >
+              <KnowledgeBatchActionsBar
+                selectedCount={selectedRows.length}
+                onDelete={() => setShowBulkDeleteDialog(true)}
+                onCancel={() => {
+                  setSelectedRows([]);
+                  gridRef.current?.api.deselectAll();
+                }}
+              />
+            </div>
+          </div>
         ) : (
           /* Search Input Area */
           <div className="flex-1 flex items-center flex-shrink-0 flex-wrap-reverse gap-3 mb-6">

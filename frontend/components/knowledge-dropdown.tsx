@@ -39,7 +39,6 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useTask } from "@/contexts/task-context";
-import { isDirectConnectorDevEnabled } from "@/lib/dev-flags";
 import {
   duplicateCheck,
   uploadFiles,
@@ -66,6 +65,12 @@ export const SUPPORTED_FILE_TYPES = {
   "application/pdf": [".pdf"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [
     ".docx",
+  ],
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [
+    ".xlsx",
+  ],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [
+    ".pptx",
   ],
   "text/csv": [".csv"],
 };
@@ -113,7 +118,6 @@ const FolderIconWithColor = ({ className }: { className?: string }) => (
 
 export function KnowledgeDropdown() {
   const { isIbmAuthMode } = useAuth();
-  const directConnectorDevEnabled = isDirectConnectorDevEnabled();
   const isCloudBrand = useIsCloudBrand();
   const { addTask } = useTask();
   const { refetch: refetchTasks } = useGetTasksQuery();
@@ -603,7 +607,12 @@ export function KnowledgeDropdown() {
   };
 
   const cloudConnectorItems = Object.entries(cloudConnectors)
-    .filter(([, info]) => info.available)
+    .filter(([type, info]) => {
+      if (!info.available) return false;
+      if (isCloudBrand && (type === "google_drive" || type === "onedrive"))
+        return false;
+      return true;
+    })
     .map(([type, info]) => ({
       label: info.name,
       icon: connectorIconMap[type as keyof typeof connectorIconMap] || PlugZap,
@@ -635,7 +644,7 @@ export function KnowledgeDropdown() {
       icon: FolderIconWithColor,
       onClick: () => folderInputRef.current?.click(),
     },
-    ...((isIbmAuthMode || directConnectorDevEnabled) && s3Configured
+    ...(isIbmAuthMode && s3Configured
       ? [
           {
             label: "Amazon S3",
@@ -644,7 +653,7 @@ export function KnowledgeDropdown() {
           },
         ]
       : []),
-    ...((isIbmAuthMode || directConnectorDevEnabled) && ibmCosConfigured
+    ...(isIbmAuthMode && ibmCosConfigured
       ? [
           {
             label: "IBM Cloud Object Storage",

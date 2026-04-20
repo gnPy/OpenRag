@@ -39,8 +39,9 @@ class ConnectionConfig:
 class ConnectionManager:
     """Manages multiple connector connections with persistence"""
 
-    def __init__(self, connections_file: str = "data/connections.json"):
-        self.connections_file = Path(connections_file)
+    def __init__(self, connections_file: str = None):
+        from config.paths import get_data_file
+        self.connections_file = Path(connections_file or get_data_file("connections.json"))
         # Ensure data directory exists
         self.connections_file.parent.mkdir(parents=True, exist_ok=True)
         self.connections: Dict[str, ConnectionConfig] = {}
@@ -456,7 +457,7 @@ class ConnectionManager:
                 "name": S3Connector.CONNECTOR_NAME,
                 "description": S3Connector.CONNECTOR_DESCRIPTION,
                 "icon": S3Connector.CONNECTOR_ICON,
-                "available": self._is_connector_available("aws_s3", user_id),
+                "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes"),
             },
         }
 
