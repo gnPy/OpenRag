@@ -226,9 +226,11 @@ spec:
               mountPath: /app/.env
               subPath: .env
               readOnly: true
-            {{- if .Values.backend.persistence.data.enabled }}
-            - name: data
-              mountPath: {{ .Values.backend.persistence.data.mountPath | quote }}
+            - name:  backend-tempdir
+              mountPath: /tmp
+            {{- if .Values.backend.persistence.documents.enabled }}
+            - name: documents
+              mountPath: {{ .Values.backend.persistence.documents.mountPath }}
             {{- end }}
             {{- if .Values.backend.persistence.shared.enabled }}
             - name: shared
@@ -274,6 +276,10 @@ spec:
             failureThreshold: {{ .Values.backend.readinessProbe.failureThreshold }}
           {{- end }}
       volumes:
+        - name: backend-data-local
+          emptyDir: {}
+        - name: backend-tempdir
+          emptyDir: {}
         - name: openrag-dotenv
           secret:
             secretName: {{ include "openrag.fullname" . }}-dotenv

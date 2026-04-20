@@ -190,6 +190,12 @@ stringData:
     OPENRAG_ENCRYPTION_KEY={{ .Values.backend.encryption.key  | quote }}
     {{- end }}
     
+    OPENRAG_KEYS_PATH={{ .Values.backend.persistence.keys.mountPath | quote }}
+  
+    OPENRAG_CONFIG_PATH={{ .Values.backend.persistence.config.mountPath | quote }}  
+    OPENRAG_DATA_PATH={{ .Values.backend.persistence.config.mountPath | quote }}
+    OPENRAG_FLOWS_BACKUP_PATH={{ .Values.backend.persistence.config.mountPath | quote }}
+
     # Langflow auth (OpenRag uses this to determine how to authenticate with Langflow)
     LANGFLOW_AUTO_LOGIN={{ ternary "true" "false" .Values.langflow.auth.autoLogin }}
 

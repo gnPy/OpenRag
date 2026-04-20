@@ -78,7 +78,8 @@ langflow:
   # Persistence for SQLite DB and flows
   persistence:
     enabled: true
-    storageClass: ""                      # Empty uses cluster default
+    storageClass:
+      create: true
     accessMode: ReadWriteOnce
     size: 10Gi
     mountPath: /app/data
@@ -244,7 +245,8 @@ backend:
   # 1. /data: internal application state (data, backups, config, keys)
   # 2. /shared: shared content (documents, flows)
   persistence:
-    data:
+    
+    documents:
       enabled: true
       storageClass: ""
       accessMode: ReadWriteOnce
