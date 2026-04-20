@@ -1,5 +1,4 @@
 import { type UseQueryOptions, useQuery } from "@tanstack/react-query";
-import { isDirectConnectorDevEnabled } from "@/lib/dev-flags";
 
 interface GoogleDriveFile {
   id: string;
@@ -53,7 +52,6 @@ export const useGetConnectorsQuery = (
   options?: Omit<UseQueryOptions<Connector[]>, "queryKey" | "queryFn">,
 ) => {
   async function getConnectors(): Promise<Connector[]> {
-    const directConnectorDevEnabled = isDirectConnectorDevEnabled();
     const connectorsResponse = await fetch("/api/connectors");
     if (!connectorsResponse.ok) {
       throw new Error("Failed to fetch available connectors");
@@ -94,7 +92,7 @@ export const useGetConnectorsQuery = (
               connectionId,
               clientId: activeConnection.client_id,
               baseUrl: activeConnection.base_url,
-              available,
+              available: connectorData.available,
             } as Connector;
           }
         }
@@ -107,7 +105,7 @@ export const useGetConnectorsQuery = (
           status,
           type,
           connectionId,
-          available,
+          available: connectorData.available,
         } as Connector;
       }),
     );

@@ -251,18 +251,6 @@ function BucketView({
                       Browse Files
                     </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setBrowseDialogBucket(bucket.name);
-                    }}
-                  >
-                    <FileSearch size={14} className="mr-1.5" />
-                    Browse Files
-                  </Button>
                 </div>
               );
             })}
