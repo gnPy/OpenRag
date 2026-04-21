@@ -14,7 +14,6 @@ import IBMCOSIcon from "@/components/icons/ibm-cos-icon";
 import OneDriveIcon from "@/components/icons/one-drive-logo";
 import SharePointIcon from "@/components/icons/share-point-logo";
 import { useAuth } from "@/contexts/auth-context";
-import { useIsCloudBrand } from "@/contexts/brand-context";
 import ConnectorCard, { type Connector } from "./connector-card";
 import ConnectorsSkeleton from "./connectors-skeleton";
 import IBMCOSSettingsDialog from "./ibm-cos-settings-dialog";
@@ -22,7 +21,6 @@ import S3SettingsDialog from "./s3-settings-dialog";
 
 export default function ConnectorCards() {
   const { isAuthenticated, isNoAuthMode, isIbmAuthMode } = useAuth();
-  const isCloudBrand = useIsCloudBrand();
   const router = useRouter();
   const [ibmCOSDialogOpen, setIBMCOSDialogOpen] = useState(false);
   const [s3DialogOpen, setS3DialogOpen] = useState(false);
