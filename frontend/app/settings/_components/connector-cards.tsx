@@ -14,7 +14,6 @@ import IBMCOSIcon from "@/components/icons/ibm-cos-icon";
 import OneDriveIcon from "@/components/icons/one-drive-logo";
 import SharePointIcon from "@/components/icons/share-point-logo";
 import { useAuth } from "@/contexts/auth-context";
-import { isDirectConnectorDevEnabled } from "@/lib/dev-flags";
 import ConnectorCard, { type Connector } from "./connector-card";
 import ConnectorsSkeleton from "./connectors-skeleton";
 import IBMCOSSettingsDialog from "./ibm-cos-settings-dialog";
@@ -22,7 +21,6 @@ import S3SettingsDialog from "./s3-settings-dialog";
 
 export default function ConnectorCards() {
   const { isAuthenticated, isNoAuthMode, isIbmAuthMode } = useAuth();
-  const directConnectorDevEnabled = isDirectConnectorDevEnabled();
   const router = useRouter();
   const [ibmCOSDialogOpen, setIBMCOSDialogOpen] = useState(false);
   const [s3DialogOpen, setS3DialogOpen] = useState(false);
@@ -55,7 +53,7 @@ export default function ConnectorCards() {
   const connectors = queryConnectors
     .filter((c) => {
       if (c.type === "ibm_cos" || c.type === "aws_s3") {
-        return isIbmAuthMode || directConnectorDevEnabled;
+        return isIbmAuthMode;
       }
       return true;
     })
