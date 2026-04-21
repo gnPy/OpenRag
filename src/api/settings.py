@@ -1,3 +1,5 @@
+from dependencies import get_models_service
+import asyncio
 import json
 import platform
 from fastapi import Depends, Request, HTTPException
@@ -8,7 +10,6 @@ from utils.telemetry import TelemetryClient, Category, MessageId
 from utils.version_utils import OPENRAG_VERSION
 from config.settings import (
     DEFAULT_DOCS_URL,
-    DISABLE_INGEST_WITH_LANGFLOW,
     INGEST_SAMPLE_DATA,
     LANGFLOW_URL,
     LANGFLOW_CHAT_FLOW_ID,
@@ -32,10 +33,12 @@ from dependencies import (
     get_document_service,
     get_langflow_file_service,
     get_knowledge_filter_service,
+    get_chat_service,
 )
 from session_manager import User
 
 logger = get_logger(__name__)
+_background_tasks: set[asyncio.Task] = set()
 
 
 class SettingsUpdateBody(BaseModel):
@@ -208,6 +211,11 @@ class RollbackResponse(BaseModel):
     message: str
     cancelled_tasks: int
     deleted_files: int
+    reset_flows: int
+    deleted_conversations: int
+
+class RollbackBody(BaseModel):
+    embedding_only: bool = False
 
 
 # Docling preset configurations
@@ -605,6 +613,12 @@ async def update_settings(
                 logger.error(f"Failed to update docling settings in flow: {str(e)}")
 
         if body.chunk_size is not None:
+            effective_overlap = body.chunk_overlap if body.chunk_overlap is not None else current_config.knowledge.chunk_overlap
+            if effective_overlap >= body.chunk_size:
+                raise HTTPException(
+                    status_code=422,
+                    detail="chunk_overlap must be less than chunk_size"
+                )
             current_config.knowledge.chunk_size = body.chunk_size
             config_updated = True
             await TelemetryClient.send_event(
@@ -625,6 +639,12 @@ async def update_settings(
                 # The config will still be saved
 
         if body.chunk_overlap is not None:
+            effective_chunk_size = body.chunk_size if body.chunk_size is not None else current_config.knowledge.chunk_size
+            if body.chunk_overlap >= effective_chunk_size:
+                raise HTTPException(
+                    status_code=422,
+                    detail="chunk_overlap must be less than chunk_size"
+                )
             current_config.knowledge.chunk_overlap = body.chunk_overlap
             config_updated = True
             await TelemetryClient.send_event(
@@ -815,30 +835,31 @@ async def update_settings(
                 {"error": "Failed to save configuration"}, status_code=500
             )
 
-        # Update Langflow global variables and model values if provider settings changed
+        # Refresh patched client immediately so subsequent requests pick up latest config.
         await clients.refresh_patched_client()
 
+        # Run expensive Langflow sync in the background to keep settings updates responsive.
         if should_validate or provider_updated:
-            try:
-                flows_service = _get_flows_service()
-
-                # Update global variables
-                await _update_langflow_global_variables(current_config, flows_service=flows_service)
-
-                # Update LLM client credentials when embedding selection changes
-                if body.embedding_provider is not None or body.embedding_model is not None:
-                    await _update_mcp_servers_with_provider_credentials(
-                        current_config, session_manager, flows_service=flows_service
-                    )
-
-                # Update model values if provider or model changed (including removals that trigger fallback)
-                if body.llm_provider is not None or body.llm_model is not None or body.embedding_provider is not None or body.embedding_model is not None or provider_updated:
-                    await _update_langflow_model_values(current_config, flows_service)
-
-            except Exception as e:
-                logger.error(f"Failed to update Langflow settings: {str(e)}")
-                # Don't fail the entire settings update if Langflow update fails
-                # The config was still saved
+            task = asyncio.create_task(
+                _run_async_post_save_langflow_updates(
+                    session_manager=session_manager,
+                    update_mcp_servers=(
+                        body.embedding_provider is not None
+                        or body.embedding_model is not None
+                        or provider_updated
+                    ),
+                    update_model_values=(
+                        body.llm_provider is not None
+                        or body.llm_model is not None
+                        or body.embedding_provider is not None
+                        or body.embedding_model is not None
+                        or provider_updated
+                    ),
+                )
+            )
+            # Keep a strong reference until completion to avoid premature GC cancellation.
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
 
 
         set_fields = [k for k, v in body.model_dump().items() if v is not None]
@@ -867,6 +888,7 @@ async def onboarding(
     flows_service=Depends(get_flows_service),
     session_manager=Depends(get_session_manager),
     document_service=Depends(get_document_service),
+    models_service=Depends(get_models_service),
     task_service=Depends(get_task_service),
     langflow_file_service=Depends(get_langflow_file_service),
     knowledge_filter_service=Depends(get_knowledge_filter_service),
@@ -918,7 +940,7 @@ async def onboarding(
         embedding_model_selected = None
         embedding_provider_selected = None
 
-        if body.embedding_model and not DISABLE_INGEST_WITH_LANGFLOW:
+        if body.embedding_model:
             embedding_model_selected = body.embedding_model.strip()
             current_config.knowledge.embedding_model = embedding_model_selected
             config_updated = True
@@ -1091,9 +1113,8 @@ async def onboarding(
             if body.embedding_provider or body.embedding_model:
                 await _update_mcp_servers_with_provider_credentials(current_config, session_manager=session_manager, flows_service=flows_service)
 
-            # Update model values if provider or model fields were provided
             if body.llm_provider or body.llm_model or body.embedding_provider or body.embedding_model:
-                await _update_langflow_model_values(current_config, flows_service)
+                await _update_langflow_model_values(current_config, flows_service, embedding_model=body.embedding_model, embedding_provider=body.embedding_provider, llm_model=body.llm_model, llm_provider=body.llm_provider)
 
         except Exception as e:
             logger.error(
@@ -1107,13 +1128,18 @@ async def onboarding(
         # Initialize the OpenSearch index if embedding model is configured
         if body.embedding_model or body.embedding_provider:
             try:
-                # Import here to avoid circular imports
-                from main import init_index_when_ready
+                from main import init_index
+                from config.settings import IBM_AUTH_ENABLED, clients as app_clients
+
+                opensearch_client = None
+                if IBM_AUTH_ENABLED and user and user.jwt_token:
+                    opensearch_client = app_clients.create_user_opensearch_client(user.jwt_token)
 
                 logger.info(
                     "Initializing OpenSearch index after onboarding configuration"
                 )
-                await init_index_when_ready()
+                admin_username = user.user_id if IBM_AUTH_ENABLED and user else None
+                await init_index(opensearch_client, admin_username=admin_username)
                 logger.info("OpenSearch index initialization completed successfully")
             except Exception as e:
                 logger.error(
@@ -1133,11 +1159,19 @@ async def onboarding(
                     # Import the function here to avoid circular imports
                     from main import ingest_default_documents_when_ready
 
+                    if not config_manager.save_config_file(current_config):
+                        logger.error("Failed to save embedding model to config")
+                        return JSONResponse({"error": "Failed to save configuration"}, status_code=500)
+
+                    ingestion_jwt = user.jwt_token if IBM_AUTH_ENABLED and user and user.jwt_token else None
+
                     task_id = await ingest_default_documents_when_ready(
                         document_service,
+                        models_service,
                         task_service,
                         langflow_file_service,
                         session_manager,
+                        jwt_token=ingestion_jwt,
                     )
                     current_config.onboarding.openrag_docs_ingested_version = OPENRAG_VERSION
                     from main import (
@@ -1380,6 +1414,37 @@ async def _update_langflow_global_variables(config, flows_service=None):
         raise
 
 
+async def _run_async_post_save_langflow_updates(
+    session_manager,
+    update_mcp_servers: bool,
+    update_model_values: bool,
+) -> None:
+    """Apply post-save Langflow synchronization asynchronously."""
+    try:
+        current_config = get_openrag_config()
+        flows_service = _get_flows_service()
+
+        # Update global variables
+        await _update_langflow_global_variables(
+            current_config, flows_service=flows_service
+        )
+
+        # Update LLM client credentials when embedding selection changes
+        if update_mcp_servers:
+            await _update_mcp_servers_with_provider_credentials(
+                current_config, session_manager, flows_service=flows_service
+            )
+
+        # Update model values if provider/model changed (including removals/fallbacks)
+        if update_model_values:
+            await _update_langflow_model_values(current_config, flows_service)
+
+        logger.info("Completed asynchronous Langflow post-save sync")
+    except Exception as e:
+        # Do not fail user request if async sync fails; keep parity with existing behavior.
+        logger.error(f"Failed to update Langflow settings asynchronously: {str(e)}")
+
+
 async def _update_mcp_servers_with_provider_credentials(config, session_manager = None, flows_service=None):
     # Update MCP servers with provider credentials
     try:
@@ -1417,47 +1482,70 @@ async def _update_mcp_servers_with_provider_credentials(config, session_manager 
         # Don't fail the entire settings update if MCP update fails
 
 
-async def _update_langflow_model_values(config, flows_service):
+async def _update_langflow_model_values(config, flows_service, llm_model=None, llm_provider=None, embedding_model=None, embedding_provider=None):
     """Update model values across Langflow flows for all configured providers"""
     try:
-        # 1. Update ONLY the current LLM provider
-        llm_provider = config.agent.llm_provider.lower()
-        await flows_service.change_langflow_model_value(
-            llm_provider,
-            llm_model=config.agent.llm_model,
-            force_llm_update=True
-        )
-        logger.info(
-            f"Successfully updated Langflow flows for LLM provider {llm_provider}"
-        )
 
-        # 2. Update ALL configured embedding providers
-        embedding_providers = []
-        if config.providers.openai.configured:
-            embedding_providers.append("openai")
-        if config.providers.watsonx.configured:
-            embedding_providers.append("watsonx")
-        if config.providers.ollama.configured:
-            embedding_providers.append("ollama")
-
-        current_embedding_provider = config.knowledge.embedding_provider.lower()
-        for provider in embedding_providers:
-            # Use configured model for current provider, or None (first available) for others
-            embedding_model = (
-                config.knowledge.embedding_model
-                if provider == current_embedding_provider
-                else None
+        if llm_model or llm_provider:
+            effective_llm_provider = (llm_provider or config.agent.llm_provider).lower()
+            if llm_provider and llm_provider.lower() != config.agent.llm_provider.lower():
+                effective_llm_model = llm_model  # do not fall back; force caller to specify
+            else:
+                effective_llm_model = llm_model or config.agent.llm_model
+            result = await flows_service.change_langflow_model_value(
+                effective_llm_provider,
+                llm_model=effective_llm_model,
+                force_llm_update=True
             )
 
-            await flows_service.change_langflow_model_value(
-                provider,
-                embedding_model=embedding_model,
+            logger.info(
+                f"Successfully updated Langflow flows for LLM provider {effective_llm_provider}",
+                result=result
+            )
+
+        if embedding_model or embedding_provider:
+            effective_embedding_provider = (embedding_provider or config.knowledge.embedding_provider).lower()
+            if embedding_provider and embedding_provider.lower() != config.knowledge.embedding_provider.lower():
+                effective_embedding_model = embedding_model  # do not fall back; force caller to specify
+            else:
+                effective_embedding_model = embedding_model or config.knowledge.embedding_model
+            result = await flows_service.change_langflow_model_value(
+                effective_embedding_provider,
+                embedding_model=effective_embedding_model,
                 force_embedding_update=True
             )
+
             logger.info(
-                f"Successfully updated Langflow flows for embedding provider {provider}"
+                f"Successfully updated Langflow flows for embedding provider {effective_embedding_provider}",
+                result=result
             )
 
+        if not (embedding_model or embedding_provider or llm_model or llm_provider):
+            # 2. Update ALL configured embedding providers
+            embedding_providers = []
+            if config.providers.openai.configured:
+                embedding_providers.append("openai")
+            if config.providers.watsonx.configured:
+                embedding_providers.append("watsonx")
+            if config.providers.ollama.configured:
+                embedding_providers.append("ollama")
+
+            current_embedding_provider = config.knowledge.embedding_provider.lower()
+            for provider in embedding_providers:
+                # Use configured model for current provider, or None (first available) for others
+                embedding_model = (
+                    config.knowledge.embedding_model
+                    if provider == current_embedding_provider
+                    else None
+                )
+                await flows_service.change_langflow_model_value(
+                        provider,
+                        embedding_model=embedding_model,
+                        force_embedding_update=True
+                    )
+                logger.info(
+                    f"Successfully updated Langflow flows for embedding provider {provider}"
+                )
     except Exception as e:
         logger.error(f"Failed to update Langflow model values: {str(e)}")
         raise
@@ -1592,8 +1680,12 @@ async def reapply_all_settings(session_manager = None):
 
 async def rollback_onboarding(
     request: Request,
+    body: Optional[RollbackBody] = None,
     session_manager=Depends(get_session_manager),
     task_service=Depends(get_task_service),
+    knowledge_filter_service=Depends(get_knowledge_filter_service),
+    flows_service=Depends(get_flows_service),
+    chat_service=Depends(get_chat_service),
     user: User = Depends(get_current_user),
 ) -> RollbackResponse:
     """Rollback onboarding configuration when sample data files fail.
@@ -1613,8 +1705,6 @@ async def rollback_onboarding(
                 {"error": "No onboarding configuration to rollback"}, status_code=400
             )
 
-            jwt_token = user.jwt_token
-
         logger.info("Rolling back onboarding configuration due to file failures")
 
         # Get all tasks for the user
@@ -1623,7 +1713,36 @@ async def rollback_onboarding(
         cancelled_tasks = []
         deleted_files = []
 
+        # Delete knowledge filters created during onboarding
+        try:
+            async def remove_filter(filter_id: Optional[str]):
+                if filter_id and knowledge_filter_service:
+                    try:
+                        result = await knowledge_filter_service.delete_knowledge_filter(
+                            filter_id, user.user_id, user.jwt_token
+                        )
+                        if result and result.get("success"):
+                            logger.info(f"Deleted knowledge filter {filter_id}")
+                        else:
+                            error_msg = result.get("error") if result else "Unknown error"
+                            logger.warning(f"Could not delete knowledge filter {filter_id}: {error_msg}")
+                    except Exception as e:
+                        logger.warning(f"Exception deleting knowledge filter {filter_id}: {str(e)}")
+
+            if getattr(current_config.onboarding, 'openrag_docs_filter_id', None):
+                await remove_filter(current_config.onboarding.openrag_docs_filter_id)
+                current_config.onboarding.openrag_docs_filter_id = None
+                
+            if getattr(current_config.onboarding, 'user_doc_filter_id', None):
+                await remove_filter(current_config.onboarding.user_doc_filter_id)
+                current_config.onboarding.user_doc_filter_id = None
+        except Exception as e:
+            logger.error(f"Error while cleaning up knowledge filters: {e}")
+
         # Cancel all active tasks and collect successfully ingested files
+        from session_manager import AnonymousUser
+        anonymous_user_id = AnonymousUser().user_id
+
         for task_data in all_tasks:
             task_id = task_data.get("task_id")
             task_status = task_data.get("status")
@@ -1638,41 +1757,63 @@ async def rollback_onboarding(
                 except Exception as e:
                     logger.error(f"Failed to cancel task {task_id}: {str(e)}")
 
-            # For completed tasks, find successfully ingested files and delete them
-            elif task_status == "completed":
-                files = task_data.get("files", {})
-                if isinstance(files, dict):
-                    for file_path, file_info in files.items():
-                        # Check if file was successfully ingested
-                        if isinstance(file_info, dict):
-                            file_status = file_info.get("status")
-                            filename = file_info.get("filename") or file_path.split("/")[-1]
+            # Delete all files associated with any task, regardless of whether 
+            # the task failed or completed, to ensure no partial chunks remain in OpenSearch.
+            files = task_data.get("files", {})
+            if isinstance(files, dict):
+                for file_path, file_info in files.items():
+                    if isinstance(file_info, dict):
+                        filename = file_info.get("filename") or file_path.split("/")[-1]
+                        if filename:
+                            try:
+                                opensearch_client = session_manager.get_user_opensearch_client(
+                                    user.user_id, user.jwt_token
+                                )
+                                from utils.opensearch_queries import build_filename_delete_body
+                                from config.settings import get_index_name
 
-                            if file_status == "completed" and filename:
-                                try:
-                                    # Get user's OpenSearch client
-                                    opensearch_client = session_manager.get_user_opensearch_client(
-                                        user.user_id, jwt_token
-                                    )
+                                delete_query = build_filename_delete_body(filename)
+                                result = await opensearch_client.delete_by_query(
+                                    index=get_index_name(),
+                                    body=delete_query,
+                                    conflicts="proceed"
+                                )
+                                deleted_count = result.get("deleted", 0)
+                                if deleted_count > 0:
+                                    deleted_files.append(filename)
+                                    logger.info(f"Deleted {deleted_count} chunks for filename {filename}")
+                            except Exception as e:
+                                logger.error(f"Failed to delete documents for {filename}: {str(e)}")
 
-                                    # Delete documents by filename
-                                    from utils.opensearch_queries import build_filename_delete_body
-                                    from config.settings import get_index_name
+            # Wipe the task completely from memory so the frontend doesn't see it anymore
+            for check_user_id in [user.user_id, anonymous_user_id]:
+                if check_user_id in task_service.task_store and task_id in task_service.task_store[check_user_id]:
+                    task_service._task_locks.pop(task_id, None)
+                    task_service.task_store[check_user_id].pop(task_id, None)
+                    logger.info(f"Purged task {task_id} completely from task_store for user {check_user_id}")
 
-                                    delete_query = build_filename_delete_body(filename)
+        # 4. Reset Langflow flows to their original state
+        reset_flows_count = 0
+        for flow_type in ["nudges", "retrieval", "ingest"]:
+            try:
+                result = await flows_service.reset_langflow_flow(flow_type)
+                if result.get("success"):
+                    reset_flows_count += 1
+                    logger.info(f"Successfully reset {flow_type} flow during rollback")
+                else:
+                    logger.warning(f"Failed to reset {flow_type} flow during rollback: {result.get('error')}")
+            except Exception as e:
+                logger.error(f"Error resetting {flow_type} flow during rollback: {e}")
 
-                                    result = await opensearch_client.delete_by_query(
-                                        index=get_index_name(),
-                                        body=delete_query,
-                                        conflicts="proceed"
-                                    )
-
-                                    deleted_count = result.get("deleted", 0)
-                                    if deleted_count > 0:
-                                        deleted_files.append(filename)
-                                        logger.info(f"Deleted {deleted_count} chunks for filename {filename}")
-                                except Exception as e:
-                                    logger.error(f"Failed to delete documents for {filename}: {str(e)}")
+        # 5. Delete all user conversations
+        deleted_conversations_count = 0
+        try:
+            result = await chat_service.delete_all_user_sessions(user.user_id)
+            if result.get("success"):
+                deleted_conversations_count = result.get("deleted_count", 0)
+                logger.info(f"Deleted {deleted_conversations_count} conversations during rollback")
+        except Exception as e:
+            logger.error(f"Error deleting conversations during rollback: {e}")
 
         # Clear embedding provider and model settings
         current_config.knowledge.embedding_provider = "openai"  # Reset to default
@@ -1680,11 +1821,21 @@ async def rollback_onboarding(
         current_config.onboarding.openrag_docs_ingested_version = None
         current_config.onboarding.openrag_docs_remote_signature = None
 
-        # Mark config as not edited so user can go through onboarding again
-        current_config.edited = False
-        current_config.onboarding.current_step = 0
+        embedding_only = body.embedding_only if body else False
 
-        # Save the rolled back configuration manually to avoid save_config_file setting edited=True
+        # Mark config as not edited so user can go through onboarding again
+        if not embedding_only:
+            current_config.edited = False
+            current_config.onboarding.current_step = 0
+            # Also clear LLM provider and model settings when doing a full rollback
+            current_config.agent.llm_provider = "openai"  # Reset to default
+            current_config.agent.llm_model = ""
+        else:
+            # When rolling back embedding only, we keep edited=True
+            # and set current_step to 1 (which is the embedding step)
+            current_config.onboarding.current_step = 1
+
+        # Save the rolled back configuration manually
         try:
             import yaml
             config_file = config_manager.config_file
@@ -1692,14 +1843,14 @@ async def rollback_onboarding(
             # Ensure directory exists
             config_file.parent.mkdir(parents=True, exist_ok=True)
 
-            # Save config with edited=False
+            # Save config with current edited state
             with open(config_file, "w") as f:
                 yaml.dump(current_config.to_dict(), f, default_flow_style=False, indent=2)
 
             # Update cached config
             config_manager._config = current_config
 
-            logger.info("Successfully saved rolled back configuration with edited=False")
+            logger.info(f"Successfully saved rolled back configuration with edited={current_config.edited}")
         except Exception as e:
             logger.error(f"Failed to save rolled back configuration: {e}")
             return JSONResponse(
@@ -1708,7 +1859,8 @@ async def rollback_onboarding(
 
         logger.info(
             f"Successfully rolled back onboarding configuration. "
-            f"Cancelled {len(cancelled_tasks)} tasks, deleted {len(deleted_files)} files"
+            f"Cancelled {len(cancelled_tasks)} tasks, deleted {len(deleted_files)} files, "
+            f"reset {reset_flows_count} flows, deleted {deleted_conversations_count} conversations"
         )
         await TelemetryClient.send_event(
             Category.ONBOARDING,
@@ -1719,6 +1871,8 @@ async def rollback_onboarding(
             message="Onboarding configuration rolled back successfully",
             cancelled_tasks=len(cancelled_tasks),
             deleted_files=len(deleted_files),
+            reset_flows=reset_flows_count,
+            deleted_conversations=deleted_conversations_count
         )
 
     except Exception as e:
@@ -1801,6 +1955,7 @@ async def update_docling_preset(
 async def refresh_openrag_docs(
     document_service=Depends(get_document_service),
     task_service=Depends(get_task_service),
+    models_service=Depends(get_models_service),
     langflow_file_service=Depends(get_langflow_file_service),
     session_manager=Depends(get_session_manager),
     user: User = Depends(get_current_user),
@@ -1811,6 +1966,7 @@ async def refresh_openrag_docs(
 
         refreshed = await refresh_default_openrag_docs(
             document_service=document_service,
+            models_service=models_service,
             task_service=task_service,
             langflow_file_service=langflow_file_service,
             session_manager=session_manager,

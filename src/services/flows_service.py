@@ -16,6 +16,8 @@ import os
 from datetime import datetime
 from utils.logging_config import get_logger
 from utils.telemetry import TelemetryClient, Category, MessageId
+import asyncio
+from cachetools import LRUCache
 
 logger = get_logger(__name__)
 
@@ -47,7 +49,7 @@ class FlowsService:
         resolved_url = None
         for cand in candidates:
             test_url = replace_localhost_patterns(endpoint, cand)
-            
+
             logger.debug(f"Probing Ollama candidate via Langflow: {test_url}")
             try:
                 response = await clients.langflow_request(
@@ -61,7 +63,7 @@ class FlowsService:
             except Exception as e:
                 logger.debug(f"Probe failed for {test_url}: {e}")
                 continue
-        
+
         if not resolved_url:
             # Fallback to simple transformation if probing fails
             resolved_url = transform_localhost_url(endpoint)
@@ -77,41 +79,54 @@ class FlowsService:
     def __init__(self):
         # Cache for flow file mappings to avoid repeated filesystem scans
         self._flow_file_cache = {}
+        # Semaphores to prevent race conditions when updating the same flow concurrently
+        self._flow_locks = LRUCache(maxsize=128)
+        self._lock_creation_lock = asyncio.Lock()
+        # Cache for enabled models to avoid redundant API calls
+        self._enabled_models_cache = None
+        self._enabled_models_cache_time = None
+        self._enabled_models_cache_ttl = 60  # seconds
+        self._enabled_models_lock = asyncio.Lock()
+
+    async def _get_flow_lock(self, flow_id: str) -> asyncio.Lock:
+        """Get or create an asyncio.Lock for a specific flow ID"""
+        async with self._lock_creation_lock:
+            if flow_id not in self._flow_locks:
+                self._flow_locks[flow_id] = asyncio.Lock()
+            return self._flow_locks[flow_id]
 
     def _get_flows_directory(self):
         """Get the flows directory path"""
-        current_file_dir = os.path.dirname(os.path.abspath(__file__))  # src/services/
-        src_dir = os.path.dirname(current_file_dir)  # src/
-        project_root = os.path.dirname(src_dir)  # project root
-        return os.path.join(project_root, "flows")
+        from config.paths import get_flows_path
+        return get_flows_path()
 
     def _get_backup_directory(self):
         """Get the backup directory path"""
-        flows_dir = self._get_flows_directory()
-        backup_dir = os.path.join(flows_dir, "backup")
+        from config.paths import get_flows_backup_path
+        backup_dir = get_flows_backup_path()
         os.makedirs(backup_dir, exist_ok=True)
         return backup_dir
 
     def _get_latest_backup_path(self, flow_id: str, flow_type: str):
         """
         Get the path to the latest backup file for a flow.
-        
+
         Args:
             flow_id: The flow ID
             flow_type: The flow type name
-        
+
         Returns:
             str: Path to latest backup file, or None if no backup exists
         """
         backup_dir = self._get_backup_directory()
-        
+
         if not os.path.exists(backup_dir):
             return None
-        
+
         # Find all backup files for this flow
         backup_files = []
         prefix = f"{flow_type}_"
-        
+
         try:
             for filename in os.listdir(backup_dir):
                 if filename.startswith(prefix) and filename.endswith(".json"):
@@ -122,10 +137,10 @@ class FlowsService:
         except Exception as e:
             logger.warning(f"Error reading backup directory: {str(e)}")
             return None
-        
+
         if not backup_files:
             return None
-        
+
         # Return the most recent backup (highest mtime)
         backup_files.sort(key=lambda x: x[0], reverse=True)
         return backup_files[0][1]
@@ -134,17 +149,17 @@ class FlowsService:
         """
         Compare two flow structures to see if they're different.
         Normalizes both flows before comparison.
-        
+
         Args:
             flow1: First flow data
             flow2: Second flow data
-        
+
         Returns:
             bool: True if flows are different, False if they're the same
         """
         normalized1 = self._normalize_flow_structure(flow1)
         normalized2 = self._normalize_flow_structure(flow2)
-        
+
         # Compare normalized structures
         return normalized1 != normalized2
 
@@ -152,10 +167,10 @@ class FlowsService:
         """
         Backup all flows from Langflow to the backup folder.
         Only backs up flows that have changed since the last backup.
-        
+
         Args:
             only_if_changed: If True, only backup flows that differ from latest backup
-        
+
         Returns:
             dict: Summary of backup operations with success/failure status
         """
@@ -175,9 +190,9 @@ class FlowsService:
 
         logger.info("Starting periodic backup of Langflow flows")
 
-        for flow_type, flow_id in flow_configs:
+        async def backup_single_flow(flow_type, flow_id):
             if not flow_id:
-                continue
+                return None
 
             try:
                 # Get current flow from Langflow
@@ -186,13 +201,14 @@ class FlowsService:
                     logger.warning(
                         f"Failed to get flow {flow_id} for backup: HTTP {response.status_code}"
                     )
-                    backup_results["failed"].append({
-                        "flow_type": flow_type,
-                        "flow_id": flow_id,
-                        "error": f"HTTP {response.status_code}",
-                    })
-                    backup_results["success"] = False
-                    continue
+                    return {
+                        "type": "failed",
+                        "data": {
+                            "flow_type": flow_type,
+                            "flow_id": flow_id,
+                            "error": f"HTTP {response.status_code}",
+                        }
+                    }
 
                 current_flow = response.json()
 
@@ -200,66 +216,86 @@ class FlowsService:
                 flow_locked = current_flow.get("locked", False)
                 latest_backup_path = self._get_latest_backup_path(flow_id, flow_type)
                 has_backups = latest_backup_path is not None
-                
+
                 # If flow is locked and no backups exist, skip backup
                 if flow_locked and not has_backups:
                     logger.debug(
                         f"Flow {flow_type} (ID: {flow_id}) is locked and has no backups, skipping backup"
                     )
-                    backup_results["skipped"].append({
-                        "flow_type": flow_type,
-                        "flow_id": flow_id,
-                        "reason": "locked_without_backups",
-                    })
-                    continue
-                
+                    return {
+                        "type": "skipped",
+                        "data": {
+                            "flow_type": flow_type,
+                            "flow_id": flow_id,
+                            "reason": "locked_without_backups",
+                        }
+                    }
+
                 # Check if we need to backup (only if changed)
                 if only_if_changed and has_backups:
                     try:
                         with open(latest_backup_path, "r") as f:
                             latest_backup = json.load(f)
-                        
+
                         # Compare flows
                         if not self._compare_flows(current_flow, latest_backup):
                             logger.debug(
                                 f"Flow {flow_type} (ID: {flow_id}) unchanged, skipping backup"
                             )
-                            backup_results["skipped"].append({
-                                "flow_type": flow_type,
-                                "flow_id": flow_id,
-                                "reason": "unchanged",
-                            })
-                            continue
+                            return {
+                                "type": "skipped",
+                                "data": {
+                                    "flow_type": flow_type,
+                                    "flow_id": flow_id,
+                                    "reason": "unchanged",
+                                }
+                            }
                     except Exception as e:
                         logger.warning(
                             f"Failed to read latest backup for {flow_type} (ID: {flow_id}): {str(e)}"
                         )
-                        # Continue with backup if we can't read the latest backup
 
                 # Backup the flow
                 backup_path = await self._backup_flow(flow_id, flow_type, current_flow)
                 if backup_path:
-                    backup_results["backed_up"].append({
-                        "flow_type": flow_type,
-                        "flow_id": flow_id,
-                        "backup_path": backup_path,
-                    })
+                    return {
+                        "type": "backed_up",
+                        "data": {
+                            "flow_type": flow_type,
+                            "flow_id": flow_id,
+                            "backup_path": backup_path,
+                        }
+                    }
                 else:
-                    backup_results["failed"].append({
-                        "flow_type": flow_type,
-                        "flow_id": flow_id,
-                        "error": "Backup returned None",
-                    })
-                    backup_results["success"] = False
+                    return {
+                        "type": "failed",
+                        "data": {
+                            "flow_type": flow_type,
+                            "flow_id": flow_id,
+                            "error": "Backup returned None",
+                        }
+                    }
             except Exception as e:
                 logger.error(
                     f"Failed to backup {flow_type} flow (ID: {flow_id}): {str(e)}"
                 )
-                backup_results["failed"].append({
-                    "flow_type": flow_type,
-                    "flow_id": flow_id,
-                    "error": str(e),
-                })
+                return {
+                    "type": "failed",
+                    "data": {
+                        "flow_type": flow_type,
+                        "flow_id": flow_id,
+                        "error": str(e),
+                    }
+                }
+
+        tasks = [backup_single_flow(ft, fi) for ft, fi in flow_configs]
+        results = await asyncio.gather(*tasks)
+
+        for result in results:
+            if not result:
+                continue
+            backup_results[result["type"]].append(result["data"])
+            if result["type"] == "failed":
                 backup_results["success"] = False
 
         logger.info(
@@ -280,12 +316,12 @@ class FlowsService:
     async def _backup_flow(self, flow_id: str, flow_type: str, flow_data: dict = None):
         """
         Backup a single flow to the backup folder.
-        
+
         Args:
             flow_id: The flow ID to backup
             flow_type: The flow type name (nudges, retrieval, ingest, url_ingest)
             flow_data: The flow data to backup (if None, fetches from API)
-        
+
         Returns:
             str: Path to the backup file, or None if backup failed
         """
@@ -717,7 +753,7 @@ class FlowsService:
         for node in nodes:
             node_data = node.get("data", {})
             node_template = node_data.get("node", {})
-            
+
             normalized_node = {
                 "id": node.get("id"),  # Keep ID for edge matching
                 "type": node.get("type"),
@@ -775,20 +811,20 @@ class FlowsService:
             # Compare entire normalized structures exactly
             # Sort nodes and edges for consistent comparison
             normalized_langflow["data"]["nodes"] = sorted(
-                normalized_langflow["data"]["nodes"], 
+                normalized_langflow["data"]["nodes"],
                 key=lambda x: (x.get("id", ""), x.get("type", ""))
             )
             normalized_file["data"]["nodes"] = sorted(
-                normalized_file["data"]["nodes"], 
+                normalized_file["data"]["nodes"],
                 key=lambda x: (x.get("id", ""), x.get("type", ""))
             )
 
             normalized_langflow["data"]["edges"] = sorted(
-                normalized_langflow["data"]["edges"], 
+                normalized_langflow["data"]["edges"],
                 key=lambda x: (x.get("source", ""), x.get("target", ""), x.get("sourceHandle", ""), x.get("targetHandle", ""))
             )
             normalized_file["data"]["edges"] = sorted(
-                normalized_file["data"]["edges"], 
+                normalized_file["data"]["edges"],
                 key=lambda x: (x.get("source", ""), x.get("target", ""), x.get("sourceHandle", ""), x.get("targetHandle", ""))
             )
 
@@ -798,6 +834,83 @@ class FlowsService:
         except Exception as e:
             logger.error(f"Error comparing flow {flow_id} with file: {str(e)}")
             return False
+
+    async def ensure_flows_exist(self) -> set[str]:
+        """
+        Ensure all configured flows exist in Langflow.
+
+        Creates flows from their JSON files if they are not already present in
+        the Langflow database.  This is intentionally create-only: it never
+        patches or overwrites an existing flow, preserving any edits the user
+        has made in the Langflow UI.
+
+        This replaces the LANGFLOW_LOAD_FLOWS_PATH mechanism, which performed a
+        blind upsert on every container start and discarded user edits.
+
+        Returns the set of flow type names that were actually created.
+        """
+        flow_configs = [
+            ("nudges", NUDGES_FLOW_ID),
+            ("retrieval", LANGFLOW_CHAT_FLOW_ID),
+            ("ingest", LANGFLOW_INGEST_FLOW_ID),
+            ("url_ingest", LANGFLOW_URL_INGEST_FLOW_ID),
+        ]
+        created_flow_types: set[str] = set()
+
+        async def ensure_single_flow_exists(flow_type, flow_id):
+            if not flow_id:
+                return None
+            try:
+                response = await clients.langflow_request(
+                    "GET", f"/api/v1/flows/{flow_id}"
+                )
+                if response.status_code == 200:
+                    logger.info(
+                        f"Flow {flow_type} (ID: {flow_id}) already exists, skipping creation"
+                    )
+                    return None
+
+                if response.status_code != 404:
+                    logger.warning(
+                        f"Unexpected status checking {flow_type} flow (ID: {flow_id}): "
+                        f"HTTP {response.status_code} — skipping creation to avoid overwriting existing data"
+                    )
+                    return None
+
+                flow_path = self._find_flow_file_by_id(flow_id)
+                if not flow_path:
+                    logger.warning(
+                        f"No flow file found for {flow_type} (ID: {flow_id}), cannot create"
+                    )
+                    return None
+
+                with open(flow_path, "r") as f:
+                    flow_data = json.load(f)
+
+                response = await clients.langflow_request(
+                    "PUT", f"/api/v1/flows/{flow_id}", json=flow_data
+                )
+                if response.status_code in (200, 201):
+                    logger.info(
+                        f"Created {flow_type} flow (ID: {flow_id}) from {os.path.basename(flow_path)}"
+                    )
+                    return flow_type
+                else:
+                    logger.warning(
+                        f"Failed to create {flow_type} flow (ID: {flow_id}): "
+                        f"HTTP {response.status_code} — {response.text}"
+                    )
+                    return None
+            except Exception as e:
+                logger.error(
+                    f"Error ensuring {flow_type} flow (ID: {flow_id}) exists: {e}"
+                )
+                return None
+
+        tasks = [ensure_single_flow_exists(ft, fi) for ft, fi in flow_configs]
+        results = await asyncio.gather(*tasks)
+        created_flow_types = {r for r in results if r is not None}
+        return created_flow_types
 
     async def check_flows_reset(self):
         """
@@ -813,21 +926,23 @@ class FlowsService:
             ("url_ingest", LANGFLOW_URL_INGEST_FLOW_ID),
         ]
 
-        for flow_type, flow_id in flow_configs:
+        async def check_single_flow_reset(flow_type, flow_id):
             if not flow_id:
-                continue
-
+                return None
             logger.info(f"Checking if {flow_type} flow (ID: {flow_id}) was reset")
             is_reset = await self._compare_flow_with_file(flow_id)
-            
             if is_reset:
                 logger.info(f"Flow {flow_type} (ID: {flow_id}) appears to have been reset")
-                reset_flows.append(flow_type)
+                return flow_type
             else:
                 logger.info(f"Flow {flow_type} (ID: {flow_id}) does not match reset state")
+                return None
 
+        tasks = [check_single_flow_reset(ft, fi) for ft, fi in flow_configs]
+        results = await asyncio.gather(*tasks)
+        reset_flows = [r for r in results if r is not None]
         return reset_flows
-        
+
     async def change_langflow_model_value(
         self,
         provider: str,
@@ -861,10 +976,10 @@ class FlowsService:
                     {"name": "url_ingest", "flow_id": LANGFLOW_URL_INGEST_FLOW_ID},
                 ]
 
-            results = []
+            tasks = []
             for config in flow_configs:
-                try:
-                    result = await self._update_provider_components(
+                tasks.append(
+                    self._update_provider_components(
                         config,
                         provider,
                         embedding_model=embedding_model,
@@ -872,10 +987,19 @@ class FlowsService:
                         force_embedding_update=force_embedding_update,
                         force_llm_update=force_llm_update,
                     )
+                )
+
+            # Process all flows simultaneously
+            raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+
+            results = []
+            for i, result in enumerate(raw_results):
+                if isinstance(result, Exception):
+                    flow_name = flow_configs[i]["name"]
+                    logger.error(f"Error updating {flow_name} flow: {str(result)}")
+                    results.append({"flow": flow_name, "success": False, "error": str(result)})
+                else:
                     results.append(result)
-                except Exception as e:
-                    logger.error(f"Error updating {config['name']} flow: {str(e)}")
-                    results.append({"flow": config["name"], "success": False, "error": str(e)})
 
             return {
                 "success": all(r.get("success", False) for r in results),
@@ -899,143 +1023,131 @@ class FlowsService:
         """Update provider components and their dropdown values in a flow"""
         flow_name = config["name"]
         flow_id = config["flow_id"]
+        # Use a flow-specific lock to prevent race conditions during the GET-Modify-PATCH cycle
+        flow_lock = await self._get_flow_lock(flow_id)
+        async with flow_lock:
+            # Get flow data from Langflow API instead of file
+            response = await clients.langflow_request("GET", f"/api/v1/flows/{flow_id}")
 
-        # Get flow data from Langflow API instead of file
-        response = await clients.langflow_request("GET", f"/api/v1/flows/{flow_id}")
+            if response.status_code != 200:
+                raise Exception(
+                    f"Failed to get flow from Langflow: HTTP {response.status_code} - {response.text}"
+                )
 
-        if response.status_code != 200:
-            raise Exception(
-                f"Failed to get flow from Langflow: HTTP {response.status_code} - {response.text}"
+            flow_data = response.json()
+            updates_made = []
+            node_tasks = []
+
+            async def wrap_node_update(node, p, m, label):
+                if await self._update_component_fields(node, p, m):
+                    return label
+                return None
+
+            # Update embedding component
+            if not DISABLE_INGEST_WITH_LANGFLOW and (embedding_model or force_embedding_update):
+                # Get all embedding nodes in the flow
+                embedding_nodes = self._find_nodes_in_flow(flow_data, display_name=OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME)
+                logger.info(f"Found {len(embedding_nodes)} embedding nodes in flow {flow_name} with display name '{OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME}'")
+
+                # Count configured embedding-enabled providers
+                config_obj = get_openrag_config()
+                configured_providers = []
+                if config_obj.providers.openai.configured: configured_providers.append("openai")
+                if config_obj.providers.watsonx.configured: configured_providers.append("watsonx")
+                if config_obj.providers.ollama.configured: configured_providers.append("ollama")
+
+                # Ensure current provider is in the list for counting purposes if it's being configured
+                if provider in ["openai", "watsonx", "ollama"] and provider not in configured_providers:
+                    configured_providers.append(provider)
+
+                all_possible = ["openai", "watsonx", "ollama"]
+                configured_providers = [p for p in all_possible if p in configured_providers]
+                provider_count = len(configured_providers)
+                logger.info(f"Configured embedding providers: {configured_providers} (count: {provider_count})")
+
+                # 1. Check if any node is already this provider - always update those first
+                matched_nodes = []
+                provider_display = self._get_provider_name_display(provider)
+                for node, idx in embedding_nodes:
+                    if self._get_node_provider(node) == provider_display:
+                        matched_nodes.append((node, idx))
+
+                if matched_nodes:
+                    logger.info(f"Found {len(matched_nodes)} nodes already configured for provider '{provider}'")
+                    for node, idx in matched_nodes:
+                        node_tasks.append(wrap_node_update(node, provider, embedding_model, f"embedding model: {embedding_model} (updated existing {provider} node)"))
+                else:
+                    # 2. No existing node matched, use slot-based logic
+                    try:
+                        p_index = configured_providers.index(provider)
+                        logger.info(f"Using slot-based logic for provider '{provider}' (p_index: {p_index}, total configured: {provider_count})")
+
+                        if provider_count == 1:
+                            # Single provider mode: update all available nodes (up to 3)
+                            logger.info(f"Single provider mode: updating all available embedding nodes (available: {len(embedding_nodes)})")
+                            for i in range(min(3, len(embedding_nodes))):
+                                node, idx = embedding_nodes[i]
+                                node_tasks.append(wrap_node_update(node, provider, embedding_model, f"embedding model: {embedding_model} (set node {i+1})"))
+                        else:
+                            # Multiple providers: each gets one slot based on its list index
+                            if p_index < len(embedding_nodes):
+                                node, idx = embedding_nodes[p_index]
+                                logger.info(f"Multiple provider mode: assigning provider '{provider}' to node slot {p_index} (node {p_index+1})")
+                                node_tasks.append(wrap_node_update(node, provider, embedding_model, f"embedding model: {embedding_model} (set node {p_index+1})"))
+                            else:
+                                logger.info(f"Provider index {p_index} exceeds available embedding nodes ({len(embedding_nodes)}) - skipping automatic assignment")
+                    except ValueError:
+                        logger.warning(f"Current provider '{provider}' not found in configured providers list: {configured_providers}")
+
+            # Update LLM component (if exists in this flow)
+            if llm_model or force_llm_update:
+                llm_node, _ = self._find_node_in_flow(flow_data, display_name=OPENAI_LLM_COMPONENT_DISPLAY_NAME)
+                if llm_node:
+                    node_tasks.append(wrap_node_update(llm_node, provider, llm_model, f"llm model: {llm_model}"))
+                
+                agent_node, _ = self._find_node_in_flow(flow_data, display_name=AGENT_COMPONENT_DISPLAY_NAME)
+                if agent_node:
+                    node_tasks.append(wrap_node_update(agent_node, provider, llm_model, f"agent model: {llm_model}"))
+
+            # Execute all node updates simultaneously
+            if node_tasks:
+                node_results = await asyncio.gather(*node_tasks)
+                updates_made.extend([r for r in node_results if r])
+
+            # If no updates were made, return skip message
+            if not updates_made:
+                return {
+                    "flow": flow_name,
+                    "success": True,
+                    "message": f"No compatible components found in {flow_name} flow (skipped)",
+                    "flow_id": flow_id,
+                }
+
+            logger.info(f"Updated {', '.join(updates_made)} in {flow_name} flow")
+
+            # PATCH the updated flow
+            response = await clients.langflow_request(
+                "PATCH", f"/api/v1/flows/{flow_id}", json=flow_data
             )
 
-        flow_data = response.json()
+            if response.status_code != 200:
+                raise Exception(
+                    f"Failed to update flow: HTTP {response.status_code} - {response.text}"
+                )
 
-        updates_made = []
-
-        # Update embedding component
-        if not DISABLE_INGEST_WITH_LANGFLOW and (embedding_model or force_embedding_update):
-            # Get all embedding nodes in the flow
-            embedding_nodes = self._find_nodes_in_flow(flow_data, display_name=OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME)
-            logger.info(f"Found {len(embedding_nodes)} embedding nodes in flow {flow_name} with display name '{OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME}'")
-            
-            # Count configured embedding-enabled providers
-            config_obj = get_openrag_config()
-            configured_providers = []
-            if config_obj.providers.openai.configured: configured_providers.append("openai")
-            if config_obj.providers.watsonx.configured: configured_providers.append("watsonx")
-            if config_obj.providers.ollama.configured: configured_providers.append("ollama")
-            
-            # Ensure current provider is in the list for counting purposes if it's being configured
-            if provider in ["openai", "watsonx", "ollama"] and provider not in configured_providers:
-                configured_providers.append(provider)
-            
-            all_possible = ["openai", "watsonx", "ollama"]
-            configured_providers = [p for p in all_possible if p in configured_providers]
-            provider_count = len(configured_providers)
-            logger.info(f"Configured embedding providers: {configured_providers} (count: {provider_count})")
-            
-            # Determine slot mapping context
-            if provider_count == 1:
-                logger.info("Configuration mode: all 3 slots belong to the single active provider")
-            elif provider_count == 2:
-                logger.info("Configuration mode: first 2 slots assigned to providers 1 and 2")
-            elif provider_count == 3:
-                logger.info("Configuration mode: slots 1, 2, and 3 assigned to their respective providers")
-
-            # 1. Check if any node is already this provider - always update those first
-            matched_nodes = []
-            provider_display = self._get_provider_name_display(provider)
-            for node, idx in embedding_nodes:
-                if self._get_node_provider(node) == provider_display:
-                    matched_nodes.append((node, idx))
-            
-            if matched_nodes:
-                logger.info(f"Found {len(matched_nodes)} nodes already configured for provider '{provider}'")
-                for node, idx in matched_nodes:
-                    if await self._update_component_fields(node, provider, embedding_model):
-                        updates_made.append(f"embedding model: {embedding_model} (updated existing {provider} node)")
-            else:
-                # 2. No existing node matched, use slot-based logic
-                try:
-                    p_index = configured_providers.index(provider)
-                    logger.info(f"Using slot-based logic for provider '{provider}' (p_index: {p_index}, total configured: {provider_count})")
-
-                    if provider_count == 1:
-                        # Single provider mode: update all available nodes (up to 3)
-                        logger.info(f"Single provider mode: updating all available embedding nodes (available: {len(embedding_nodes)})")
-                        for i in range(min(3, len(embedding_nodes))):
-                            node, idx = embedding_nodes[i]
-                            if await self._update_component_fields(node, provider, embedding_model):
-                                updates_made.append(
-                                    f"embedding model: {embedding_model} (set node {i+1})"
-                                )
-                    else:
-                        # Multiple providers: each gets one slot based on its list index
-                        # This satisfies:
-                        # - 2 providers -> node 0 and node 1 updated ("two first nodes")
-                        # - 3 providers -> node 0, 1, 2 updated ("each gets its first one")
-                        if p_index < len(embedding_nodes):
-                            node, idx = embedding_nodes[p_index]
-                            logger.info(f"Multiple provider mode: assigning provider '{provider}' to node slot {p_index} (node {p_index+1})")
-                            if await self._update_component_fields(node, provider, embedding_model):
-                                updates_made.append(
-                                    f"embedding model: {embedding_model} (set node {p_index+1})"
-                                )
-                        else:
-                            logger.info(f"Provider index {p_index} exceeds available embedding nodes ({len(embedding_nodes)}) - skipping automatic assignment")
-                except ValueError:
-                    logger.warning(f"Current provider '{provider}' not found in configured providers list: {configured_providers}")
-
-        # Update LLM component (if exists in this flow)
-        if llm_model or force_llm_update:
-            llm_node, _ = self._find_node_in_flow(flow_data, display_name=OPENAI_LLM_COMPONENT_DISPLAY_NAME)
-            if llm_node:
-                if await self._update_component_fields(
-                    llm_node, provider, llm_model
-                ):
-                    updates_made.append(f"llm model: {llm_model}")
-            # Update LLM component (if exists in this flow)
-            agent_node, _ = self._find_node_in_flow(flow_data, display_name=AGENT_COMPONENT_DISPLAY_NAME)
-            if agent_node:
-                if await self._update_component_fields(
-                    agent_node, provider, llm_model
-                ):
-                    updates_made.append(f"agent model: {llm_model}")
-
-        # If no updates were made, return skip message
-        if not updates_made:
             return {
                 "flow": flow_name,
                 "success": True,
-                "message": f"No compatible components found in {flow_name} flow (skipped)",
+                "message": f"Successfully updated {', '.join(updates_made)}",
                 "flow_id": flow_id,
             }
-
-        logger.info(f"Updated {', '.join(updates_made)} in {flow_name} flow")
-
-        # PATCH the updated flow
-        response = await clients.langflow_request(
-            "PATCH", f"/api/v1/flows/{flow_id}", json=flow_data
-        )
-
-        if response.status_code != 200:
-            raise Exception(
-                f"Failed to update flow: HTTP {response.status_code} - {response.text}"
-            )
-
-        return {
-            "flow": flow_name,
-            "success": True,
-            "message": f"Successfully updated {', '.join(updates_made)}",
-            "flow_id": flow_id,
-        }
 
     async def _update_component_langflow(self, template, model: str):
         # Call custom_component/update endpoint to get updated template
         # Only call if code field exists (custom components should have code)
         if "code" in template and "value" in template["code"]:
             code_value = template["code"]["value"]
-                            
+
             try:
                 update_payload = {
                     "code": code_value,
@@ -1044,11 +1156,11 @@ class FlowsService:
                     "field_value": model,
                     "tool_mode": False,
                 }
-                
+
                 response = await clients.langflow_request(
                     "POST", "/api/v1/custom_component/update", json=update_payload
                 )
-                
+
                 if response.status_code == 200:
                     response_data = response.json()
                     # Update template with the new template from response.data
@@ -1079,14 +1191,14 @@ class FlowsService:
         updated = False
         provider_name = self._get_provider_name_display(provider)
 
-        # Enable the model in Langflow first
-        await self._enable_model_in_langflow(provider_name, model_value)
-
         # Update model field and call custom_component/update endpoint
         if "model" in template:
             if "options" not in template["model"]:
+                logger.warning(f"Model field not found in template for provider {provider_name}")
                 return False
 
+            # Enable the model in Langflow first
+            await self._enable_model_in_langflow(provider_name, model_value)
             # Update template via Langflow API to get latest options
             template = await self._update_component_langflow(template, template["model"]["value"]) or template
             component_node["data"]["node"]["template"] = template
@@ -1156,24 +1268,51 @@ class FlowsService:
     async def _enable_model_in_langflow(self, provider_name: str, model_value: str):
         """Ensure the specified model is enabled in Langflow."""
         try:
+            enabled_data = None
+            async with self._enabled_models_lock:
+                # Check if cache is still valid
+                if (self._enabled_models_cache and self._enabled_models_cache_time and 
+                    (datetime.now() - self._enabled_models_cache_time).total_seconds() < self._enabled_models_cache_ttl):
+                    enabled_data = self._enabled_models_cache
+                else:
+                    # Cache miss or stale, fetch from Langflow
+                    get_response = await clients.langflow_request("GET", "/api/v1/models/enabled_models")
+                    if get_response.status_code == 200:
+                        enabled_data = get_response.json().get("enabled_models", {})
+                        self._enabled_models_cache = enabled_data
+                        self._enabled_models_cache_time = datetime.now()
+                        logger.debug("Refreshed enabled models cache from Langflow")
+
+            if enabled_data:
+                provider_models = enabled_data.get(provider_name, {})
+                if provider_models.get(model_value) is True:
+                    logger.info(f"Model {model_value} for provider {provider_name} is already enabled. Skipping.")
+                    return False
+
             enable_payload = [{
                 "provider": provider_name,
                 "model_id": model_value,
                 "enabled": True
             }]
-            
+
             response = await clients.langflow_request(
                 "POST", "/api/v1/models/enabled_models", json=enable_payload
             )
-            
+
             if response.status_code == 200:
                 logger.info(f"Successfully enabled model {model_value} for provider {provider_name}")
+                async with self._enabled_models_lock:
+                    self._enabled_models_cache = None
+                return True
             else:
                 logger.warning(
                     f"Failed to enable model: HTTP {response.status_code} - {response.text}"
                 )
+                async with self._enabled_models_lock:
+                    self._enabled_models_cache = None
         except Exception as e:
-            logger.error(f"Error enabling model {model_value}: {str(e)}")
+            logger.error(f"Error enabling model in Langflow: {str(e)}")
+        return False
 
     def _get_provider_component_ids(self, provider: str):
         """Helper to get component display names for various providers."""

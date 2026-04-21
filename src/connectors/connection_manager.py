@@ -39,8 +39,9 @@ class ConnectionConfig:
 class ConnectionManager:
     """Manages multiple connector connections with persistence"""
 
-    def __init__(self, connections_file: str = "data/connections.json"):
-        self.connections_file = Path(connections_file)
+    def __init__(self, connections_file: str = None):
+        from config.paths import get_data_file
+        self.connections_file = Path(connections_file or get_data_file("connections.json"))
         # Ensure data directory exists
         self.connections_file.parent.mkdir(parents=True, exist_ok=True)
         self.connections: Dict[str, ConnectionConfig] = {}
@@ -48,11 +49,35 @@ class ConnectionManager:
 
     async def load_connections(self):
         """Load connections from persistent storage"""
+        from utils.encryption import decrypt_secret, get_master_secret
+        
+        needs_encryption_upgrade = False
+        decryption_failed = False
+        secret_keys = {
+            "api_key", "hmac_secret_key", "secret_key", "client_secret",
+            "aws_secret_access_key", "ibm_api_key", "access_token", "refresh_token",
+            "access_key", "hmac_access_key", "service_instance_id","basic_credentials"
+        }
+        
         if self.connections_file.exists():
             async with aiofiles.open(self.connections_file, "r") as f:
                 data = json.loads(await f.read())
 
             for conn_data in data.get("connections", []):
+                # Decrypt sensitive fields
+                if "config" in conn_data and isinstance(conn_data["config"], dict):
+                    for k, v in conn_data["config"].items():
+                        if isinstance(v, dict) and v.get("algorithm") == "AES-256-GCM":
+                            try:
+                                tenant = conn_data.get("user_id") or "openrag"
+                                conn_data["config"][k] = decrypt_secret(v, expected_tenant_id=tenant)
+                            except ValueError as e:
+                                logger.error(f"Failed to decrypt connection secret {k}: {e}")
+                                decryption_failed = True
+                        elif k in secret_keys and isinstance(v, str) and v:
+                            if get_master_secret() is not None:
+                                needs_encryption_upgrade = True
+                                
                 # Convert datetime strings back to datetime objects
                 if conn_data.get("created_at"):
                     conn_data["created_at"] = datetime.fromisoformat(
@@ -65,16 +90,45 @@ class ConnectionManager:
 
                 config = ConnectionConfig(**conn_data)
                 self.connections[config.connection_id] = config
+                
+            if needs_encryption_upgrade:
+                if decryption_failed:
+                    logger.warning(
+                        "Detected unencrypted connection secrets in %s but skipped "
+                        "encryption upgrade because some secrets failed to decrypt.",
+                        self.connections_file,
+                    )
+                else:
+                    logger.info(
+                        "Upgrading unencrypted connection secrets in %s to AES-256-GCM",
+                        self.connections_file,
+                    )
+                    await self.save_connections()
 
             # Now that connections are loaded, clean up duplicates
             await self.cleanup_duplicate_connections(remove_duplicates=True)
 
     async def save_connections(self):
         """Save connections to persistent storage"""
+        from utils.encryption import encrypt_secret
+        secret_keys = {
+            "api_key", "hmac_secret_key", "secret_key", "client_secret",
+            "aws_secret_access_key", "ibm_api_key", "access_token", "refresh_token",
+            "access_key", "hmac_access_key", "service_instance_id", "basic_credentials"
+        }
+        
         data = {"connections": []}
 
         for config in self.connections.values():
             conn_data = asdict(config)
+            
+            # Encrypt sensitive fields in config
+            if "config" in conn_data and isinstance(conn_data["config"], dict):
+                for k, v in conn_data["config"].items():
+                    if k in secret_keys and isinstance(v, str):
+                        tenant_id = conn_data.get("user_id") or "openrag"
+                        conn_data["config"][k] = encrypt_secret(v, tenant_id=tenant_id)
+                        
             # Convert datetime objects to strings
             if conn_data.get("created_at"):
                 conn_data["created_at"] = conn_data["created_at"].isoformat()
@@ -97,6 +151,37 @@ class ConnectionManager:
             ):
                 return connection
         return None
+
+    async def upsert_ibm_credentials(
+        self, user_id: str, basic_credentials: str, username: str
+    ) -> str:
+        """Store or update IBM OpenSearch credentials for a user in connections.json.
+
+        Uses connector_type='ibm_credentials' — this entry is a credentials store only
+        and is never passed to _create_connector.
+        """
+        for conn in self.connections.values():
+            if (
+                conn.connector_type == "ibm_credentials"
+                and conn.user_id == user_id
+                and conn.is_active
+            ):
+                conn.config["basic_credentials"] = basic_credentials
+                conn.config["username"] = username
+                await self.save_connections()
+                return conn.connection_id
+
+        conn_id = str(uuid.uuid4())
+        new_conn = ConnectionConfig(
+            connection_id=conn_id,
+            connector_type="ibm_credentials",
+            name=f"IBM Credentials ({username})",
+            config={"basic_credentials": basic_credentials, "username": username},
+            user_id=user_id,
+        )
+        self.connections[conn_id] = new_conn
+        await self.save_connections()
+        return conn_id
 
     async def cleanup_duplicate_connections(self, remove_duplicates=False):
         """

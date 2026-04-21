@@ -43,6 +43,27 @@ class ConfigSection:
 
 
 CONFIG_SECTIONS: list[ConfigSection] = [
+    # ── Security ────────────────────────────────────────────────
+    ConfigSection("Security", [
+        ConfigField(
+            "openrag_encryption_key", "OPENRAG_ENCRYPTION_KEY", "OpenRAG Master Key",
+            placeholder="Auto-generated secure Base64 key",
+            secret=True, required=True,
+            helper_text="32-byte Base64 key for securing your database credentials (auto-generates if empty)",
+        ),
+        ConfigField(
+            "openrag_tenant_id", "OPENRAG_TENANT_ID", "Tenant ID",
+            placeholder="openrag", default="openrag",
+            helper_text="Identifier for AAD tenant binding (default: openrag)",
+        ),
+        ConfigField(
+            "openrag_enforce_prerequisites", "OPENRAG_ENFORCE_PREREQUISITES", "Enforce Prerequisites",
+            placeholder="false", default="false",
+            advanced=True,
+            helper_text="If true, application will fail to start if the encryption key is missing",
+        ),
+    ]),
+
     # ── OpenSearch ──────────────────────────────────────────────
     ConfigSection("OpenSearch", [
         ConfigField(
@@ -67,12 +88,6 @@ CONFIG_SECTIONS: list[ConfigSection] = [
             helper_text="Override for remote OpenSearch instances (default: 9200)",
         ),
         ConfigField(
-            "opensearch_data_path", "OPENSEARCH_DATA_PATH", "Data Path",
-            placeholder="~/.openrag/data/opensearch-data",
-            default="$HOME/.openrag/data/opensearch-data",
-            helper_text="Directory to persist OpenSearch indices across upgrades",
-        ),
-        ConfigField(
             "opensearch_index_name", "OPENSEARCH_INDEX_NAME", "Index Name",
             placeholder="documents", default="documents",
             helper_text="Name of the index to use in OpenSearch",
@@ -90,6 +105,12 @@ CONFIG_SECTIONS: list[ConfigSection] = [
         ConfigField(
             "langflow_superuser", "LANGFLOW_SUPERUSER", "Admin Username",
             placeholder="admin", default="admin",
+        ),
+        ConfigField(
+            "langflow_data_path", "LANGFLOW_DATA_PATH", "Data Path",
+            placeholder="~/.openrag/data/langflow-data",
+            default="$HOME/.openrag/data/langflow-data",
+            helper_text="Directory to persist Langflow flows and state across restarts",
         ),
         ConfigField(
             "langflow_public_url", "LANGFLOW_PUBLIC_URL", "Public URL",

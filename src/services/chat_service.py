@@ -81,7 +81,7 @@ class ChatService:
         extra_headers["X-LANGFLOW-GLOBAL-VAR-SELECTED_EMBEDDING_MODEL"] = embedding_model
         
         # Add provider credentials to headers
-        await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service)
+        await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
         logger.debug(f"[LF] Extra headers {extra_headers}")
         # Get context variables for filters, limit, and threshold
         from auth_context import (
@@ -206,7 +206,7 @@ class ChatService:
         extra_headers["X-LANGFLOW-GLOBAL-VAR-SELECTED_EMBEDDING_MODEL"] = embedding_model
         
         # Add provider credentials to headers
-        await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service)
+        await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
 
         # Build the complete filter expression like the chat service does
         filter_expression = {}
@@ -336,7 +336,7 @@ class ChatService:
             extra_headers["X-LANGFLOW-GLOBAL-VAR-SELECTED_EMBEDDING_MODEL"] = embedding_model
             
             # Add provider credentials to headers
-            await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service)
+            await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
             
             # Ensure the Langflow client exists; try lazy init if needed
             langflow_client = await clients.ensure_langflow_client()
@@ -652,3 +652,21 @@ class ChatService:
         except Exception as e:
             logger.error(f"Error deleting session {session_id} from Langflow: {e}")
             return False
+
+    async def delete_all_user_sessions(self, user_id: str):
+        """Delete all sessions for a user from both local storage and Langflow"""
+        from agent import get_user_conversations
+        
+        conversations = get_user_conversations(user_id)
+        session_ids = list(conversations.keys())
+        
+        results = []
+        for session_id in session_ids:
+            result = await self.delete_session(user_id, session_id)
+            results.append(result)
+            
+        return {
+            "success": True,
+            "deleted_count": len([r for r in results if r.get("success")]),
+            "total_count": len(session_ids)
+        }

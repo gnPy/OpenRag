@@ -64,17 +64,17 @@ class OpenRAGTUI(App):
         min-width: 20;
         border: solid #3f3f46;
     }
-    
+
     #config-header {
         text-align: center;
         margin-bottom: 2;
     }
-    
+
     #config-scroll {
         height: 1fr;
         overflow-y: auto;
     }
-    
+
     #config-form {
         width: 80%;
         max-width: 100;
@@ -82,7 +82,7 @@ class OpenRAGTUI(App):
         padding: 1;
         height: auto;
     }
-    
+
     #config-form Input {
         margin-bottom: 1;
         width: 100%;
@@ -99,7 +99,7 @@ class OpenRAGTUI(App):
         width: auto;
         min-width: 12;
     }
-    
+
     #config-form Label {
         margin-bottom: 0;
         padding-left: 1;
@@ -145,18 +145,18 @@ class OpenRAGTUI(App):
     }
 
     /* Docs path actions row */
-    
+
     #services-content {
         height: 100%;
     }
-    
+
     #runtime-status {
         background: $panel;
         border: solid $primary;
         padding: 1;
         margin-bottom: 1;
     }
-    
+
     #services-table {
         height: auto;
         max-height: 12;
@@ -169,52 +169,52 @@ class OpenRAGTUI(App):
         margin-bottom: 1;
     }
 
-    
-    
+
+
     #logs-scroll {
         height: 1fr;
         border: solid $primary;
         background: $surface;
     }
-    
+
     .controls-row {
         align: left middle;
         height: auto;
         margin: 1 0;
     }
-    
+
     .controls-row > * {
         margin-right: 1;
     }
-    
+
     .label {
         width: auto;
         margin-right: 1;
         text-style: bold;
     }
-    
+
     #system-info {
         background: $panel;
         border: solid $primary;
         padding: 2;
         height: 1fr;
     }
-    
+
     TabbedContent {
         height: 1fr;
     }
-    
+
     TabPane {
         padding: 1;
         height: 1fr;
     }
-    
+
     .tab-header {
         text-style: bold;
         color: $accent;
         margin-bottom: 1;
     }
-    
+
     TabPane ScrollableContainer {
         height: 100%;
         padding: 1;
@@ -367,7 +367,7 @@ class OpenRAGTUI(App):
         self.container_manager = ContainerManager()
         self.env_manager = EnvManager()
         self.docling_manager = DoclingManager()  # Initialize singleton instance
-    
+
     def notify(
         self,
         message: str,
@@ -457,17 +457,17 @@ def _copy_assets(resource_tree, destination: Path, allowed_suffixes: Optional[It
 
 def copy_sample_documents(*, force: bool = False) -> None:
     """Copy sample documents from package to host directory.
-    
+
     Uses the first path from OPENRAG_DOCUMENTS_PATHS env var.
     Defaults to ~/.openrag/documents if not configured.
     """
     from .managers.env_manager import EnvManager
     from pathlib import Path
-    
+
     # Get the configured documents path from env
     env_manager = EnvManager()
     env_manager.load_existing_env()
-    
+
     # Parse the first path from the documents paths config
     documents_path_str = env_manager.config.openrag_documents_paths
     if documents_path_str:
@@ -478,7 +478,7 @@ def copy_sample_documents(*, force: bool = False) -> None:
     else:
         # Default fallback
         documents_dir = Path.home() / ".openrag" / "documents"
-    
+
     documents_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -504,11 +504,11 @@ def copy_sample_documents(*, force: bool = False) -> None:
 
 def copy_sample_flows(*, force: bool = False) -> None:
     """Copy sample flows from package to host directory.
-    
+
     Flows are placed in ~/.openrag/flows/ which will be volume-mounted to containers.
     """
     from pathlib import Path
-    
+
     # Flows always go to ~/.openrag/flows/ - this will be volume-mounted
     flows_dir = Path.home() / ".openrag" / "flows"
     flows_dir.mkdir(parents=True, exist_ok=True)
@@ -524,7 +524,7 @@ def copy_sample_flows(*, force: bool = False) -> None:
 def copy_compose_files(*, force: bool = False) -> None:
     """Copy docker-compose templates into the TUI workspace if they are missing."""
     from utils.paths import get_tui_compose_file
-    
+
     try:
         assets_root = files("tui._assets")
     except Exception as e:
@@ -534,7 +534,7 @@ def copy_compose_files(*, force: bool = False) -> None:
     for filename in ("docker-compose.yml", "docker-compose.gpu.yml"):
         is_gpu = "gpu" in filename
         destination = get_tui_compose_file(gpu=is_gpu)
-        
+
         if destination.exists() and not force:
             continue
 
@@ -562,7 +562,7 @@ def migrate_legacy_data_directories():
     """Migrate data from CWD-based directories to ~/.openrag/.
 
     This is a one-time migration for users upgrading from the old layout.
-    Migrates: documents, flows, keys, config, opensearch-data
+    Migrates: documents, flows, keys, config, langflow-data
 
     Prompts user for confirmation before migrating. If user declines,
     exits with a message to downgrade to v1.52 or earlier.
@@ -584,7 +584,9 @@ def migrate_legacy_data_directories():
         (cwd / "flows", target_base / "flows", "flows"),
         (cwd / "keys", target_base / "keys", "keys"),
         (cwd / "config", target_base / "config", "config"),
-        (cwd / "opensearch-data", target_base / "data" / "opensearch-data", "OpenSearch data"),
+        # opensearch-data intentionally omitted: OpenSearch now uses a Docker named
+        # volume; old index data is not portable and must be re-ingested.
+        (cwd / "langflow-data", target_base / "data" / "langflow-data", "Langflow data"),
     ]
 
     # Check which sources exist and need migration
@@ -607,8 +609,8 @@ def migrate_legacy_data_directories():
             env_manager.config.openrag_flows_path = f"{home}/.openrag/flows"
             env_manager.config.openrag_config_path = f"{home}/.openrag/config"
             env_manager.config.openrag_data_path = f"{home}/.openrag/data"
-            env_manager.config.opensearch_data_path = f"{home}/.openrag/data/opensearch-data"
-            env_manager.save_env()
+            env_manager.config.langflow_data_path = f"{home}/.openrag/data/langflow-data"
+            env_manager.save_env_file()
             logger.info("Updated .env file with centralized paths")
         except Exception as e:
             logger.warning(f"Failed to update .env paths: {e}")
@@ -686,8 +688,8 @@ def migrate_legacy_data_directories():
         env_manager.config.openrag_flows_path = f"{home}/.openrag/flows"
         env_manager.config.openrag_config_path = f"{home}/.openrag/config"
         env_manager.config.openrag_data_path = f"{home}/.openrag/data"
-        env_manager.config.opensearch_data_path = f"{home}/.openrag/data/opensearch-data"
-        env_manager.save_env()
+        env_manager.config.langflow_data_path = f"{home}/.openrag/data/langflow-data"
+        env_manager.save_env_file()
         print("  Updated .env with centralized paths")
         logger.info("Updated .env file with centralized paths")
     except Exception as e:
@@ -696,6 +698,55 @@ def migrate_legacy_data_directories():
 
     print("\nMigration complete!\n")
     logger.info("Data migration completed successfully")
+
+
+def _reclaim_host_ownership(directories: list[Path]) -> None:
+    """Re-own directories to the current host user via a container running as root.
+
+    On Linux with rootful Docker the backend entrypoint.sh calls
+    ``chown -R appuser:appuser`` on volume-mounted directories, changing their
+    *host-side* ownership to UID 1000.  Subsequent TUI startups then cannot
+    chmod or write into those directories (e.g. to regenerate JWT keys after a
+    reset), causing a silent crash.
+
+    This mirrors the ``fix_backend_volume_ownership`` Makefile define: an Alpine
+    container is launched as root and asked to chown the directories back to the
+    host user.  Silently skips directories that are already owned by the current
+    user, or when no container runtime is available.
+    """
+    import shutil as _shutil
+
+    host_uid = os.getuid()
+    host_gid = os.getgid()
+
+    needs_reclaim = [d for d in directories if d.exists() and d.stat().st_uid != host_uid]
+    if not needs_reclaim:
+        return
+
+    runtime = (
+        "docker" if _shutil.which("docker")
+        else "podman" if _shutil.which("podman")
+        else None
+    )
+    if not runtime:
+        logger.error("No container runtime found; cannot reclaim directory ownership")
+        return
+
+    for directory in needs_reclaim:
+        try:
+            subprocess.run(
+                [
+                    runtime, "run", "--rm",
+                    "-v", f"{directory}:/mnt/target",
+                    "alpine", "chown", "-R", f"{host_uid}:{host_gid}", "/mnt/target",
+                ],
+                check=True,
+                capture_output=True,
+                timeout=30,
+            )
+            logger.info(f"Reclaimed ownership of {directory} → {host_uid}:{host_gid}")
+        except Exception as e:
+            logger.error(f"Could not reclaim ownership of {directory}: {e}")
 
 
 def generate_jwt_keys(keys_dir: Path):
@@ -752,7 +803,7 @@ def setup_host_directories():
     - ~/.openrag/keys/ (for JWT keys)
     - ~/.openrag/config/ (for configuration)
     - ~/.openrag/data/ (for backend data: conversations, OAuth tokens, etc.)
-    - ~/.openrag/data/opensearch-data/ (for OpenSearch index)
+    - LANGFLOW_DATA_PATH (for Langflow database and state)
     """
     base_dir = Path.home() / ".openrag"
     directories = [
@@ -761,15 +812,94 @@ def setup_host_directories():
         base_dir / "keys",
         base_dir / "config",
         base_dir / "data",
-        base_dir / "data" / "opensearch-data",
     ]
 
     for directory in directories:
         directory.mkdir(parents=True, exist_ok=True)
         logger.debug(f"Ensured directory exists: {directory}")
 
+    # Backend volume-mounted directories must be writable by the container user
+    # (appuser, UID 1000). Podman handles this via :U in docker-compose.yml, but
+    # Docker ignores :U. Applying 0o775 means any process in the directory's group
+    # can write; the entrypoint.sh in the image also re-chowns these at startup as
+    # a belt-and-suspenders fallback.
+    backend_writable = [
+        base_dir / "documents",
+        base_dir / "flows",
+        base_dir / "keys",
+        base_dir / "config",
+        base_dir / "data",
+    ]
+
+    # On Linux + rootful Docker the backend container's entrypoint.sh chowns these
+    # directories to UID 1000 (appuser).  Reclaim ownership before chmod so that
+    # subsequent TUI startups can chmod and write into them (e.g. key regeneration
+    # after a factory reset).
+    _reclaim_host_ownership(backend_writable)
+
+    for directory in backend_writable:
+        try:
+            os.chmod(directory, 0o775)
+            logger.debug(f"Set permissions 775 on: {directory}")
+        except PermissionError:
+            # Reclaim may have been skipped (no runtime available); the mode was
+            # already set on first run so this is non-fatal.
+            logger.error(f"Cannot chmod {directory} (not owner), skipping")
+
+    # Resolve the configured LANGFLOW_DATA_PATH so we pre-create the exact
+    # directory that Docker/Podman will mount, regardless of user customisation.
+    langflow_data_dir = _resolve_langflow_data_path(base_dir)
+    langflow_data_dir.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Ensured directory exists: {langflow_data_dir}")
+
+    # langflow-data must be world-writable so the Langflow container user (uid 1000)
+    # can write into it on macOS where Podman's :U uid-remapping does not reliably
+    # update host directory ownership through the VM layer.
+    try:
+        os.chmod(langflow_data_dir, 0o777)
+    except PermissionError:
+        logger.error(f"Cannot chmod {langflow_data_dir} (not owner), skipping")
+
     # Generate JWT keys on host to avoid container permission issues
     generate_jwt_keys(base_dir / "keys")
+
+
+def _resolve_langflow_data_path(base_dir: Path) -> Path:
+    """Return the absolute path for the Langflow data directory.
+
+    Reads LANGFLOW_DATA_PATH from the TUI .env file when available; falls back
+    to the default location (~/.openrag/data/langflow-data).
+
+    Relative paths are not valid in the TUI context because the process working
+    directory is unpredictable.  If a relative path is found the default is used
+    and a warning is logged so the user can correct their configuration.
+    """
+    default = base_dir / "data" / "langflow-data"
+    try:
+        from .managers.env_manager import EnvManager
+        env_manager = EnvManager()
+        env_manager.load_existing_env()
+        raw = env_manager.config.langflow_data_path
+        if not raw:
+            return default
+        expanded = raw.replace("$HOME", str(Path.home()))
+        resolved = Path(expanded).expanduser()
+        if not resolved.is_absolute():
+            logger.warning(
+                f"LANGFLOW_DATA_PATH='{raw}' is a relative path, which is not supported "
+                f"in the TUI. Resetting to default: {default}"
+            )
+            try:
+                env_manager.config.langflow_data_path = str(default)
+                env_manager.save_env_file()
+                logger.info(f"Updated LANGFLOW_DATA_PATH to {default} in {env_manager.env_file}")
+            except Exception as write_err:
+                logger.error(f"Could not update LANGFLOW_DATA_PATH in env file: {write_err}")
+            return default
+        return resolved
+    except Exception as e:
+        logger.error(f"Could not read LANGFLOW_DATA_PATH from env, using default: {e}")
+        return default
 
 
 def _run_tui_app():

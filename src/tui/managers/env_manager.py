@@ -29,6 +29,9 @@ class EnvConfig:
 
     # Core settings
     openai_api_key: str = ""
+    openrag_encryption_key: str = ""
+    openrag_tenant_id: str = "openrag"
+    openrag_enforce_prerequisites: str = "false"
     opensearch_password: str = ""
     opensearch_username: str = "admin"
     opensearch_host: str = "opensearch"
@@ -94,7 +97,7 @@ class EnvConfig:
     openrag_flows_path: str = "$HOME/.openrag/flows"
     openrag_config_path: str = "$HOME/.openrag/config"
     openrag_data_path: str = "$HOME/.openrag/data"  # Backend data (conversations, tokens, etc.)
-    opensearch_data_path: str = "$HOME/.openrag/data/opensearch-data"
+    langflow_data_path: str = "$HOME/.openrag/data/langflow-data"
     openrag_tui_config_path_legacy: str = "$HOME/.openrag/tui/config"
 
     # Container version (linked to TUI version)
@@ -159,6 +162,11 @@ class EnvManager:
         """Generate a secure secret key for Langflow."""
         return secrets.token_urlsafe(32)
 
+    def generate_openrag_encryption_key(self) -> str:
+        """Generate a secure AES-256 base64 master key for OpenRAG."""
+        import base64
+        return base64.b64encode(secrets.token_bytes(32)).decode("ascii")
+
     def _quote_env_value(self, value: str) -> str:
         """Single quote all environment variable values for consistency."""
         if not value:
@@ -177,6 +185,9 @@ class EnvManager:
             "WATSONX_API_KEY": "watsonx_api_key",  # pragma: allowlist secret
             "WATSONX_ENDPOINT": "watsonx_endpoint",
             "WATSONX_PROJECT_ID": "watsonx_project_id",
+            "OPENRAG_ENCRYPTION_KEY": "openrag_encryption_key",  # pragma: allowlist secret
+            "OPENRAG_TENANT_ID": "openrag_tenant_id",
+            "OPENRAG_ENFORCE_PREREQUISITES": "openrag_enforce_prerequisites",
             "OPENSEARCH_PASSWORD": "opensearch_password",  # pragma: allowlist secret
             "OPENSEARCH_USERNAME": "opensearch_username",
             "OPENSEARCH_HOST": "opensearch_host",
@@ -211,7 +222,7 @@ class EnvManager:
             "OPENRAG_FLOWS_PATH": "openrag_flows_path",
             "OPENRAG_CONFIG_PATH": "openrag_config_path",
             "OPENRAG_DATA_PATH": "openrag_data_path",
-            "OPENSEARCH_DATA_PATH": "opensearch_data_path",
+            "LANGFLOW_DATA_PATH": "langflow_data_path",
             "LANGFLOW_AUTO_LOGIN": "langflow_auto_login",
             "LANGFLOW_NEW_USER_IS_ACTIVE": "langflow_new_user_is_active",
             "LANGFLOW_ENABLE_SUPERUSER_CLI": "langflow_enable_superuser_cli",
@@ -232,19 +243,17 @@ class EnvManager:
         preserved_lines: list[str] = []
 
         try:
+            is_managed_block = True
             for raw_line in self.env_file.read_text().splitlines():
-                stripped = raw_line.strip()
-                if not stripped or stripped.startswith("#"):
-                    continue
-
                 match = EnvManager.assignment_pattern.match(raw_line)
-                if not match:
-                    continue
-
-                env_var = match.group(1)
-                if env_var in managed_vars:
-                    continue
-                preserved_lines.append(raw_line)
+                if match:
+                    env_var = match.group(1)
+                    is_managed_block = env_var in managed_vars
+                    if not is_managed_block:
+                        preserved_lines.append(raw_line)
+                elif not is_managed_block:
+                    # Preserves multi-line backslash strings, empty splits and unmanaged comments natively inline
+                    preserved_lines.append(raw_line)
         except Exception:
             logger.warning(
                 f"Failed to preserve custom .env lines from {self.env_file}",
@@ -296,6 +305,9 @@ class EnvManager:
 
         if not self.config.langflow_secret_key:
             self.config.langflow_secret_key = self.generate_langflow_secret_key()
+
+        if not self.config.openrag_encryption_key:
+            self.config.openrag_encryption_key = self.generate_openrag_encryption_key()
 
         # Set OPENRAG_VERSION to TUI version if not already set
         if not self.config.openrag_version:
@@ -455,6 +467,9 @@ class EnvManager:
                 )
                 f.write(f"LANGFLOW_URL_INGEST_FLOW_ID={self._quote_env_value(self.config.langflow_url_ingest_flow_id)}\n")
                 f.write(f"NUDGES_FLOW_ID={self._quote_env_value(self.config.nudges_flow_id)}\n")
+                f.write(f"OPENRAG_ENCRYPTION_KEY={self._quote_env_value(self.config.openrag_encryption_key)}\n")
+                f.write(f"OPENRAG_TENANT_ID={self._quote_env_value(self.config.openrag_tenant_id)}\n")
+                f.write(f"OPENRAG_ENFORCE_PREREQUISITES={self._quote_env_value(self.config.openrag_enforce_prerequisites)}\n")
                 f.write(f"OPENSEARCH_PASSWORD={self._quote_env_value(self.config.opensearch_password)}\n")
                 if self.config.opensearch_username and self.config.opensearch_username != "admin":
                     f.write(f"OPENSEARCH_USERNAME={self._quote_env_value(self.config.opensearch_username)}\n")
@@ -490,7 +505,7 @@ class EnvManager:
                     f"OPENRAG_DATA_PATH={self._quote_env_value(expand_path(self.config.openrag_data_path))}\n"
                 )
                 f.write(
-                    f"OPENSEARCH_DATA_PATH={self._quote_env_value(expand_path(self.config.opensearch_data_path))}\n"
+                    f"LANGFLOW_DATA_PATH={self._quote_env_value(expand_path(self.config.langflow_data_path))}\n"
                 )
                 # Set OPENRAG_VERSION to TUI version
                 if self.config.openrag_version:
@@ -636,6 +651,12 @@ class EnvManager:
         return [
             ("openai_api_key", "OpenAI API Key", "sk-... or leave empty", False),
             (
+                "openrag_encryption_key",
+                "OpenRAG Encryption Key",
+                "Will be auto-generated if empty",
+                True,
+            ),
+            (
                 "opensearch_password",
                 "OpenSearch Password",
                 "Will be auto-generated if empty",
@@ -757,11 +778,11 @@ class EnvManager:
                     else:
                         new_lines.append(line)
 
-                # If not found, add it after OPENSEARCH_DATA_PATH or at the end
+                # If not found, add it after LANGFLOW_DATA_PATH or at the end
                 if not updated:
                     insert_pos = len(new_lines)
                     for i, line in enumerate(new_lines):
-                        if "OPENSEARCH_DATA_PATH" in line:
+                        if "LANGFLOW_DATA_PATH" in line:
                             insert_pos = i + 1
                             break
                     new_lines.insert(insert_pos, f"OPENRAG_VERSION={self._quote_env_value(current_version)}")

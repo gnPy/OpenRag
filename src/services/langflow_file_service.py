@@ -183,7 +183,7 @@ class LangflowFileService:
             )
         
         # Add provider credentials as global variables for ingestion
-        await add_provider_credentials_to_headers(headers, config, flows_service=self.flows_service)
+        await add_provider_credentials_to_headers(headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
         logger.info(f"[LF] Headers {headers}")
         logger.info(f"[LF] Payload {payload}")
         resp = await clients.langflow_request(
@@ -296,7 +296,7 @@ class LangflowFileService:
             "X-Langflow-Global-Var-ALLOWED_USERS": json.dumps( []),
             "X-Langflow-Global-Var-ALLOWED_GROUPS": json.dumps( []),
         }
-        await add_provider_credentials_to_headers(headers, config, flows_service=self.flows_service)
+        await add_provider_credentials_to_headers(headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
 
 
         logger.info(
@@ -353,7 +353,8 @@ class LangflowFileService:
         max_attempts = 2
         last_error: Exception | None = None
 
-        flow_file = Path(__file__).resolve().parents[2] / "flows" / "openrag_url_mcp.json"
+        from config.paths import get_flows_path
+        flow_file = Path(get_flows_path()) / "openrag_url_mcp.json"
         if not flow_file.exists():
             raise ValueError(
                 "LANGFLOW_URL_INGEST_FLOW_ID is invalid and "

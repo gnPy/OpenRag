@@ -47,13 +47,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useTask } from "@/contexts/task-context";
 import {
   DEFAULT_AGENT_SETTINGS,
   DEFAULT_KNOWLEDGE_SETTINGS,
   UI_CONSTANTS,
 } from "@/lib/constants";
-import { useDebounce } from "@/lib/debounce";
+import { deriveCloudLangflowUrl } from "@/lib/url-utils";
 import { cn } from "@/lib/utils";
 import { useUpdateSettingsMutation } from "../api/mutations/useUpdateSettingsMutation";
 import { ModelSelector } from "../onboarding/_components/model-selector";
@@ -64,7 +65,8 @@ import { getModelLogo, type ModelProvider } from "./_helpers/model-helpers";
 const { MAX_SYSTEM_PROMPT_CHARS } = UI_CONSTANTS;
 
 function KnowledgeSourcesPage() {
-  const { isAuthenticated, isNoAuthMode } = useAuth();
+  const isCloudBrand = useIsCloudBrand();
+  const { isAuthenticated, isNoAuthMode, isIbmAuthMode } = useAuth();
   const { addTask, tasks } = useTask();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -84,6 +86,9 @@ function KnowledgeSourcesPage() {
   const [systemPrompt, setSystemPrompt] = useState<string>("");
   const [chunkSize, setChunkSize] = useState<number>(1024);
   const [chunkOverlap, setChunkOverlap] = useState<number>(50);
+  const [chunkValidationError, setChunkValidationError] = useState<
+    string | null
+  >(null);
   const [tableStructure, setTableStructure] = useState<boolean>(true);
   const [ocr, setOcr] = useState<boolean>(false);
   const [pictureDescriptions, setPictureDescriptions] =
@@ -252,14 +257,6 @@ function KnowledgeSourcesPage() {
     },
   });
 
-  // Debounced update function
-  const debouncedUpdate = useDebounce(
-    (variables: Parameters<typeof updateSettingsMutation.mutate>[0]) => {
-      updateSettingsMutation.mutate(variables);
-    },
-    500,
-  );
-
   // Sync system prompt state with settings data
   useEffect(() => {
     if (settings.agent?.system_prompt) {
@@ -298,6 +295,14 @@ function KnowledgeSourcesPage() {
       setPictureDescriptions(settings.knowledge.picture_descriptions);
     }
   }, [settings.knowledge?.picture_descriptions]);
+
+  const k = settings.knowledge;
+  const knowledgeIngestDirty =
+    chunkSize !== (k?.chunk_size ?? chunkSize) ||
+    chunkOverlap !== (k?.chunk_overlap ?? chunkOverlap) ||
+    tableStructure !== (k?.table_structure ?? tableStructure) ||
+    ocr !== (k?.ocr ?? ocr) ||
+    pictureDescriptions !== (k?.picture_descriptions ?? pictureDescriptions);
 
   // Handle auto-focus on LLM model selector when coming from provider setup
   useEffect(() => {
@@ -340,7 +345,6 @@ function KnowledgeSourcesPage() {
     updateSettingsMutation.mutate({ system_prompt: systemPrompt });
   };
 
-  // Update embedding model selection immediately (also updates provider)
   const handleEmbeddingModelChange = (newModel: string, provider?: string) => {
     if (newModel && provider) {
       updateSettingsMutation.mutate({
@@ -352,34 +356,55 @@ function KnowledgeSourcesPage() {
     }
   };
 
-  // Update chunk size setting with debounce
   const handleChunkSizeChange = (value: string) => {
-    const numValue = Math.max(0, parseInt(value) || 0);
+    const numValue = Math.max(0, Number.parseInt(value, 10) || 0);
     setChunkSize(numValue);
-    debouncedUpdate({ chunk_size: numValue });
+    setChunkValidationError(null);
   };
 
-  // Update chunk overlap setting with debounce
   const handleChunkOverlapChange = (value: string) => {
-    const numValue = Math.max(0, parseInt(value) || 0);
+    const numValue = Math.max(0, Number.parseInt(value, 10) || 0);
     setChunkOverlap(numValue);
-    debouncedUpdate({ chunk_overlap: numValue });
+    setChunkValidationError(null);
   };
 
-  // Update docling settings
+  const handleKnowledgeIngestSave = () => {
+    if (chunkSize < 1) {
+      const msg = "Chunk size must be at least 1";
+      setChunkValidationError(msg);
+      toast.error("Could not save ingest settings", { description: msg });
+      return;
+    }
+    if (chunkOverlap >= chunkSize) {
+      const msg = "Chunk overlap must be less than chunk size";
+      setChunkValidationError(msg);
+      toast.error("Could not save ingest settings", { description: msg });
+      return;
+    }
+    updateSettingsMutation.mutate(
+      {
+        chunk_size: chunkSize,
+        chunk_overlap: chunkOverlap,
+        table_structure: tableStructure,
+        ocr,
+        picture_descriptions: pictureDescriptions,
+      },
+      {
+        onSuccess: () => setChunkValidationError(null),
+      },
+    );
+  };
+
   const handleTableStructureChange = (checked: boolean) => {
     setTableStructure(checked);
-    updateSettingsMutation.mutate({ table_structure: checked });
   };
 
   const handleOcrChange = (checked: boolean) => {
     setOcr(checked);
-    updateSettingsMutation.mutate({ ocr: checked });
   };
 
   const handlePictureDescriptionsChange = (checked: boolean) => {
     setPictureDescriptions(checked);
-    updateSettingsMutation.mutate({ picture_descriptions: checked });
   };
 
   // API Keys handlers
@@ -462,11 +487,16 @@ function KnowledgeSourcesPage() {
         ? settings.langflow_ingest_edit_url
         : settings.langflow_edit_url;
 
+    const cloudLangflowUrl =
+      isIbmAuthMode && typeof window !== "undefined"
+        ? deriveCloudLangflowUrl(window.location.origin)
+        : null;
     const derivedFromWindow =
       typeof window !== "undefined"
         ? `${window.location.protocol}//${window.location.hostname}:7860`
         : "";
     const base = (
+      cloudLangflowUrl ||
       settings.langflow_public_url ||
       derivedFromWindow ||
       "http://localhost:7860"
@@ -518,6 +548,7 @@ function KnowledgeSourcesPage() {
         setTableStructure(false);
         setOcr(false);
         setPictureDescriptions(false);
+        setChunkValidationError(null);
         closeDialog(); // Close after successful completion
       })
       .catch((error) => {
@@ -527,11 +558,22 @@ function KnowledgeSourcesPage() {
   };
 
   return (
-    <div className="space-y-8 pb-6">
+    <div
+      className={cn(
+        "space-y-8 pb-6",
+        isCloudBrand && "font-ibm-plex-sans",
+        isCloudBrand && "ibm-settings-page",
+      )}
+    >
       {/* Connectors Section */}
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight mb-2">
+          <h2
+            className={cn(
+              "mb-2 text-lg font-semibold tracking-tight",
+              isCloudBrand && "ibm-settings-section-title",
+            )}
+          >
             Cloud Connectors
           </h2>
         </div>
@@ -541,7 +583,12 @@ function KnowledgeSourcesPage() {
           isNoAuthMode ? (
             <Card className="border-accent-amber-foreground">
               <CardHeader>
-                <CardTitle className="text-lg">
+                <CardTitle
+                  className={cn(
+                    "text-lg",
+                    isCloudBrand && "ibm-settings-section-title",
+                  )}
+                >
                   Cloud connectors require authentication
                 </CardTitle>
                 <CardDescription className="text-sm">
@@ -646,7 +693,12 @@ function KnowledgeSourcesPage() {
       {/* Model Providers Section */}
       <div className="space-y-6">
         <div>
-          <h2 className="text-lg font-semibold tracking-tight mb-2">
+          <h2
+            className={cn(
+              "mb-2 text-lg font-semibold tracking-tight",
+              isCloudBrand && "ibm-settings-section-title",
+            )}
+          >
             Model Providers
           </h2>
         </div>
@@ -657,7 +709,14 @@ function KnowledgeSourcesPage() {
       <Card id="agent-card">
         <CardHeader>
           <div className="flex items-center justify-between mb-3">
-            <CardTitle className="text-lg">Agent</CardTitle>
+            <CardTitle
+              className={cn(
+                "text-lg",
+                isCloudBrand && "ibm-settings-section-title",
+              )}
+            >
+              Agent
+            </CardTitle>
             <div className="flex gap-2">
               <ConfirmationDialog
                 trigger={
@@ -805,7 +864,14 @@ function KnowledgeSourcesPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between mb-3">
-            <CardTitle className="text-lg">Knowledge Ingest</CardTitle>
+            <CardTitle
+              className={cn(
+                "text-lg",
+                isCloudBrand && "ibm-settings-section-title",
+              )}
+            >
+              Knowledge Ingest
+            </CardTitle>
             <div className="flex gap-2">
               <ConfirmationDialog
                 trigger={
@@ -873,15 +939,16 @@ function KnowledgeSourcesPage() {
             </div>
           </div>
           <CardDescription>
-            Configure how files are ingested and stored for retrieval. Edit in
-            Langflow for full control.
+            Configure how files are ingested and stored for retrieval. The
+            embedding model saves as soon as you pick one; chunk and ingest
+            options use Save ingest settings. Edit in Langflow for full control.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
             <div className="space-y-2">
               <LabelWrapper
-                helperText="Model used for knowledge ingest and retrieval"
+                helperText="Saves immediately when you select a model"
                 id="embedding-model-select"
                 label="Embedding model"
                 required={true}
@@ -908,7 +975,7 @@ function KnowledgeSourcesPage() {
                       min="1"
                       value={chunkSize}
                       onChange={(e) => handleChunkSizeChange(e.target.value)}
-                      className="w-full pr-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className={`w-full pr-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none${chunkValidationError ? " border-destructive" : ""}`}
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center">
                       <span className="text-sm text-placeholder-foreground mr-4 pointer-events-none">
@@ -951,7 +1018,7 @@ function KnowledgeSourcesPage() {
                       min="0"
                       value={chunkOverlap}
                       onChange={(e) => handleChunkOverlapChange(e.target.value)}
-                      className="w-full pr-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      className={`w-full pr-20 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none${chunkValidationError ? " border-destructive" : ""}`}
                     />
                     <div className="absolute inset-y-0 right-0 flex items-center">
                       <span className="text-sm text-placeholder-foreground mr-4 pointer-events-none">
@@ -988,6 +1055,11 @@ function KnowledgeSourcesPage() {
                     </div>
                   </div>
                 </LabelWrapper>
+                {chunkValidationError && (
+                  <p className="text-sm text-destructive mt-1" role="alert">
+                    {chunkValidationError}
+                  </p>
+                )}
               </div>
             </div>
             <div className="">
@@ -1047,16 +1119,43 @@ function KnowledgeSourcesPage() {
                 />
               </div>
             </div>
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={handleKnowledgeIngestSave}
+                disabled={
+                  updateSettingsMutation.isPending || !knowledgeIngestDirty
+                }
+                className="min-w-[120px]"
+                size="sm"
+                variant="outline"
+              >
+                {updateSettingsMutation.isPending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  "Save ingest settings"
+                )}
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* API Keys Section */}
-      {(isAuthenticated || isNoAuthMode) && (
+      {(isAuthenticated || isNoAuthMode) && !isIbmAuthMode && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-3">
-              <CardTitle className="text-lg">API Keys</CardTitle>
+              <CardTitle
+                className={cn(
+                  "text-lg",
+                  isCloudBrand && "ibm-settings-section-title",
+                )}
+              >
+                API Keys
+              </CardTitle>
               <Button onClick={() => setCreateKeyDialogOpen(true)} size="sm">
                 <Plus className="h-4 w-4 mr-2" />
                 Create Key

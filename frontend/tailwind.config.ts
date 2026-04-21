@@ -156,9 +156,19 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        "layer-contextual": "hsl(var(--layer-contextual))",
+        "layer-contextual-foreground":
+          "hsl(var(--layer-contextual-foreground))",
+        "text-text-01": "hsl(var(--text-text-01))",
+        "link-primary": "hsl(var(--link-primary))",
+        "button-tertiary": "hsl(var(--button-tertiary))",
         "component-icon": "var(--component-icon)",
         "flow-icon": "var(--flow-icon)",
         "placeholder-foreground": "hsl(var(--placeholder-foreground))",
+        badge: {
+          DEFAULT: "hsl(var(--badge))",
+          foreground: "hsl(var(--badge-foreground))",
+        },
         warning: {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
@@ -174,13 +184,13 @@ const config = {
           ring: "hsl(var(--sidebar-ring))",
         },
         failure: {
-          soft: "#46080933",
-          pill: "#FB2C3633",
-          file: "#FFA2A2",
-          log: "#FF6467",
-          message: "#FFC9C9CC",
-          scroll: "#FF6464",
-          muted: "#A66262",
+          soft: "var(--failure-soft)",
+          pill: "var(--failure-pill)",
+          file: "var(--failure-file)",
+          log: "var(--failure-log)",
+          message: "var(--failure-message)",
+          scroll: "var(--failure-scroll)",
+          muted: "var(--failure-muted)",
         },
       },
       borderRadius: {
@@ -192,6 +202,7 @@ const config = {
         sans: ["var(--font-sans)", ...fontFamily.sans],
         mono: ["var(--font-mono)", ...fontFamily.mono],
         chivo: ["var(--font-chivo)", ...fontFamily.sans],
+        "ibm-plex-sans": ["var(--font-ibm-plex-sans)", ...fontFamily.sans],
       },
       fontSize: {
         xxs: "11px",
