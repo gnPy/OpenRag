@@ -7,14 +7,14 @@ export type EmbeddingProvider = "openai" | "watsonx" | "ollama";
 export async function completeOnboarding(
   page: Page,
   {
-    llmProvider,
-    embeddingProvider,
+    llmProvider = "openai",
+    embeddingProvider = "openai",
     reset = false,
   }: {
-    llmProvider: LLMProvider;
-    embeddingProvider: EmbeddingProvider;
+    llmProvider?: LLMProvider;
+    embeddingProvider?: EmbeddingProvider;
     reset?: boolean;
-  },
+  } = {},
 ) {
   // Fast path checks for environment variables
   const checkCredentials = (provider: string) => {
