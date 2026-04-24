@@ -14,9 +14,6 @@ from utils.logging_config import get_logger
 logger = get_logger(__name__)
 
 
-USER_SCOPED_GLOBAL_VAR_KEYS = frozenset({"JWT", "OWNER", "OWNER_NAME", "OWNER_EMAIL"})
-
-
 class LangflowMCPService:
     @retry(
         stop=stop_after_attempt(3),
@@ -236,34 +233,19 @@ class LangflowMCPService:
         return bool(server_config.get("url"))
 
     def _upsert_global_var_headers_in_dict(
-        self,
-        headers: Dict[str, str] | None,
-        global_vars: Dict[str, str],
-        placeholder_keys: frozenset[str] | set[str] | None = None,
+        self, headers: Dict[str, str] | None, global_vars: Dict[str, str]
     ) -> Dict[str, str]:
         """Upsert global var headers into a headers dictionary (for streamable HTTP mode).
 
         Creates X-Langflow-Global-Var-{key} headers in the dictionary.
         Case-insensitive matching for existing headers.
-
-        When ``placeholder_keys`` is provided, each key in the set is written with
-        its own name as the header value (Langflow global-variable placeholder
-        syntax), overriding any literal value supplied in ``global_vars``. Keys
-        not present in ``global_vars`` are still written if they are placeholder
-        keys — this is how fresh streamable-HTTP servers get user-scoped headers
-        wired up before any real value is known.
         """
         if headers is None:
             headers = {}
         else:
             headers = dict(headers)
 
-        effective: Dict[str, str] = dict(global_vars)
-        if placeholder_keys:
-            for k in placeholder_keys:
-                effective[k] = k
-
-        for var_key, var_value in effective.items():
+        for var_key, var_value in global_vars.items():
             header_name = f"X-Langflow-Global-Var-{var_key}"
 
             # Find existing header with case-insensitive match
@@ -338,14 +320,9 @@ class LangflowMCPService:
                 args = current.get("args", [])
                 url, headers = self._parse_stdio_args(args)
                 if url:
-                    # Build streamable HTTP payload with converted config + new headers.
-                    # User-scoped headers are written as Langflow global-variable
-                    # placeholders so each incoming MCP request resolves them against
-                    # the caller's session rather than whichever user last logged in.
+                    # Build streamable HTTP payload with converted config + new headers
                     updated_headers = self._upsert_global_var_headers_in_dict(
-                        headers,
-                        sanitized,
-                        placeholder_keys=USER_SCOPED_GLOBAL_VAR_KEYS,
+                        headers, sanitized
                     )
                     payload = {"url": self._patch_url_with_langflow_url(url), "headers": updated_headers}
                     mode = "streamable_http"
@@ -366,9 +343,7 @@ class LangflowMCPService:
                 url = current.get("url")
                 headers = current.get("headers", {})
                 updated_headers = self._upsert_global_var_headers_in_dict(
-                    headers,
-                    sanitized,
-                    placeholder_keys=USER_SCOPED_GLOBAL_VAR_KEYS,
+                    headers, sanitized
                 )
                 payload = {"url": url, "headers": updated_headers}
                 mode = "streamable_http"
@@ -452,17 +427,11 @@ class LangflowMCPService:
 
             # Detect server mode and build appropriate payload
             if self._is_streamable_http_mode(current):
-                # Streamable HTTP mode: write user-scoped headers as Langflow
-                # global-variable placeholders (e.g. "X-Langflow-Global-Var-JWT":
-                # "JWT") so Langflow resolves them per-request from the current
-                # session's global-variable store. The jwt_token argument is only
-                # used for the stdio path below.
+                # Streamable HTTP mode: update headers dictionary
                 url = current.get("url")
                 headers = current.get("headers", {})
                 updated_headers = self._upsert_global_var_headers_in_dict(
-                    headers,
-                    {},
-                    placeholder_keys=USER_SCOPED_GLOBAL_VAR_KEYS,
+                    headers, {"JWT": jwt_token}
                 )
                 payload = {"url": url, "headers": updated_headers}
                 mode = "streamable_http"
@@ -560,11 +529,6 @@ class LangflowMCPService:
                 )
                 return False
 
-            # Seed user-scoped headers as Langflow global-variable placeholders so
-            # the converted server has per-request user context from first use.
-            headers = self._upsert_global_var_headers_in_dict(
-                headers, {}, placeholder_keys=USER_SCOPED_GLOBAL_VAR_KEYS
-            )
             payload = {"url": url, "headers": headers}
             response = await clients.langflow_request(
                 method="PATCH",

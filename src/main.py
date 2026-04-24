@@ -1431,7 +1431,12 @@ async def initialize_services():
     register_search_service(search_service)
     task_service = TaskService(document_service, models_service, ingestion_timeout=INGESTION_TIMEOUT)
     flows_service = FlowsService()
-    chat_service = ChatService(flows_service=flows_service)
+    langflow_mcp_service = LangflowMCPService()
+    chat_service = ChatService(
+        flows_service=flows_service,
+        langflow_mcp_service=langflow_mcp_service,
+        session_manager=session_manager,
+    )
     knowledge_filter_service = KnowledgeFilterService(session_manager)
     monitor_service = MonitorService(session_manager)
     langflow_file_service = LangflowFileService(flows_service=flows_service)
@@ -1462,7 +1467,7 @@ async def initialize_services():
         session_manager,
         connector_service,
         flows_service,
-        langflow_mcp_service=LangflowMCPService(),
+        langflow_mcp_service=langflow_mcp_service,
     )
 
     # Load persisted connector connections at startup so webhooks and syncs

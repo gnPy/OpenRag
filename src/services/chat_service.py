@@ -1,3 +1,4 @@
+import asyncio
 import json
 from config.settings import NUDGES_FLOW_ID, clients, LANGFLOW_URL, LANGFLOW_CHAT_FLOW_ID
 from agent import async_chat, async_langflow, async_chat_stream
@@ -8,8 +9,16 @@ logger = get_logger(__name__)
 
 
 class ChatService:
-    def __init__(self, flows_service=None):
+    def __init__(
+        self,
+        flows_service=None,
+        langflow_mcp_service=None,
+        session_manager=None,
+    ):
         self.flows_service = flows_service
+        self.langflow_mcp_service = langflow_mcp_service
+        self.session_manager = session_manager
+        self._background_tasks: set[asyncio.Task] = set()
 
     async def chat(
         self,
@@ -72,16 +81,71 @@ class ChatService:
         if jwt_token:
             extra_headers["X-LANGFLOW-GLOBAL-VAR-JWT"] = jwt_token
 
+        # Resolve the logged-in user so OWNER/OWNER_NAME/OWNER_EMAIL can ride
+        # along as global variables for this chat (and, below, for MCP).
+        owner_fields: dict[str, str] = {}
+        if self.session_manager and jwt_token:
+            try:
+                user = self.session_manager.get_user_from_token(jwt_token)
+            except Exception as e:
+                user = None
+                logger.warning("Failed to resolve user from token for chat", error=str(e))
+            if user is not None:
+                if getattr(user, "user_id", None):
+                    owner_fields["OWNER"] = user.user_id
+                # Quote OWNER_NAME so spaces survive header transport (mirrors
+                # auth_service.py login-time behavior).
+                name = getattr(user, "name", None)
+                if name:
+                    owner_fields["OWNER_NAME"] = f'"{name}"'
+                email = getattr(user, "email", None)
+                if email:
+                    owner_fields["OWNER_EMAIL"] = email
+        for k, v in owner_fields.items():
+            extra_headers[f"X-LANGFLOW-GLOBAL-VAR-{k}"] = v
+
         # Pass the selected embedding model as a global variable
         from config.settings import get_openrag_config
-        from utils.langflow_headers import add_provider_credentials_to_headers
-        
+        from utils.langflow_headers import (
+            add_provider_credentials_to_headers,
+            build_mcp_global_vars_from_config,
+        )
+
         config = get_openrag_config()
         embedding_model = config.knowledge.embedding_model
         extra_headers["X-LANGFLOW-GLOBAL-VAR-SELECTED_EMBEDDING_MODEL"] = embedding_model
-        
+
         # Add provider credentials to headers
         await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
+
+        # Mirror the same globals onto the MCP servers so tools invoked by the
+        # flow (streamable-HTTP MCP) see the current caller's JWT, owner, and
+        # provider credentials. Fire-and-forget — chat must not block on MCP
+        # updates.
+        if self.langflow_mcp_service:
+            try:
+                mcp_global_vars = await build_mcp_global_vars_from_config(
+                    config,
+                    flows_service=self.flows_service,
+                    jwt_token=jwt_token,
+                )
+                if jwt_token:
+                    mcp_global_vars["JWT"] = jwt_token
+                mcp_global_vars.update(owner_fields)
+                if mcp_global_vars:
+                    task = asyncio.create_task(
+                        self.langflow_mcp_service.update_mcp_servers_with_global_vars(
+                            mcp_global_vars
+                        )
+                    )
+                    self._background_tasks.add(task)
+                    task.add_done_callback(self._background_tasks.discard)
+            except Exception as e:
+                logger.warning(
+                    "Failed to schedule MCP global-var update for chat",
+                    error=str(e),
+                )
+
         # Get context variables for filters, limit, and threshold
         from auth_context import (
             get_score_threshold,
