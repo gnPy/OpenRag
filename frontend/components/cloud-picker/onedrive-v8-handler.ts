@@ -177,7 +177,6 @@ export class OneDriveV8Handler {
       });
 
       const pickerUrl = `${OneDriveV8Handler.ONEDRIVE_PICKER_URL}?${queryString}`;
-      console.log("OneDrive v8 picker: Opening picker at", pickerUrl);
 
       // Create and submit form to the picker URL
       const form = this.win.document.createElement("form");
@@ -222,8 +221,6 @@ export class OneDriveV8Handler {
 
     // Handle initialization message
     if (message.type === "initialize" && message.channelId === this.channelId) {
-      console.log("OneDrive v8 picker: Received initialize message");
-
       // Get the MessagePort for further communication
       this.port = event.ports[0];
 
@@ -237,14 +234,12 @@ export class OneDriveV8Handler {
 
         // Activate the picker
         this.port.postMessage({ type: "activate" });
-        console.log("OneDrive v8 picker: Activated");
       }
     }
   }
 
   private handlePortMessage(event: MessageEvent): void {
     const payload = event.data;
-    console.log("OneDrive v8 picker: Port message received:", payload.type);
 
     switch (payload.type) {
       case "notification":
@@ -258,10 +253,7 @@ export class OneDriveV8Handler {
   }
 
   private handleNotification(notification: { notification: string }): void {
-    console.log("OneDrive v8 picker: Notification:", notification.notification);
-
     if (notification.notification === "page-loaded") {
-      console.log("OneDrive v8 picker: Page loaded and ready");
     }
   }
 
@@ -271,8 +263,6 @@ export class OneDriveV8Handler {
       type: "acknowledge",
       id: id,
     });
-
-    console.log("OneDrive v8 picker: Command:", command.command);
 
     switch (command.command) {
       case "authenticate":
@@ -304,11 +294,6 @@ export class OneDriveV8Handler {
   }
 
   private handleAuthenticate(id: string, command: AuthenticateCommand): void {
-    console.log(
-      "OneDrive v8 picker: Auth request for resource:",
-      command.resource,
-    );
-
     // For now, we use the same token for all requests
     // The token should be a Microsoft Graph token with Files.Read scope
     try {
@@ -320,7 +305,6 @@ export class OneDriveV8Handler {
           token: this.accessToken,
         },
       });
-      console.log("OneDrive v8 picker: Provided auth token");
     } catch (error) {
       console.error("OneDrive v8 picker: Failed to provide auth token:", error);
       this.port?.postMessage({
@@ -339,8 +323,6 @@ export class OneDriveV8Handler {
   }
 
   private handlePick(id: string, command: PickCommand): void {
-    console.log("OneDrive v8 picker: Files picked:", command.items?.length);
-
     try {
       // Convert picked items to CloudFile format
       const files: CloudFile[] = (command.items || []).map((item) => {
@@ -352,9 +334,6 @@ export class OneDriveV8Handler {
 
         // Log the download URL for debugging
         const downloadUrl = item["@microsoft.graph.downloadUrl"] || "";
-        console.log(
-          `OneDrive v8 picker: File "${item.name}" downloadUrl: ${downloadUrl ? "present" : "MISSING"}`,
-        );
 
         return {
           id: item.id,
@@ -405,8 +384,6 @@ export class OneDriveV8Handler {
   }
 
   private handleClose(id: string): void {
-    console.log("OneDrive v8 picker: Close requested");
-
     // Send response before closing
     this.port?.postMessage({
       type: "result",

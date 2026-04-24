@@ -195,7 +195,6 @@ const OnboardingCard = ({
   // Rollback mutation
   const rollbackMutation = useOnboardingRollbackMutation({
     onSuccess: () => {
-      console.log("Onboarding rolled back successfully");
       // Reset to provider selection step
       // Error message is already set before calling mutate
       setCurrentStep(null);
@@ -214,8 +213,6 @@ const OnboardingCard = ({
   // Mutations
   const onboardingMutation = useOnboardingMutation({
     onSuccess: (data) => {
-      console.log("Onboarding completed successfully", data);
-
       if (data.task_id) {
         setOnboardingTaskId(data.task_id);
       }

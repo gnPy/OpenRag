@@ -93,9 +93,7 @@ export function Navigation({
 
   const { loading } = useLoadingStore();
 
-  useEffect(() => {
-    console.log("loading", loading);
-  }, [loading]);
+  useEffect(() => {}, [loading]);
 
   const [previousConversationCount, setPreviousConversationCount] = useState(0);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);

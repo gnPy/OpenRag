@@ -47,7 +47,11 @@ const renameDocument = async (
 
   const payload = (await response.json().catch(() => ({}))) as unknown;
 
-  if (response.status === 422 && isRecord(payload) && payload.partial === true) {
+  if (
+    response.status === 422 &&
+    isRecord(payload) &&
+    payload.partial === true
+  ) {
     return payload as unknown as RenameDocumentResponse;
   }
 

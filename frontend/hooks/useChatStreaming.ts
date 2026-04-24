@@ -105,11 +105,6 @@ export function useChatStreaming({
         requestBody.filter_id = filter_id;
       }
 
-      console.log("[useChatStreaming] Sending request:", {
-        filter_id,
-        requestBody,
-      });
-
       const response = await fetch(endpoint, {
         method: "POST",
         headers: {
@@ -184,11 +179,6 @@ export function useChatStreaming({
                     key.toLowerCase().includes("result"),
                 );
                 if (toolRelatedKeys.length > 0) {
-                  console.log(
-                    "[Tool Detection] Found tool-related keys:",
-                    toolRelatedKeys,
-                    chunk,
-                  );
                 }
 
                 // Extract response ID if present
@@ -228,7 +218,7 @@ export function useChatStreaming({
                             );
                             lastFunctionCall.arguments = parsed;
                             lastFunctionCall.status = "completed";
-                          } catch (e) {
+                          } catch (_e) {
                             // Arguments not yet complete
                           }
                         }
@@ -271,7 +261,7 @@ export function useChatStreaming({
                                 );
                                 lastFunctionCall.arguments = parsed;
                                 lastFunctionCall.status = "completed";
-                              } catch (e) {
+                              } catch (_e) {
                                 // Arguments not yet complete
                               }
                             }
@@ -292,7 +282,7 @@ export function useChatStreaming({
                         try {
                           fc.arguments = JSON.parse(fc.argumentsString);
                           fc.status = "completed";
-                        } catch (e) {
+                        } catch (_e) {
                           fc.arguments = { raw: fc.argumentsString };
                           fc.status = "error";
                         }
@@ -524,11 +514,6 @@ export function useChatStreaming({
                       chunk.data.retrieval_results));
 
                 if (hasImplicitToolCall && currentFunctionCalls.length === 0) {
-                  console.log(
-                    "[Heuristic Detection] Detected implicit tool call:",
-                    chunk,
-                  );
-
                   // Create a synthetic function call for the UI
                   const results =
                     chunk.results ||
@@ -547,9 +532,6 @@ export function useChatStreaming({
                     result: results,
                   };
                   currentFunctionCalls.push(syntheticFunctionCall);
-                  console.log(
-                    "[Heuristic Detection] Created synthetic function call",
-                  );
                 }
 
                 // Update streaming message in real-time
@@ -604,9 +586,6 @@ export function useChatStreaming({
           );
 
         if (hasCitations || hasRAGPattern) {
-          console.log(
-            "[Post-Processing] Detected RAG usage from content patterns",
-          );
           const syntheticFunctionCall: FunctionCall = {
             name: "Retrieval",
             arguments: {

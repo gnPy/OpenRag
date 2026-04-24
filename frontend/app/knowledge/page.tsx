@@ -23,6 +23,9 @@ import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
 import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdown";
+import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
+import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
+import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 import {
   Dialog,
   DialogContent,
@@ -33,9 +36,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
-import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
-import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Tooltip,
@@ -60,11 +60,11 @@ import IBMLogo from "../../components/icons/ibm-logo";
 import OneDriveIcon from "../../components/icons/one-drive-logo";
 import SharePointIcon from "../../components/icons/share-point-logo";
 import { useDeleteDocument } from "../api/mutations/useDeleteDocument";
-import {
-  useRenameDocument,
-  type RenameDocumentResponse,
-} from "../api/mutations/useRenameDocument";
 import { useRefreshOpenragDocs } from "../api/mutations/useRefreshOpenragDocs";
+import {
+  type RenameDocumentResponse,
+  useRenameDocument,
+} from "../api/mutations/useRenameDocument";
 import { useSyncAllConnectors } from "../api/mutations/useSyncConnector";
 
 // Function to get the appropriate icon for a connector type
@@ -123,7 +123,9 @@ function SearchPage() {
   const [renameDialogOpen, setRenameDialogOpen] = useState(false);
   const [renameCurrentFilename, setRenameCurrentFilename] = useState("");
   const [renameNewFilename, setRenameNewFilename] = useState("");
-  const [renameDocumentId, setRenameDocumentId] = useState<string | undefined>();
+  const [renameDocumentId, setRenameDocumentId] = useState<
+    string | undefined
+  >();
   const [renamePartialSummary, setRenamePartialSummary] = useState<{
     updated_chunks: number;
     remaining_old_chunks: number;
@@ -201,14 +203,22 @@ function SearchPage() {
         return;
       }
 
-      if (result.success && result.resumed && (result.updated_chunks || 0) > 0) {
+      if (
+        result.success &&
+        result.resumed &&
+        (result.updated_chunks || 0) > 0
+      ) {
         toast.success("Rename complete", {
           description: `All remaining chunks now use "${next}".`,
         });
         return;
       }
 
-      if (result.success && (result.updated_chunks || 0) > 0 && hadPartialBefore) {
+      if (
+        result.success &&
+        (result.updated_chunks || 0) > 0 &&
+        hadPartialBefore
+      ) {
         toast.success("Rename complete", {
           description: `All chunks now use "${next}".`,
         });

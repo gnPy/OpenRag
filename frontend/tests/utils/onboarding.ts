@@ -45,8 +45,7 @@ export async function completeOnboarding(
     await expect(completedLocator.or(contentLocator)).toBeVisible({
       timeout: 15000,
     });
-  } catch (error) {
-    console.log("Neither onboarding state visible, refreshing page...");
+  } catch (_error) {
     await page.reload();
     await expect(completedLocator.or(contentLocator)).toBeVisible({
       timeout: 15000,
@@ -57,11 +56,8 @@ export async function completeOnboarding(
 
   if (isCompleted) {
     if (!reset) {
-      console.log("Onboarding already complete, skipping...");
       return;
     }
-
-    console.log("Onboarding complete and reset is true, rolling back...");
     const response = await page.request.post("/api/onboarding/rollback");
     if (!response.ok()) {
       const text = await response.text();
@@ -72,8 +68,6 @@ export async function completeOnboarding(
         throw new Error(`Failed to rollback onboarding: ${text}`);
       }
     }
-
-    console.log("Refreshing page after rollback...");
     await page.reload();
     // After rollback and reload, we must see the onboarding content
     await expect(contentLocator).toBeVisible({ timeout: 15000 });

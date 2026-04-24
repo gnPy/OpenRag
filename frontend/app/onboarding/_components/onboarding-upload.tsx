@@ -108,11 +108,6 @@ const OnboardingUpload = ({ onComplete }: OnboardingUploadProps) => {
               await updateOnboardingMutation.mutateAsync({
                 user_doc_filter_id: result.filter.id,
               });
-
-              console.log(
-                "Created knowledge filter for uploaded document",
-                result.filter.id,
-              );
             }
           })
           .catch((error) => {
@@ -166,7 +161,6 @@ const OnboardingUpload = ({ onComplete }: OnboardingUploadProps) => {
     try {
       setCurrentStep(0);
       const result = await uploadFile(file, true, true); // Pass createFilter=true
-      console.log("Document upload task started successfully");
 
       // Store task ID to track the specific upload task
       if (result.taskId) {

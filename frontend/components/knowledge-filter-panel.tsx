@@ -118,8 +118,6 @@ export function KnowledgeFilterPanel() {
         connector_types: filters.connector_types ?? ["*"],
       };
 
-      console.log("[DEBUG] Loading filter selections:", processedFilters);
-
       setSelectedFilters(processedFilters);
       setResultLimit(parsedFilterData.limit || 10);
       setScoreThreshold(parsedFilterData.scoreThreshold || 0);

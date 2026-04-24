@@ -41,8 +41,6 @@ function AuthCallbackContent() {
         const state = searchParams.get("state");
         const errorParam = searchParams.get("error");
 
-        console.log("OAuth callback state (raw):", state);
-
         // Get stored auth info
         const connectorId = localStorage.getItem("connecting_connector_id");
         const storedConnectorType = localStorage.getItem(
@@ -57,14 +55,6 @@ function AuthCallbackContent() {
             ? "data_source"
             : "app_auth");
         setPurpose(detectedPurpose);
-
-        // Debug logging
-        console.log("OAuth Callback Debug:", {
-          urlParams: { code: !!code, state: !!state, error: errorParam },
-          localStorage: { connectorId, storedConnectorType, authPurpose },
-          detectedPurpose,
-          fullUrl: window.location.href,
-        });
 
         // Use state parameter as connection_id if localStorage is missing
         const finalConnectorId = connectorId || state;
@@ -85,27 +75,22 @@ function AuthCallbackContent() {
         // Send callback data to backend
         const stateParam = searchParams.get("state");
         let parsedConnectionId = finalConnectorId;
-        let stateReturnUrl: string | null = null;
+        let _stateReturnUrl: string | null = null;
 
         // In IBM auth mode, state is base64-encoded: id=<connection_id>&return=<broker_callback_url>
         if (isIbmAuthMode && stateParam) {
           try {
             const decodedState = decodeBase64(stateParam);
-            console.log("OAuth callback state (decoded):", decodedState);
             const params = new URLSearchParams(decodedState);
 
             if (params.has("id")) {
               parsedConnectionId = params.get("id") || finalConnectorId;
-              stateReturnUrl = params.get("return");
-              console.log("Parsed Base64 state parameter:", {
-                parsedConnectionId,
-                stateReturnUrl,
-              });
+              _stateReturnUrl = params.get("return");
             } else if (stateParam.includes("id=")) {
               // Fallback: If not base64 but contains id=, try to parse as raw for backward compatibility
               const rawParams = new URLSearchParams(stateParam);
               parsedConnectionId = rawParams.get("id") || finalConnectorId;
-              stateReturnUrl = rawParams.get("return");
+              _stateReturnUrl = rawParams.get("return");
             }
           } catch (e) {
             console.error(
@@ -117,7 +102,7 @@ function AuthCallbackContent() {
               try {
                 const params = new URLSearchParams(stateParam);
                 parsedConnectionId = params.get("id") || finalConnectorId;
-                stateReturnUrl = params.get("return");
+                _stateReturnUrl = params.get("return");
               } catch (innerE) {
                 console.error("Failed to parse raw state parameter", innerE);
               }

@@ -31,7 +31,7 @@ import type {
 
 function ChatPage() {
   const isDebugMode = process.env.NEXT_PUBLIC_OPENRAG_DEBUG === "true";
-  const isCloudBrand = useIsCloudBrand();
+  const _isCloudBrand = useIsCloudBrand();
   const {
     endpoint,
     setEndpoint,
@@ -129,12 +129,6 @@ function ChatPage() {
         if (conversationFilter && typeof window !== "undefined") {
           const newKey = `conversation_filter_${responseId}`;
           localStorage.setItem(newKey, conversationFilter.id);
-          console.log(
-            "[CHAT] Saved filter association:",
-            newKey,
-            "=",
-            conversationFilter.id,
-          );
         }
       }
     },
@@ -179,8 +173,6 @@ function ChatPage() {
   };
 
   const handleFileUpload = async (file: File) => {
-    console.log("handleFileUpload called with file:", file.name);
-
     if (isUploading) return;
 
     setIsUploading(true);
@@ -202,8 +194,6 @@ function ChatPage() {
         body: formData,
       });
 
-      console.log("Upload response status:", response.status);
-
       if (!response.ok) {
         const errorText = await response.text();
         console.error(
@@ -216,7 +206,6 @@ function ChatPage() {
       }
 
       const result = await response.json();
-      console.log("Upload result:", result);
 
       if (!response.ok) {
         // Set chat error flag if upload fails
@@ -360,11 +349,6 @@ function ChatPage() {
       !isUserInteracting &&
       !isForkingInProgress
     ) {
-      console.log(
-        "Loading conversation with",
-        conversationData.messages.length,
-        "messages",
-      );
       // Convert backend message format to frontend Message interface
       const convertedMessages: Message[] = conversationData.messages.map(
         (msg: {
@@ -406,11 +390,6 @@ function ChatPage() {
           // Extract function calls from chunks or response_data
           if (msg.role === "assistant" && (msg.chunks || msg.response_data)) {
             const functionCalls: FunctionCall[] = [];
-            console.log("Processing assistant message for function calls:", {
-              hasChunks: !!msg.chunks,
-              chunksLength: msg.chunks?.length,
-              hasResponseData: !!msg.response_data,
-            });
 
             // Process chunks (streaming data)
             if (msg.chunks && Array.isArray(msg.chunks)) {
@@ -418,7 +397,6 @@ function ChatPage() {
                 // Handle Langflow format: chunks[].item.tool_call
                 if (chunk.item && chunk.item.type === "tool_call") {
                   const toolCall = chunk.item;
-                  console.log("Found Langflow tool call:", toolCall);
                   functionCalls.push({
                     id: toolCall.id || "",
                     name: toolCall.tool_name || "unknown",
@@ -504,10 +482,8 @@ function ChatPage() {
             }
 
             if (functionCalls.length > 0) {
-              console.log("Setting functionCalls on message:", functionCalls);
               message.functionCalls = functionCalls;
             } else {
-              console.log("No function calls found in message");
             }
 
             // Extract usage data from response_data
@@ -553,7 +529,6 @@ function ChatPage() {
   // Handle new conversation creation - only reset messages when placeholderConversation is set
   useEffect(() => {
     if (placeholderConversation && currentConversationId === null) {
-      console.log("Starting new conversation");
       setMessages([
         {
           role: "assistant",
@@ -572,10 +547,7 @@ function ChatPage() {
 
   // Listen for file upload events from navigation
   useEffect(() => {
-    const handleFileUploadStart = (event: CustomEvent) => {
-      const { filename } = event.detail;
-      console.log("Chat page received file upload start event:", filename);
-
+    const handleFileUploadStart = (_event: CustomEvent) => {
       setLoading(true);
       setIsUploading(true);
       setUploadedFile(null); // Clear previous file
@@ -583,7 +555,6 @@ function ChatPage() {
 
     const handleFileUploaded = (event: CustomEvent) => {
       const { result } = event.detail;
-      console.log("Chat page received file upload event:", result);
 
       setUploadedFile(null); // Clear file after upload
 
@@ -597,18 +568,12 @@ function ChatPage() {
     };
 
     const handleFileUploadComplete = () => {
-      console.log("Chat page received file upload complete event");
       setLoading(false);
       setIsUploading(false);
     };
 
     const handleFileUploadError = (event: CustomEvent) => {
       const { filename, error } = event.detail;
-      console.log(
-        "Chat page received file upload error event:",
-        filename,
-        error,
-      );
 
       // Replace the last message with error message
       const errorMessage: Message = {
@@ -699,12 +664,6 @@ function ChatPage() {
     // Use passed previousResponseId if available, otherwise fall back to state
     const responseIdToUse = previousResponseId || previousResponseIds[endpoint];
 
-    console.log("[CHAT] Sending streaming message:", {
-      conversationFilter: conversationFilter?.id,
-      currentConversationId,
-      responseIdToUse,
-    });
-
     // Use the hook to send the message
     await sendStreamingMessage({
       prompt: userMessage.content,
@@ -778,14 +737,6 @@ function ChatPage() {
           requestBody.filter_id = conversationFilter.id;
         }
 
-        // Debug logging
-        console.log("[DEBUG] Sending message with:", {
-          previous_response_id: requestBody.previous_response_id,
-          filter_id: requestBody.filter_id,
-          currentConversationId,
-          previousResponseIds,
-        });
-
         const response = await fetch(apiEndpoint, {
           method: "POST",
           headers: {
@@ -810,13 +761,6 @@ function ChatPage() {
 
           // Store the response ID if present for this endpoint
           if (result.response_id) {
-            console.log(
-              "[DEBUG] Received response_id:",
-              result.response_id,
-              "currentConversationId:",
-              currentConversationId,
-            );
-
             setPreviousResponseIds((prev) => ({
               ...prev,
               [endpoint]: result.response_id,
@@ -824,16 +768,9 @@ function ChatPage() {
 
             // If this is a new conversation (no currentConversationId), set it now
             if (!currentConversationId) {
-              console.log(
-                "[DEBUG] Setting currentConversationId to:",
-                result.response_id,
-              );
               setCurrentConversationId(result.response_id);
               refreshConversations(true);
             } else {
-              console.log(
-                "[DEBUG] Existing conversation, doing silent refresh",
-              );
               // For existing conversations, do a silent refresh to keep backend in sync
               refreshConversationsSilent();
             }
@@ -842,12 +779,6 @@ function ChatPage() {
             if (conversationFilter && typeof window !== "undefined") {
               const newKey = `conversation_filter_${result.response_id}`;
               localStorage.setItem(newKey, conversationFilter.id);
-              console.log(
-                "[DEBUG] Saved filter association:",
-                newKey,
-                "=",
-                conversationFilter.id,
-              );
             }
           }
         } else {
@@ -937,8 +868,6 @@ function ChatPage() {
     setIsUserInteracting(true);
     setIsForkingInProgress(true);
 
-    console.log("Fork conversation called for message index:", messageIndex);
-
     // Get messages up to and including the selected assistant message
     const messagesToKeep = messages.slice(0, messageIndex + 1);
 
@@ -975,13 +904,10 @@ function ChatPage() {
       }));
     }
 
-    console.log("Forked conversation with", messagesToKeep.length, "messages");
-
     // Reset interaction state after a longer delay to ensure all effects complete
     setTimeout(() => {
       setIsUserInteracting(false);
       setIsForkingInProgress(false);
-      console.log("Fork interaction complete, re-enabling auto effects");
     }, 500);
 
     // The original conversation remains unchanged in the sidebar

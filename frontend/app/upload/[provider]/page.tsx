@@ -405,7 +405,6 @@ export default function UploadProviderPage() {
 
   const handleFileSelected = (files: CloudFile[]) => {
     setSelectedFiles(files);
-    console.log(`Selected ${files.length} item(s) from ${provider}:`, files);
     // You can add additional handling here like triggering sync, etc.
   };
 
