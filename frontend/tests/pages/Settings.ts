@@ -248,7 +248,7 @@ export class Settings {
       logger.info("Watsonx.ai configuration completed");
       await expect(
         this.getToastByText("IBM watsonx.ai successfully configured"),
-      ).toBeVisible();
+      ).toBeVisible({ timeout: 20000 });
       await expect(editBtn).toBeEnabled();
     }
     //Else if already configured -> skip setup

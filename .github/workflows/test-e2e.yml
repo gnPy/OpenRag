@@ -164,12 +164,28 @@ jobs:
         working-directory: frontend
         env:
           CI: "true"
+          # OpenSearch
           OPENSEARCH_HOST: localhost
           OPENSEARCH_PORT: "9200"
           OPENSEARCH_USERNAME: admin
           OPENSEARCH_PASSWORD: ${{ env.OPENSEARCH_PASSWORD }}
+          # LLM / Embedding provider keys
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Watsonx — test code expects WATSONX_AI_* names
+          WATSONX_API_KEY: ${{ secrets.WATSONX_API_KEY }}
+          WATSONX_AI_API_KEY: ${{ secrets.WATSONX_API_KEY }}
+          WATSONX_AI_URL: ${{ secrets.WATSONX_ENDPOINT }}
+          WATSONX_AI_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
+          WATSONX_PROJECT_ID: ${{ secrets.WATSONX_PROJECT_ID }}
+          # Ollama
+          OLLAMA_ENDPOINT: ${{ secrets.OLLAMA_ENDPOINT }}
+          # OAuth — disabled for E2E
           GOOGLE_OAUTH_CLIENT_ID: ""
           GOOGLE_OAUTH_CLIENT_SECRET: ""
+          # AWS
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: npx playwright test --shard=${{ matrix.shard }}/${{ env.TOTAL_SHARDS }}
 
       - name: Collect service logs on failure
