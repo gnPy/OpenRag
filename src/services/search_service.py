@@ -514,6 +514,7 @@ class SearchService:
             chunks.append(
                 {
                     "filename": source.get("filename"),
+                    "document_id": source.get("document_id"),
                     "mimetype": source.get("mimetype"),
                     "page": source.get("page"),
                     "text": source.get("text"),

@@ -21,6 +21,7 @@ export interface SearchPayload {
 
 export interface ChunkResult {
   filename: string;
+  document_id?: string;
   mimetype: string;
   page: number;
   text: string;
@@ -40,6 +41,7 @@ export interface ChunkResult {
 
 export interface File {
   filename: string;
+  document_id?: string;
   mimetype: string;
   chunkCount?: number;
   avgScore?: number;
@@ -142,6 +144,7 @@ export const useGetSearchQuery = (
         string,
         {
           filename: string;
+          document_id?: string;
           mimetype: string;
           chunks: ChunkResult[];
           totalScore: number;
@@ -164,6 +167,9 @@ export const useGetSearchQuery = (
         if (existing) {
           existing.chunks.push(chunk);
           existing.totalScore += chunk.score;
+          if (!existing.document_id && chunk.document_id) {
+            existing.document_id = chunk.document_id;
+          }
           if (!existing.embedding_model && chunk.embedding_model) {
             existing.embedding_model = chunk.embedding_model;
           }
@@ -176,6 +182,7 @@ export const useGetSearchQuery = (
         } else {
           fileMap.set(fileIdentity, {
             filename: fileIdentity,
+            document_id: chunk.document_id,
             mimetype: chunk.mimetype,
             chunks: [chunk],
             totalScore: chunk.score,
@@ -195,6 +202,7 @@ export const useGetSearchQuery = (
 
       const files: File[] = Array.from(fileMap.values()).map((file) => ({
         filename: file.filename,
+        document_id: file.document_id,
         mimetype: file.mimetype,
         chunkCount: file.chunks.length,
         avgScore: file.totalScore / file.chunks.length,

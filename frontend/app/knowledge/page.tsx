@@ -23,6 +23,16 @@ import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
 import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdown";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
 import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
 import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
@@ -50,6 +60,10 @@ import IBMLogo from "../../components/icons/ibm-logo";
 import OneDriveIcon from "../../components/icons/one-drive-logo";
 import SharePointIcon from "../../components/icons/share-point-logo";
 import { useDeleteDocument } from "../api/mutations/useDeleteDocument";
+import {
+  useRenameDocument,
+  type RenameDocumentResponse,
+} from "../api/mutations/useRenameDocument";
 import { useRefreshOpenragDocs } from "../api/mutations/useRefreshOpenragDocs";
 import { useSyncAllConnectors } from "../api/mutations/useSyncConnector";
 
@@ -102,8 +116,126 @@ function SearchPage() {
   const seenFailedFileKeysRef = useRef<Set<string>>(new Set());
 
   const deleteDocumentMutation = useDeleteDocument();
+  const renameDocumentMutation = useRenameDocument();
   const syncAllConnectorsMutation = useSyncAllConnectors();
   const refreshOpenragDocsMutation = useRefreshOpenragDocs();
+
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameCurrentFilename, setRenameCurrentFilename] = useState("");
+  const [renameNewFilename, setRenameNewFilename] = useState("");
+  const [renameDocumentId, setRenameDocumentId] = useState<string | undefined>();
+  const [renamePartialSummary, setRenamePartialSummary] = useState<{
+    updated_chunks: number;
+    remaining_old_chunks: number;
+    matched_chunks: number;
+  } | null>(null);
+
+  const openRenameDialog = useCallback(
+    (target: { filename: string; documentId?: string }) => {
+      setRenameCurrentFilename(target.filename);
+      setRenameDocumentId(target.documentId);
+      setRenameNewFilename(target.filename);
+      setRenamePartialSummary(null);
+      setRenameDialogOpen(true);
+    },
+    [],
+  );
+
+  const handleRenameSave = useCallback(async () => {
+    const next = renameNewFilename.trim();
+    if (!next) {
+      toast.error("Enter a new file name");
+      return;
+    }
+    if (next === renameCurrentFilename.trim()) {
+      toast.error("New name must differ from the current name");
+      return;
+    }
+    try {
+      const hadPartialBefore = renamePartialSummary !== null;
+
+      const result = await renameDocumentMutation.mutateAsync({
+        current_filename: renameCurrentFilename,
+        new_filename: next,
+        document_id: renameDocumentId ?? null,
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["search"] });
+      await refreshTasks();
+
+      const persistRenameDocumentId = (r: RenameDocumentResponse) => {
+        const id =
+          typeof r.document_id === "string" ? r.document_id.trim() : "";
+        if (id) setRenameDocumentId(id);
+      };
+
+      if (result.partial) {
+        persistRenameDocumentId(result);
+        const updated = result.updated_chunks ?? 0;
+        const remaining = result.remaining_old_chunks ?? 0;
+        const matched = result.matched_chunks ?? 0;
+        setRenamePartialSummary({
+          updated_chunks: updated,
+          remaining_old_chunks: remaining,
+          matched_chunks: matched,
+        });
+        toast.warning("Rename partially applied", {
+          description: `${updated} chunk(s) updated; ${remaining} still use the old name. Use Retry to continue.`,
+        });
+        return;
+      }
+
+      setRenamePartialSummary(null);
+      setRenameDialogOpen(false);
+      setRenameNewFilename("");
+
+      persistRenameDocumentId(result);
+
+      if (result.success && result.idempotent) {
+        toast.success(
+          hadPartialBefore ? "Rename complete" : "Name already in sync",
+          {
+            description: `Every indexed chunk uses "${next}".`,
+          },
+        );
+        return;
+      }
+
+      if (result.success && result.resumed && (result.updated_chunks || 0) > 0) {
+        toast.success("Rename complete", {
+          description: `All remaining chunks now use "${next}".`,
+        });
+        return;
+      }
+
+      if (result.success && (result.updated_chunks || 0) > 0 && hadPartialBefore) {
+        toast.success("Rename complete", {
+          description: `All chunks now use "${next}".`,
+        });
+        return;
+      }
+
+      if (result.success && (result.updated_chunks || 0) > 0) {
+        toast.success("Document renamed", {
+          description: `${renameCurrentFilename} → ${next}`,
+        });
+      } else {
+        toast.warning("Rename finished but no chunks were updated.");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to rename document",
+      );
+    }
+  }, [
+    queryClient,
+    renameCurrentFilename,
+    renameDocumentId,
+    renameDocumentMutation,
+    renameNewFilename,
+    renamePartialSummary,
+    refreshTasks,
+  ]);
 
   useEffect(() => {
     refreshTasks();
@@ -558,7 +690,9 @@ function SearchPage() {
         return (
           <KnowledgeActionsDropdown
             filename={data?.filename || ""}
+            documentId={data?.document_id}
             connectorType={data?.connector_type}
+            onOpenRename={openRenameDialog}
           />
         );
       },
@@ -850,6 +984,71 @@ function SearchPage() {
           />
         )}
       </div>
+
+      <Dialog
+        open={renameDialogOpen}
+        onOpenChange={(open) => {
+          setRenameDialogOpen(open);
+          if (!open) {
+            setRenameNewFilename("");
+            setRenamePartialSummary(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename document</DialogTitle>
+            <DialogDescription>
+              Updates the display name for this file in search and knowledge.
+              Document content and internal id are unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-2 py-2">
+            <Label htmlFor="knowledge-rename-filename-input">New name</Label>
+            <Input
+              id="knowledge-rename-filename-input"
+              value={renameNewFilename}
+              onChange={(e) => setRenameNewFilename(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void handleRenameSave();
+                }
+              }}
+              autoFocus
+            />
+            {renamePartialSummary ? (
+              <p className="text-sm text-amber-600 dark:text-amber-500">
+                Partial rename: {renamePartialSummary.updated_chunks} of{" "}
+                {renamePartialSummary.matched_chunks} matching chunk(s) now use
+                &quot;{renameNewFilename.trim()}&quot;.{" "}
+                {renamePartialSummary.remaining_old_chunks} still use the old
+                name—choose Retry to run another pass, or Cancel to stop.
+              </p>
+            ) : null}
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setRenameDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleRenameSave()}
+              disabled={renameDocumentMutation.isPending}
+            >
+              {renameDocumentMutation.isPending
+                ? "Saving…"
+                : renamePartialSummary
+                  ? "Retry"
+                  : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Delete Confirmation Dialog */}
       <DeleteConfirmationDialog
