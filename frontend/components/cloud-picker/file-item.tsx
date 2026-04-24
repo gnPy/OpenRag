@@ -1,12 +1,14 @@
 "use client";
 
-import { FileText, Folder, Trash2 } from "lucide-react";
+import { AlertTriangle, FileText, Folder, Trash2 } from "lucide-react";
 import AwsLogo from "@/components/icons/aws-logo";
 import GoogleDriveIcon from "@/components/icons/google-drive-logo";
 import IBMCOSIcon from "@/components/icons/ibm-cos-icon";
 import OneDriveIcon from "@/components/icons/one-drive-logo";
 import SharePointIcon from "@/components/icons/share-point-logo";
 import { Button } from "@/components/ui/button";
+import { formatSize, useUploadLimits } from "@/lib/limits";
+import { cn } from "@/lib/utils";
 import type { CloudFile } from "./types";
 
 interface FileItemProps {
@@ -65,30 +67,58 @@ const getProviderIcon = (provider: string) => {
   }
 };
 
-export const FileItem = ({ file, onRemove, provider }: FileItemProps) => (
-  <div
-    key={file.id}
-    className="flex items-center justify-between p-1.5 rounded-md text-xs"
-  >
-    <div className="flex items-center gap-2 flex-1 min-w-0">
-      {provider ? getProviderIcon(provider) : getFileIcon(file.mimeType)}
-      <span className="truncate font-medium text-sm mr-2">{file.name}</span>
-      <span className="text-sm text-muted-foreground">
-        {getMimeTypeLabel(file.mimeType)}
-      </span>
+export const FileItem = ({ file, onRemove, provider }: FileItemProps) => {
+  const limits = useUploadLimits();
+  const isFolder = file.mimeType?.includes("folder");
+  const overLimit =
+    !isFolder &&
+    typeof file.size === "number" &&
+    file.size > limits.maxUploadSizeBytes;
+  const overLimitTitle = overLimit
+    ? `Will be skipped — exceeds ${formatSize(limits.maxUploadSizeBytes)} limit`
+    : undefined;
+
+  return (
+    <div
+      key={file.id}
+      className={cn(
+        "flex items-center justify-between p-1.5 rounded-md text-xs",
+        overLimit && "opacity-60",
+      )}
+      title={overLimitTitle}
+    >
+      <div className="flex items-center gap-2 flex-1 min-w-0">
+        {provider ? getProviderIcon(provider) : getFileIcon(file.mimeType)}
+        <span className="truncate font-medium text-sm mr-2">{file.name}</span>
+        <span className="text-sm text-muted-foreground">
+          {getMimeTypeLabel(file.mimeType)}
+        </span>
+        {overLimit && (
+          <AlertTriangle
+            className="h-3.5 w-3.5 text-amber-500 shrink-0"
+            aria-label={overLimitTitle}
+          />
+        )}
+      </div>
+      <div className="flex items-center gap-1">
+        <span
+          className={cn(
+            "text-xs mr-4",
+            overLimit ? "text-amber-600" : "text-muted-foreground",
+          )}
+          title={overLimitTitle ?? "file size"}
+        >
+          {formatFileSize(file.size) || "—"}
+        </span>
+        <Button
+          className="text-muted-foreground  hover:text-destructive"
+          size="icon"
+          variant="ghost"
+          onClick={() => onRemove(file.id)}
+        >
+          <Trash2 size={16} />
+        </Button>
+      </div>
     </div>
-    <div className="flex items-center gap-1">
-      <span className="text-xs text-muted-foreground mr-4" title="file size">
-        {formatFileSize(file.size) || "—"}
-      </span>
-      <Button
-        className="text-muted-foreground  hover:text-destructive"
-        size="icon"
-        variant="ghost"
-        onClick={() => onRemove(file.id)}
-      >
-        <Trash2 size={16} />
-      </Button>
-    </div>
-  </div>
-);
+  );
+};

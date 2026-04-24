@@ -8,6 +8,11 @@ from typing import List, Optional
 from fastapi import Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
+from config.limits import (
+    MAX_UPLOAD_SIZE_BYTES,
+    format_size,
+    is_within_size_limit,
+)
 from config.settings import DISABLE_INGEST_WITH_LANGFLOW
 from dependencies import (
     get_document_service,
@@ -114,18 +119,56 @@ async def _langflow_upload_ingest_task(
 
         temp_file_paths = []
         original_filenames = []
+        skipped_files: list[dict] = []
 
         try:
             temp_dir = tempfile.gettempdir()
 
             for upload_file in upload_files:
+                size = upload_file.size
+                if size is not None and not is_within_size_limit(size):
+                    logger.warning(
+                        "[INGEST] Skipping oversized file in batch",
+                        filename=upload_file.filename,
+                        size_bytes=size,
+                        limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+                    )
+                    skipped_files.append(
+                        {"filename": upload_file.filename, "size_bytes": size}
+                    )
+                    continue
+
                 content = await upload_file.read()
+                if not is_within_size_limit(len(content)):
+                    logger.warning(
+                        "[INGEST] Skipping oversized file (size unavailable pre-read)",
+                        filename=upload_file.filename,
+                        size_bytes=len(content),
+                        limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+                    )
+                    skipped_files.append(
+                        {"filename": upload_file.filename, "size_bytes": len(content)}
+                    )
+                    continue
+
                 original_filenames.append(upload_file.filename)
                 safe_filename = upload_file.filename.replace(" ", "_").replace("/", "_")
                 temp_path = os.path.join(temp_dir, safe_filename)
                 with open(temp_path, "wb") as f:
                     f.write(content)
                 temp_file_paths.append(temp_path)
+
+            if not temp_file_paths:
+                return JSONResponse(
+                    {
+                        "error": (
+                            f"All files exceed the upload size limit of "
+                            f"{format_size(MAX_UPLOAD_SIZE_BYTES)}"
+                        ),
+                        "skipped_files": skipped_files,
+                    },
+                    status_code=413,
+                )
 
             file_path_to_original_filename = dict(zip(temp_file_paths, original_filenames))
 
@@ -148,10 +191,11 @@ async def _langflow_upload_ingest_task(
             return JSONResponse(
                 {
                     "task_id": task_id,
-                    "message": f"Langflow upload task created for {len(upload_files)} file(s)",
-                    "file_count": len(upload_files),
+                    "message": f"Langflow upload task created for {len(temp_file_paths)} file(s)",
+                    "file_count": len(temp_file_paths),
                     "create_filter": create_filter,
                     "filename": original_filenames[0] if len(original_filenames) == 1 else None,
+                    "skipped_files": skipped_files,
                 },
                 status_code=202,
             )

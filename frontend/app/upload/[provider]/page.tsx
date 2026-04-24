@@ -23,6 +23,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTask } from "@/contexts/task-context";
+import {
+  describeSkipped,
+  fetchUploadLimits,
+  formatSize,
+  partitionConnectorFilesBySize,
+} from "@/lib/limits";
 
 // Connectors that sync entire buckets/repositories without a file picker
 const DIRECT_SYNC_PROVIDERS = ["ibm_cos", "aws_s3"];
@@ -418,12 +424,29 @@ export default function UploadProviderPage() {
       return;
     }
 
+    const limits = await fetchUploadLimits();
+    const { ok: okFiles, skipped } = partitionConnectorFilesBySize(
+      selectedFiles,
+      limits.maxUploadSizeBytes,
+    );
+    if (skipped.length > 0) {
+      toast.warning(`${skipped.length} file(s) skipped — over size limit`, {
+        description: describeSkipped(skipped, limits.maxUploadSizeBytes),
+      });
+    }
+    if (okFiles.length === 0) {
+      toast.error("All selected files exceed the upload size limit", {
+        description: `Max per file: ${formatSize(limits.maxUploadSizeBytes)}.`,
+      });
+      return;
+    }
+
     syncMutation.mutate(
       {
         connectorType: connector.type,
         body: {
           connection_id: connector.connectionId,
-          selected_files: selectedFiles.map((file) => ({
+          selected_files: okFiles.map((file) => ({
             id: file.id,
             name: file.name,
             mimeType: file.mimeType,

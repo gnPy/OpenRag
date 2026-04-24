@@ -17,6 +17,14 @@ from dependencies import (
 )
 from session_manager import User
 from utils.logging_config import get_logger
+from config.limits import (
+    MAX_UPLOAD_SIZE_BYTES,
+    MAX_UPLOAD_SIZE_MB,
+    FileTooLargeError,
+    format_size,
+    is_within_size_limit,
+    partition_by_size,
+)
 
 logger = get_logger(__name__)
 
@@ -37,6 +45,15 @@ async def upload(
 ):
     """Upload a single file"""
     try:
+        if file.size is not None and not is_within_size_limit(file.size):
+            err = FileTooLargeError(file.filename or "upload", file.size)
+            logger.warning(
+                "[INGEST] Upload rejected — file too large",
+                filename=err.filename,
+                size_bytes=err.size_bytes,
+                limit_bytes=err.limit_bytes,
+            )
+            return JSONResponse({"error": str(err)}, status_code=413)
 
         from config.settings import is_no_auth_mode
         is_no_auth = is_no_auth_mode()
@@ -82,6 +99,30 @@ async def upload_path(
     if not file_paths:
         return JSONResponse({"error": "No files found in directory"}, status_code=400)
 
+    sized = [(p, os.path.getsize(p)) for p in file_paths]
+    ok_sized, skipped = partition_by_size(sized)
+    if skipped:
+        logger.warning(
+            "[INGEST] Skipping oversized files from directory",
+            skipped_count=len(skipped),
+            limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+            skipped=[{"filename": s.filename, "size_bytes": s.size_bytes} for s in skipped],
+        )
+    if not ok_sized:
+        return JSONResponse(
+            {
+                "error": (
+                    f"All files exceed the upload size limit of "
+                    f"{format_size(MAX_UPLOAD_SIZE_BYTES)}"
+                ),
+                "skipped_files": [
+                    {"filename": s.filename, "size_bytes": s.size_bytes} for s in skipped
+                ],
+            },
+            status_code=413,
+        )
+    file_paths = [p for p, _ in ok_sized]
+
     jwt_token = user.jwt_token
 
     from config.settings import is_no_auth_mode
@@ -102,7 +143,14 @@ async def upload_path(
     )
 
     return JSONResponse(
-        {"task_id": task_id, "total_files": len(file_paths), "status": "accepted"},
+        {
+            "task_id": task_id,
+            "total_files": len(file_paths),
+            "status": "accepted",
+            "skipped_files": [
+                {"filename": s.filename, "size_bytes": s.size_bytes} for s in skipped
+            ],
+        },
         status_code=201,
     )
 
@@ -119,6 +167,16 @@ async def upload_context(
     """Upload a file and add its content as context to the current conversation"""
     filename = file.filename or "uploaded_document"
     user_id = user.user_id if user else None
+
+    if file.size is not None and not is_within_size_limit(file.size):
+        err = FileTooLargeError(filename, file.size)
+        logger.warning(
+            "[INGEST] Context upload rejected — file too large",
+            filename=err.filename,
+            size_bytes=err.size_bytes,
+            limit_bytes=err.limit_bytes,
+        )
+        return JSONResponse({"error": str(err)}, status_code=413)
 
     jwt_token = user.jwt_token
 
@@ -153,7 +211,14 @@ async def upload_options(
         os.getenv("AWS_ACCESS_KEY_ID") and os.getenv("AWS_SECRET_ACCESS_KEY")
     )
     from config.settings import UPLOAD_BATCH_SIZE
-    return JSONResponse({"aws": aws_enabled, "upload_batch_size": UPLOAD_BATCH_SIZE})
+    return JSONResponse(
+        {
+            "aws": aws_enabled,
+            "upload_batch_size": UPLOAD_BATCH_SIZE,
+            "max_upload_size_mb": MAX_UPLOAD_SIZE_MB,
+            "max_upload_size_bytes": MAX_UPLOAD_SIZE_BYTES,
+        }
+    )
 
 
 async def upload_bucket(
@@ -178,15 +243,39 @@ async def upload_bucket(
 
     s3_client = boto3.client("s3")
     keys = []
+    skipped_bucket: list[dict] = []
     paginator = s3_client.get_paginator("list_objects_v2")
     for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
         for obj in page.get("Contents", []):
             key = obj["Key"]
-            if not key.endswith("/"):
-                keys.append(key)
+            if key.endswith("/"):
+                continue
+            size = obj.get("Size", 0)
+            if not is_within_size_limit(size):
+                skipped_bucket.append({"filename": key, "size_bytes": size})
+                continue
+            keys.append(key)
+
+    if skipped_bucket:
+        logger.warning(
+            "[INGEST] Skipping oversized S3 objects",
+            skipped_count=len(skipped_bucket),
+            limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+        )
 
     if not keys:
-        return JSONResponse({"error": "No files found in bucket"}, status_code=400)
+        return JSONResponse(
+            {
+                "error": (
+                    "No files found in bucket"
+                    if not skipped_bucket
+                    else f"All objects exceed the upload size limit of "
+                         f"{format_size(MAX_UPLOAD_SIZE_BYTES)}"
+                ),
+                "skipped_files": skipped_bucket,
+            },
+            status_code=400 if not skipped_bucket else 413,
+        )
 
     jwt_token = user.jwt_token
 
@@ -216,6 +305,11 @@ async def upload_bucket(
     task_id = await task_service.create_custom_task(task_user_id, keys, processor)
 
     return JSONResponse(
-        {"task_id": task_id, "total_files": len(keys), "status": "accepted"},
+        {
+            "task_id": task_id,
+            "total_files": len(keys),
+            "status": "accepted",
+            "skipped_files": skipped_bucket,
+        },
         status_code=201,
     )

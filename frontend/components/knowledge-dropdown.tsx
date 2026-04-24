@@ -40,6 +40,13 @@ import { useAuth } from "@/contexts/auth-context";
 import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useTask } from "@/contexts/task-context";
 import {
+  describeSkipped,
+  formatSize,
+  isWithinSizeLimit,
+  partitionFilesBySize,
+  type UploadLimits,
+} from "@/lib/limits";
+import {
   duplicateCheck,
   uploadFiles,
   uploadFile as uploadFileUtil,
@@ -128,6 +135,10 @@ export function KnowledgeDropdown() {
   const [showFolderDialog, setShowFolderDialog] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [uploadBatchSize, setUploadBatchSize] = useState(25);
+  const [uploadLimits, setUploadLimits] = useState<UploadLimits>({
+    maxUploadSizeMb: 1.0,
+    maxUploadSizeBytes: 1_048_576,
+  });
   const [folderPath, setFolderPath] = useState("");
   const [folderLoading, setFolderLoading] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
@@ -179,6 +190,15 @@ export function KnowledgeDropdown() {
           ) {
             setUploadBatchSize(uploadOptionsData.upload_batch_size);
           }
+          const mb =
+            typeof uploadOptionsData.max_upload_size_mb === "number"
+              ? uploadOptionsData.max_upload_size_mb
+              : 1.0;
+          const bytes =
+            typeof uploadOptionsData.max_upload_size_bytes === "number"
+              ? uploadOptionsData.max_upload_size_bytes
+              : Math.round(mb * 1024 * 1024);
+          setUploadLimits({ maxUploadSizeMb: mb, maxUploadSizeBytes: bytes });
         }
 
         if (ibmCosRes.ok) {
@@ -295,6 +315,14 @@ export function KnowledgeDropdown() {
       const file = files[0];
 
       // File selection will close dropdown automatically
+
+      if (!isWithinSizeLimit(file.size, uploadLimits.maxUploadSizeBytes)) {
+        toast.error("File too large", {
+          description: `${file.name} is ${formatSize(file.size)}, exceeds ${formatSize(uploadLimits.maxUploadSizeBytes)} limit.`,
+        });
+        resetFileInput();
+        return;
+      }
 
       try {
         console.log("[Duplicate Check] Checking file:", file.name);
@@ -460,18 +488,38 @@ export function KnowledgeDropdown() {
       });
       const unsupportedCount = fileList.length - filteredFiles.length;
 
-      if (filteredFiles.length === 0) {
-        toast.error("No supported files found", {
-          description:
-            "Please select a folder containing supported document files (PDF, DOCX, PPTX, XLSX, CSV, HTML, images, etc.).",
-        });
+      const { ok: sizeFilteredFiles, skipped: oversizedSkipped } =
+        partitionFilesBySize(filteredFiles, uploadLimits.maxUploadSizeBytes);
+      if (oversizedSkipped.length > 0) {
+        toast.warning(
+          `${oversizedSkipped.length} file(s) skipped — over size limit`,
+          {
+            description: describeSkipped(
+              oversizedSkipped,
+              uploadLimits.maxUploadSizeBytes,
+            ),
+          },
+        );
+      }
+
+      if (sizeFilteredFiles.length === 0) {
+        if (filteredFiles.length > 0 && oversizedSkipped.length > 0) {
+          toast.error("All files exceed the upload size limit", {
+            description: `Max per file: ${formatSize(uploadLimits.maxUploadSizeBytes)}.`,
+          });
+        } else {
+          toast.error("No supported files found", {
+            description:
+              "Please select a folder containing supported document files (PDF, DOCX, PPTX, XLSX, CSV, HTML, images, etc.).",
+          });
+        }
         return;
       }
 
-      toast.info(`Processing ${filteredFiles.length} file(s)...`);
+      toast.info(`Processing ${sizeFilteredFiles.length} file(s)...`);
 
       // Create clean File objects (strip folder path from names)
-      const cleanFiles = filteredFiles.map((originalFile) => {
+      const cleanFiles = sizeFilteredFiles.map((originalFile) => {
         const fileName =
           originalFile.name.split("/").pop() || originalFile.name;
         return new File([originalFile], fileName, {
@@ -506,7 +554,7 @@ export function KnowledgeDropdown() {
 
       if (unsupportedCount > 0) {
         toast.error(
-          `Unsupported files detected: only ${filteredFiles.length} of ${fileList.length} file(s) will be ingested.`,
+          `Unsupported files detected: only ${sizeFilteredFiles.length} of ${fileList.length} file(s) will be ingested.`,
           {
             description: `${unsupportedCount} file(s) have unsupported types and will be skipped.`,
           },

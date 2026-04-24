@@ -1,6 +1,11 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from utils.logging_config import get_logger
+from config.limits import (
+    MAX_UPLOAD_SIZE_BYTES,
+    format_size,
+    is_within_size_limit,
+)
 
 from .base import BaseConnector, ConnectorDocument
 from .connection_manager import ConnectionManager
@@ -8,6 +13,32 @@ from utils.file_utils import get_file_extension, clean_connector_filename
 
 
 logger = get_logger(__name__)
+
+
+def _filter_connector_files_by_size(
+    files: List[Dict[str, Any]], context: str
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Partition connector file-info dicts by size. Returns (ok, skipped)."""
+    ok: List[Dict[str, Any]] = []
+    skipped: List[Dict[str, Any]] = []
+    for info in files:
+        size = info.get("size")
+        if size is None or is_within_size_limit(size):
+            ok.append(info)
+        else:
+            skipped.append(info)
+    if skipped:
+        logger.warning(
+            "[CONNECTOR] Skipping oversized files pre-download",
+            context=context,
+            skipped_count=len(skipped),
+            limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+            skipped=[
+                {"id": s.get("id"), "name": s.get("name"), "size": s.get("size")}
+                for s in skipped
+            ],
+        )
+    return ok, skipped
 
 
 class ConnectorService:
@@ -50,6 +81,24 @@ class ConnectorService:
         owner_email: str = None,
     ) -> Dict[str, Any]:
         """Process a document from a connector using existing processing pipeline"""
+
+        content_len = len(document.content) if document.content else 0
+        if not is_within_size_limit(content_len):
+            logger.warning(
+                "[CONNECTOR] Skipping oversized document (safeguard)",
+                document_id=document.id,
+                filename=document.filename,
+                size_bytes=content_len,
+                limit_bytes=MAX_UPLOAD_SIZE_BYTES,
+            )
+            return {
+                "status": "skipped",
+                "reason": "file_too_large",
+                "filename": document.filename,
+                "source_url": document.source_url,
+                "size_bytes": content_len,
+                "limit_bytes": MAX_UPLOAD_SIZE_BYTES,
+            }
 
         # Create temporary file from document content
         from utils.file_utils import auto_cleanup_tempfile
@@ -260,6 +309,16 @@ class ConnectorService:
 
             page_token = file_list.get("nextPageToken")
 
+        files_to_process, skipped_files = _filter_connector_files_by_size(
+            files_to_process, context=f"sync_connector_files:{connection_id}"
+        )
+
+        if not files_to_process:
+            raise ValueError(
+                f"All files exceed the upload size limit of "
+                f"{format_size(MAX_UPLOAD_SIZE_BYTES)}"
+            )
+
         # Get user information
         user = self.session_manager.get_user(user_id) if self.session_manager else None
         owner_name = user.name if user else None
@@ -339,6 +398,22 @@ class ConnectorService:
         if not file_ids:
             raise ValueError("No file IDs provided")
 
+        oversized_ids: set = set()
+        if file_infos:
+            ok_infos, skipped_infos = _filter_connector_files_by_size(
+                file_infos, context=f"sync_specific_files:{connection_id}"
+            )
+            oversized_ids.update(
+                s.get("id") for s in skipped_infos if s.get("id") is not None
+            )
+            file_infos = ok_infos
+            file_ids = [fid for fid in file_ids if fid not in oversized_ids]
+            if not file_ids:
+                raise ValueError(
+                    f"All selected files exceed the upload size limit of "
+                    f"{format_size(MAX_UPLOAD_SIZE_BYTES)}"
+                )
+
         # Get user information
         user = self.session_manager.get_user(user_id) if self.session_manager else None
         owner_name = user.name if user else None
@@ -370,7 +445,15 @@ class ConnectorService:
             # Get the expanded list of file IDs (folders will be expanded to their contents)
             # This uses the connector's list_files() which calls _iter_selected_items()
             result = await connector.list_files()
-            expanded_file_ids = [f["id"] for f in result.get("files", [])]
+            expanded_files = result.get("files", [])
+            expanded_files, expanded_skipped = _filter_connector_files_by_size(
+                expanded_files, context=f"sync_specific_files_expanded:{connection_id}"
+            )
+            for s in expanded_skipped:
+                sid = s.get("id")
+                if sid is not None:
+                    oversized_ids.add(sid)
+            expanded_file_ids = [f["id"] for f in expanded_files]
 
             if not expanded_file_ids:
                 logger.warning(
