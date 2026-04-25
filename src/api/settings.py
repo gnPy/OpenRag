@@ -14,6 +14,7 @@ from config.settings import (
     LANGFLOW_URL,
     LANGFLOW_PUBLIC_URL,
     LOCALHOST_URL,
+    OPENRAG_INGEST_VIA_CHAT,
     clients,
     get_openrag_config,
     get_active_chat_flow_id,
@@ -175,6 +176,7 @@ class SettingsResponse(BaseModel):
     langflow_edit_url: Optional[str] = None
     langflow_ingest_edit_url: Optional[str] = None
     ingestion_defaults: Optional[IngestionDefaultsConfig] = None
+    ingest_via_chat: bool = False
 
 
 class OnboardingResponse(BaseModel):
@@ -381,6 +383,7 @@ async def get_settings(
             langflow_edit_url=langflow_edit_url,
             langflow_ingest_edit_url=langflow_ingest_edit_url,
             ingestion_defaults=ingestion_defaults_obj,
+            ingest_via_chat=OPENRAG_INGEST_VIA_CHAT,
         )
 
     except Exception as e:
@@ -1167,9 +1170,8 @@ async def onboarding(
             if body.embedding_provider or body.embedding_model:
                 await _update_mcp_servers_with_provider_credentials(current_config, session_manager=session_manager, flows_service=flows_service)
 
-            # Update model values if provider or model fields were provided
             if body.llm_provider or body.llm_model or body.embedding_provider or body.embedding_model:
-                await _update_langflow_model_values(current_config, flows_service)
+                await _update_langflow_model_values(current_config, flows_service, embedding_model=body.embedding_model, embedding_provider=body.embedding_provider, llm_model=body.llm_model, llm_provider=body.llm_provider)
 
         except Exception as e:
             logger.error(
@@ -1214,10 +1216,11 @@ async def onboarding(
                     # Import the function here to avoid circular imports
                     from main import ingest_default_documents_when_ready
 
-                    ingestion_jwt = user.jwt_token if IBM_AUTH_ENABLED and user and user.jwt_token else None
-
                     if not config_manager.save_config_file(current_config):
                         logger.error("Failed to save embedding model to config")
+                        return JSONResponse({"error": "Failed to save configuration"}, status_code=500)
+
+                    ingestion_jwt = user.jwt_token if IBM_AUTH_ENABLED and user and user.jwt_token else None
 
                     task_id = await ingest_default_documents_when_ready(
                         document_service,
@@ -1536,47 +1539,70 @@ async def _update_mcp_servers_with_provider_credentials(config, session_manager 
         # Don't fail the entire settings update if MCP update fails
 
 
-async def _update_langflow_model_values(config, flows_service):
+async def _update_langflow_model_values(config, flows_service, llm_model=None, llm_provider=None, embedding_model=None, embedding_provider=None):
     """Update model values across Langflow flows for all configured providers"""
     try:
-        # 1. Update ONLY the current LLM provider
-        llm_provider = config.agent.llm_provider.lower()
-        await flows_service.change_langflow_model_value(
-            llm_provider,
-            llm_model=config.agent.llm_model,
-            force_llm_update=True
-        )
-        logger.info(
-            f"Successfully updated Langflow flows for LLM provider {llm_provider}"
-        )
 
-        # 2. Update ALL configured embedding providers
-        embedding_providers = []
-        if config.providers.openai.configured:
-            embedding_providers.append("openai")
-        if config.providers.watsonx.configured:
-            embedding_providers.append("watsonx")
-        if config.providers.ollama.configured:
-            embedding_providers.append("ollama")
-
-        current_embedding_provider = config.knowledge.embedding_provider.lower()
-        for provider in embedding_providers:
-            # Use configured model for current provider, or None (first available) for others
-            embedding_model = (
-                config.knowledge.embedding_model
-                if provider == current_embedding_provider
-                else None
+        if llm_model or llm_provider:
+            effective_llm_provider = (llm_provider or config.agent.llm_provider).lower()
+            if llm_provider and llm_provider.lower() != config.agent.llm_provider.lower():
+                effective_llm_model = llm_model  # do not fall back; force caller to specify
+            else:
+                effective_llm_model = llm_model or config.agent.llm_model
+            result = await flows_service.change_langflow_model_value(
+                effective_llm_provider,
+                llm_model=effective_llm_model,
+                force_llm_update=True
             )
 
-            await flows_service.change_langflow_model_value(
-                provider,
-                embedding_model=embedding_model,
+            logger.info(
+                f"Successfully updated Langflow flows for LLM provider {effective_llm_provider}",
+                result=result
+            )
+
+        if embedding_model or embedding_provider:
+            effective_embedding_provider = (embedding_provider or config.knowledge.embedding_provider).lower()
+            if embedding_provider and embedding_provider.lower() != config.knowledge.embedding_provider.lower():
+                effective_embedding_model = embedding_model  # do not fall back; force caller to specify
+            else:
+                effective_embedding_model = embedding_model or config.knowledge.embedding_model
+            result = await flows_service.change_langflow_model_value(
+                effective_embedding_provider,
+                embedding_model=effective_embedding_model,
                 force_embedding_update=True
             )
+
             logger.info(
-                f"Successfully updated Langflow flows for embedding provider {provider}"
+                f"Successfully updated Langflow flows for embedding provider {effective_embedding_provider}",
+                result=result
             )
 
+        if not (embedding_model or embedding_provider or llm_model or llm_provider):
+            # 2. Update ALL configured embedding providers
+            embedding_providers = []
+            if config.providers.openai.configured:
+                embedding_providers.append("openai")
+            if config.providers.watsonx.configured:
+                embedding_providers.append("watsonx")
+            if config.providers.ollama.configured:
+                embedding_providers.append("ollama")
+
+            current_embedding_provider = config.knowledge.embedding_provider.lower()
+            for provider in embedding_providers:
+                # Use configured model for current provider, or None (first available) for others
+                embedding_model = (
+                    config.knowledge.embedding_model
+                    if provider == current_embedding_provider
+                    else None
+                )
+                await flows_service.change_langflow_model_value(
+                        provider,
+                        embedding_model=embedding_model,
+                        force_embedding_update=True
+                    )
+                logger.info(
+                    f"Successfully updated Langflow flows for embedding provider {provider}"
+                )
     except Exception as e:
         logger.error(f"Failed to update Langflow model values: {str(e)}")
         raise
@@ -1640,7 +1666,7 @@ async def update_onboarding_state(
         if not success:
             raise HTTPException(status_code=500, detail="Failed to update onboarding state")
 
-        logger.info(f"Onboarding state updated: {body}")
+        logger.info("[CONFIG] Onboarding state updated", fields=list(body.model_fields_set))
 
         return OnboardingStateResponse(
             message="Onboarding state updated successfully",
@@ -1737,7 +1763,7 @@ async def rollback_onboarding(
                 {"error": "No onboarding configuration to rollback"}, status_code=400
             )
 
-        logger.info("Rolling back onboarding configuration due to file failures")
+        logger.warning("[CONFIG] Rolling back onboarding configuration due to file failures")
 
         # Get all tasks for the user
         all_tasks = task_service.get_all_tasks(user.user_id)

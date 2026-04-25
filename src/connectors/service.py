@@ -99,7 +99,7 @@ class ConnectorService:
             with open(tmp_path, "wb") as f:
                 f.write(document.content)
 
-            logger.debug("Processing connector document", document_id=document.id)
+            logger.info("[CONNECTOR] Processing document", document_id=document.id, connector_type=connector_type, filename=document.filename)
 
             # Process using consolidated processing pipeline
             from models.processors import TaskProcessor
@@ -128,7 +128,7 @@ class ConnectorService:
                 },
             )
 
-            logger.debug("Document processing result", result=result)
+            logger.info("[CONNECTOR] Document processed", document_id=document.id, status=result.get("status"))
 
             return {
                 **result,
