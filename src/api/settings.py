@@ -25,6 +25,7 @@ from config.settings import (
 from typing import List, Optional, Any, Dict
 
 from api.provider_validation import validate_provider_setup
+from config.embedding_constants import OPENAI_EMBEDDING_MODEL_PREFIX
 from utils.langflow_utils import LangflowNotReadyError, wait_for_langflow
 from dependencies import (
     get_session_manager,
@@ -945,6 +946,36 @@ async def onboarding(
         embedding_model_selected = None
         embedding_provider_selected = None
 
+        # Pre-validate the embedding provider/model pair before any cascading
+        # writes. Empty model + saved-empty config previously leaked an empty
+        # string to OpenAI and surfaced as a confusing "invalid model ID" error.
+        if body.embedding_provider or body.embedding_model:
+            final_provider = (
+                body.embedding_provider
+                or current_config.knowledge.embedding_provider
+                or ""
+            ).strip().lower()
+            final_model = (
+                body.embedding_model
+                or current_config.knowledge.embedding_model
+                or ""
+            ).strip()
+            if not final_model:
+                return JSONResponse(
+                    {"error": "Embedding model is required. Please select a model from the dropdown."},
+                    status_code=400,
+                )
+            if final_provider == "openai" and not final_model.startswith(OPENAI_EMBEDDING_MODEL_PREFIX):
+                return JSONResponse(
+                    {
+                        "error": (
+                            f"Model '{final_model}' is not a valid OpenAI embedding model. "
+                            f"Expected a model starting with '{OPENAI_EMBEDDING_MODEL_PREFIX}'."
+                        )
+                    },
+                    status_code=400,
+                )
+
         if body.embedding_model:
             embedding_model_selected = body.embedding_model.strip()
             current_config.knowledge.embedding_model = embedding_model_selected
@@ -958,6 +989,15 @@ async def onboarding(
 
         if body.embedding_provider:
             embedding_provider_selected = body.embedding_provider.strip()
+            # Switching provider without a fresh model would silently carry the
+            # old provider's model forward — clear it so the request fails fast
+            # via the pre-validation above on the next attempt.
+            if (
+                embedding_provider_selected.lower()
+                != current_config.knowledge.embedding_provider.lower()
+                and not body.embedding_model
+            ):
+                current_config.knowledge.embedding_model = ""
             current_config.knowledge.embedding_provider = embedding_provider_selected
             config_updated = True
             await TelemetryClient.send_event(
