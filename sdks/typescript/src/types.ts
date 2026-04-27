@@ -109,7 +109,6 @@ export interface AgentSettings {
 }
 
 export interface KnowledgeSettings {
-  backend?: string | null;
   embedding_provider?: string | null;
   embedding_model?: string | null;
   chunk_size?: number | null;

@@ -19,7 +19,6 @@ from config.settings import (
     get_openrag_config,
     get_active_chat_flow_id,
     get_active_ingest_flow_id,
-    get_knowledge_backend,
     config_manager,
     is_no_auth_mode,
 )
@@ -141,7 +140,6 @@ class ProvidersConfig(BaseModel):
     ollama: OllamaProviderConfig
 
 class KnowledgeConfig(BaseModel):
-    backend: Optional[str]
     embedding_model: Optional[str]
     embedding_provider: Optional[str]
     chunk_size: Optional[int]
@@ -363,8 +361,9 @@ async def get_settings(
                     configured=openrag_config.providers.ollama.configured,
                 ),
             ),
+            # TODO(openrag-api): Do not expose the active vector backend here
+            # until the upstream settings API explicitly adds that contract.
             knowledge=KnowledgeConfig(
-                backend=get_knowledge_backend(),
                 embedding_model=knowledge_config.embedding_model,
                 embedding_provider=knowledge_config.embedding_provider,
                 chunk_size=knowledge_config.chunk_size,
@@ -409,41 +408,6 @@ def _first_configured_embedding_provider(config, excluding: str) -> str:
     return "openai"
 
 
-def _effective_embedding_provider(config, body: SettingsUpdateBody) -> str:
-    return (
-        body.embedding_provider.strip()
-        if body.embedding_provider is not None
-        else config.knowledge.embedding_provider
-    )
-
-
-def _effective_embedding_model(config, body: SettingsUpdateBody) -> str:
-    return (
-        body.embedding_model.strip()
-        if body.embedding_model is not None
-        else config.knowledge.embedding_model
-    )
-
-
-async def _guard_astra_embedding_reconfiguration(current_config, session_manager):
-    from services.knowledge_backend import get_knowledge_backend_service
-
-    knowledge_backend = get_knowledge_backend_service(session_manager)
-    if not await knowledge_backend.has_indexed_documents():
-        return None
-
-    return JSONResponse(
-        {
-            "error": (
-                "Changing the embedding provider or model is not supported while "
-                "Astra DB already contains indexed documents. Roll back onboarding "
-                "or clear and reingest the Astra corpus before changing embeddings."
-            )
-        },
-        status_code=400,
-    )
-
-
 async def update_settings(
     body: SettingsUpdateBody,
     session_manager=Depends(get_session_manager),
@@ -463,19 +427,9 @@ async def update_settings(
                 status_code=403,
             )
 
-        embedding_config_changed = (
-            _effective_embedding_provider(current_config, body)
-            != current_config.knowledge.embedding_provider
-            or _effective_embedding_model(current_config, body)
-            != current_config.knowledge.embedding_model
-        )
-        if get_knowledge_backend() == "astra" and embedding_config_changed:
-            blocked_response = await _guard_astra_embedding_reconfiguration(
-                current_config,
-                session_manager,
-            )
-            if blocked_response is not None:
-                return blocked_response
+        # TODO(openrag-api): If OpenRAG wants backend-aware embedding mutation
+        # safeguards, define that in the public API contract before enforcing
+        # Astra-specific settings errors here.
 
         # Validate provider setup if provider-related fields are being updated
         # Do this BEFORE modifying any config
