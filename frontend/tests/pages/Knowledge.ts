@@ -34,16 +34,14 @@ export class Knowledge {
           }
           return null;
         }),
-        transportError
-          .isVisible()
-          .then((visible) =>
-            visible
-              ? {
-                  type: "transport_error",
-                  text: "TransportError(503, search_phase_execution_exception)",
-                }
-              : null,
-          ),
+        transportError.isVisible().then((visible) =>
+          visible
+            ? {
+                type: "transport_error",
+                text: "TransportError(503, search_phase_execution_exception)",
+              }
+            : null,
+        ),
         embeddingError.isVisible().then(async (visible) => {
           if (visible) {
             const errorText = await embeddingError.textContent();
