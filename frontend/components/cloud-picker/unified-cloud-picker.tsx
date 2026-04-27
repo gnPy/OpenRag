@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useIngestEmbeddingFromSettings } from "@/hooks/useIngestEmbeddingFromSettings";
-import { usePersistedIngestSettings } from "@/hooks/usePersistedIngestSettings";
+import { useSessionIngestSettings } from "@/hooks/useSessionIngestSettings";
 import { FileList } from "./file-list";
 import { IngestSettings } from "./ingest-settings";
 import { PickerHeader } from "./picker-header";
@@ -31,9 +30,7 @@ export const UnifiedCloudPicker = ({
   const [isLoadingBaseUrl, setIsLoadingBaseUrl] = useState(false);
   const [autoBaseUrl, setAutoBaseUrl] = useState<string | undefined>(undefined);
 
-  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
-
-  useIngestEmbeddingFromSettings(setIngestSettings);
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
 
   // Handle settings changes and notify parent
   const handleSettingsChange = (newSettings: IngestSettingsType) => {

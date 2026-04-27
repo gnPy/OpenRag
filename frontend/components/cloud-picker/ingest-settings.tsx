@@ -33,10 +33,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/auth-context";
-import {
-  DEFAULT_INGEST_EMBEDDING_MODEL,
-  type IngestSettings as IngestSettingsType,
-} from "./types";
+import { getDefaultIngestSettings } from "@/lib/ingest-settings-knowledge";
+import type { IngestSettings as IngestSettingsType } from "./types";
 
 interface IngestSettingsProps {
   isOpen: boolean;
@@ -81,20 +79,7 @@ export const IngestSettings = ({
           ? ibmModelsData
           : openaiModelsData;
 
-  const apiEmbeddingModel =
-    apiSettings.knowledge?.embedding_model ||
-    modelsData?.embedding_models?.find((m) => m.default)?.value ||
-    DEFAULT_INGEST_EMBEDDING_MODEL;
-
-  const defaultSettings: IngestSettingsType = {
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: apiEmbeddingModel,
-  };
-
-  const currentSettings = settings || defaultSettings;
+  const currentSettings = settings ?? getDefaultIngestSettings();
 
   const handleSettingsChange = (newSettings: Partial<IngestSettingsType>) => {
     onSettingsChange?.({ ...currentSettings, ...newSettings });

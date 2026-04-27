@@ -20,8 +20,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTask } from "@/contexts/task-context";
-import { useIngestEmbeddingFromSettings } from "@/hooks/useIngestEmbeddingFromSettings";
-import { usePersistedIngestSettings } from "@/hooks/usePersistedIngestSettings";
+import { useSessionIngestSettings } from "@/hooks/useSessionIngestSettings";
 
 // Connectors that sync entire buckets/repositories without a file picker
 const DIRECT_SYNC_PROVIDERS = ["ibm_cos", "aws_s3"];
@@ -57,10 +56,8 @@ function BucketView({
   const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(
     new Set(),
   );
-  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-
-  useIngestEmbeddingFromSettings(setIngestSettings);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
@@ -378,9 +375,7 @@ export default function UploadProviderPage() {
   const syncMutation = useSyncConnector();
 
   const [selectedFiles, setSelectedFiles] = useState<CloudFile[]>([]);
-  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
-
-  useIngestEmbeddingFromSettings(setIngestSettings);
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
 
   const accessToken = tokenData?.access_token || null;
   const isLoading =
