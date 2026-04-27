@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useIngestEmbeddingFromSettings } from "@/hooks/useIngestEmbeddingFromSettings";
+import { usePersistedIngestSettings } from "@/hooks/usePersistedIngestSettings";
 import { FileList } from "./file-list";
 import { IngestSettings } from "./ingest-settings";
 import { PickerHeader } from "./picker-header";
@@ -29,14 +31,9 @@ export const UnifiedCloudPicker = ({
   const [isLoadingBaseUrl, setIsLoadingBaseUrl] = useState(false);
   const [autoBaseUrl, setAutoBaseUrl] = useState<string | undefined>(undefined);
 
-  // Settings state with defaults
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
+
+  useIngestEmbeddingFromSettings(setIngestSettings);
 
   // Handle settings changes and notify parent
   const handleSettingsChange = (newSettings: IngestSettingsType) => {
@@ -98,16 +95,6 @@ export const UnifiedCloudPicker = ({
   ]);
 
   const handleAddFiles = () => {
-    // === DIAGNOSTIC LOGGING ===
-    console.log("=== UnifiedCloudPicker handleAddFiles ===");
-    console.log("Provider:", provider);
-    console.log("Client ID:", clientId);
-    console.log("Base URL (from prop):", baseUrl);
-    console.log("Auto Base URL:", autoBaseUrl);
-    console.log("Effective Base URL:", effectiveBaseUrl);
-    console.log("Is Picker Loaded:", isPickerLoaded);
-    console.log("Has Access Token:", !!accessToken);
-
     if (!isPickerLoaded || !accessToken) {
       console.error(
         "Cannot open picker: isPickerLoaded=",

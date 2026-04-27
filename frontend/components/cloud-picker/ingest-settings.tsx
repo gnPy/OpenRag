@@ -1,7 +1,6 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import { useEffect } from "react";
 import {
   useGetIBMModelsQuery,
   useGetOllamaModelsQuery,
@@ -34,7 +33,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useAuth } from "@/contexts/auth-context";
-import type { IngestSettings as IngestSettingsType } from "./types";
+import {
+  DEFAULT_INGEST_EMBEDDING_MODEL,
+  type IngestSettings as IngestSettingsType,
+} from "./types";
 
 interface IngestSettingsProps {
   isOpen: boolean;
@@ -51,16 +53,13 @@ export const IngestSettings = ({
 }: IngestSettingsProps) => {
   const { isAuthenticated, isNoAuthMode } = useAuth();
 
-  // Fetch settings from API to get current embedding model
   const { data: apiSettings = {} } = useGetSettingsQuery({
     enabled: isAuthenticated || isNoAuthMode,
   });
 
-  // Get the current provider from API settings
   const currentProvider = (apiSettings.knowledge?.embedding_provider ||
     "openai") as ModelProvider;
 
-  // Fetch available models based on provider
   const { data: openaiModelsData } = useGetOpenAIModelsQuery(undefined, {
     enabled: (isAuthenticated || isNoAuthMode) && currentProvider === "openai",
   });
@@ -73,7 +72,6 @@ export const IngestSettings = ({
     enabled: (isAuthenticated || isNoAuthMode) && currentProvider === "watsonx",
   });
 
-  // Select the appropriate models data based on provider
   const modelsData =
     currentProvider === "openai"
       ? openaiModelsData
@@ -83,13 +81,11 @@ export const IngestSettings = ({
           ? ibmModelsData
           : openaiModelsData;
 
-  // Get embedding model from API settings
   const apiEmbeddingModel =
     apiSettings.knowledge?.embedding_model ||
     modelsData?.embedding_models?.find((m) => m.default)?.value ||
-    "text-embedding-3-small";
+    DEFAULT_INGEST_EMBEDDING_MODEL;
 
-  // Default settings - use API embedding model
   const defaultSettings: IngestSettingsType = {
     chunkSize: 1000,
     chunkOverlap: 200,
@@ -98,21 +94,7 @@ export const IngestSettings = ({
     embeddingModel: apiEmbeddingModel,
   };
 
-  // Use provided settings or defaults
   const currentSettings = settings || defaultSettings;
-
-  // Update settings when API embedding model changes
-  useEffect(() => {
-    if (
-      apiEmbeddingModel &&
-      (!settings || settings.embeddingModel !== apiEmbeddingModel)
-    ) {
-      onSettingsChange?.({
-        ...currentSettings,
-        embeddingModel: apiEmbeddingModel,
-      });
-    }
-  }, [apiEmbeddingModel, settings, onSettingsChange, currentSettings]);
 
   const handleSettingsChange = (newSettings: Partial<IngestSettingsType>) => {
     onSettingsChange?.({ ...currentSettings, ...newSettings });
@@ -137,7 +119,6 @@ export const IngestSettings = ({
 
       <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-up-2 data-[state=open]:slide-down-2">
         <div className="mt-6">
-          {/* Embedding model selection */}
           <LabelWrapper
             helperText="Model used for knowledge ingest and retrieval"
             id="embedding-model-select"
@@ -196,22 +177,6 @@ export const IngestSettings = ({
               />
             </div>
           </div>
-
-          {/* <div className="flex gap-2 items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold pb-2">Table Structure</div>
-              <div className="text-sm text-muted-foreground">
-                Capture table structure during ingest.
-              </div>
-            </div>
-            <Switch
-              id="table-structure"
-              checked={currentSettings.tableStructure}
-              onCheckedChange={(checked) =>
-                handleSettingsChange({ tableStructure: checked })
-              }
-            />
-          </div> */}
 
           <div className="flex items-center justify-between border-b pb-3 mb-3">
             <div>

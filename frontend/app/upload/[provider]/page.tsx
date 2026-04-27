@@ -12,10 +12,7 @@ import { useIBMCOSBucketStatusQuery } from "@/app/api/queries/useIBMCOSBucketSta
 import { useS3BucketStatusQuery } from "@/app/api/queries/useS3BucketStatusQuery";
 import { type CloudFile, UnifiedCloudPicker } from "@/components/cloud-picker";
 import { IngestSettings } from "@/components/cloud-picker/ingest-settings";
-import {
-  getIngestChunkSettingsError,
-  type IngestSettings as IngestSettingsType,
-} from "@/components/cloud-picker/types";
+import { getIngestChunkSettingsError } from "@/components/cloud-picker/types";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -23,6 +20,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTask } from "@/contexts/task-context";
+import { useIngestEmbeddingFromSettings } from "@/hooks/useIngestEmbeddingFromSettings";
+import { usePersistedIngestSettings } from "@/hooks/usePersistedIngestSettings";
 
 // Connectors that sync entire buckets/repositories without a file picker
 const DIRECT_SYNC_PROVIDERS = ["ibm_cos", "aws_s3"];
@@ -58,14 +57,10 @@ function BucketView({
   const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(
     new Set(),
   );
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+
+  useIngestEmbeddingFromSettings(setIngestSettings);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
@@ -383,13 +378,9 @@ export default function UploadProviderPage() {
   const syncMutation = useSyncConnector();
 
   const [selectedFiles, setSelectedFiles] = useState<CloudFile[]>([]);
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = usePersistedIngestSettings();
+
+  useIngestEmbeddingFromSettings(setIngestSettings);
 
   const accessToken = tokenData?.access_token || null;
   const isLoading =
@@ -405,7 +396,6 @@ export default function UploadProviderPage() {
 
   const handleFileSelected = (files: CloudFile[]) => {
     setSelectedFiles(files);
-    console.log(`Selected ${files.length} item(s) from ${provider}:`, files);
     // You can add additional handling here like triggering sync, etc.
   };
 

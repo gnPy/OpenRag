@@ -104,6 +104,9 @@ export interface GooglePicker {
   setVisible: (visible: boolean) => void;
 }
 
+/** Initial ingest embedding before settings / model list resolve. */
+export const DEFAULT_INGEST_EMBEDDING_MODEL = "text-embedding-3-small";
+
 export interface IngestSettings {
   chunkSize: number;
   chunkOverlap: number;
