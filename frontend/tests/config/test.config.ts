@@ -15,9 +15,9 @@ export const TEST_CONFIG = {
 
   //Watsonx config
   watsonx: {
-    url: process.env.WATSONX_AI_URL!,
-    projectId: process.env.WATSONX_AI_PROJECT_ID!,
-    apiKey: process.env.WATSONX_AI_API_KEY!,
+    url: process.env.WATSONX_ENDPOINT!,
+    projectId: process.env.WATSONX_PROJECT_ID!,
+    apiKey: process.env.WATSONX_API_KEY!,
   },
   openaiApiKey: process.env.OPENAI_API_KEY!,
   // Timeouts (in milliseconds)
