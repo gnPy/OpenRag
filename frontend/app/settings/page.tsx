@@ -763,27 +763,48 @@ function KnowledgeSourcesPage() {
                     Edit in Langflow
                   </Button>
                 }
-                title="Edit Agent flow in Langflow"
+                title={
+                  isCloudBrand ? "Contact Us" : "Edit Agent flow in Langflow"
+                }
                 description={
-                  <>
-                    <p className="mb-2">
-                      You&apos;re entering Langflow. You can edit the{" "}
-                      <b>Agent flow</b> and other underlying flows. Manual
-                      changes to components, wiring, or I/O can break this
-                      experience.
+                  isCloudBrand ? (
+                    <p>
+                      To edit the Agent flow, reach out to{" "}
+                      <a
+                        href="mailto:tech-preview@openrag.com"
+                        className="underline"
+                      >
+                        tech-preview@openrag.com
+                      </a>
+                      .
                     </p>
-                    <p className="mb-2">
-                      To enable editing, you need to unlock the flow by clicking
-                      on its name and disabling the <b>Lock flow</b> option.
-                    </p>
-                    <p>You can restore this flow from Settings.</p>
-                  </>
+                  ) : (
+                    <>
+                      <p className="mb-2">
+                        You&apos;re entering Langflow. You can edit the{" "}
+                        <b>Agent flow</b> and other underlying flows. Manual
+                        changes to components, wiring, or I/O can break this
+                        experience.
+                      </p>
+                      <p className="mb-2">
+                        To enable editing, you need to unlock the flow by
+                        clicking on its name and disabling the <b>Lock flow</b>{" "}
+                        option.
+                      </p>
+                      <p>You can restore this flow from Settings.</p>
+                    </>
+                  )
                 }
-                confirmText="Proceed"
-                confirmIcon={<ArrowUpRight />}
-                onConfirm={(closeDialog) =>
-                  handleEditInLangflow("chat", closeDialog)
-                }
+                confirmText={isCloudBrand ? "Contact Us" : "Proceed"}
+                confirmIcon={isCloudBrand ? null : <ArrowUpRight />}
+                onConfirm={(closeDialog) => {
+                  if (isCloudBrand) {
+                    window.open("mailto:tech-preview@openrag.com");
+                    closeDialog();
+                  } else {
+                    handleEditInLangflow("chat", closeDialog);
+                  }
+                }}
                 variant="warning"
               />
             </div>
@@ -918,28 +939,49 @@ function KnowledgeSourcesPage() {
                     Edit in Langflow
                   </Button>
                 }
-                title="Edit Ingest flow in Langflow"
+                title={
+                  isCloudBrand ? "Contact Us" : "Edit Ingest flow in Langflow"
+                }
                 description={
-                  <>
-                    <p className="mb-2">
-                      You&apos;re entering Langflow. You can edit the{" "}
-                      <b>Ingest flow</b> and other underlying flows. Manual
-                      changes to components, wiring, or I/O can break this
-                      experience.
+                  isCloudBrand ? (
+                    <p>
+                      To edit the Ingest flow, reach out to{" "}
+                      <a
+                        href="mailto:tech-preview@openrag.com"
+                        className="underline"
+                      >
+                        tech-preview@openrag.com
+                      </a>
+                      .
                     </p>
-                    <p className="mb-2">
-                      To enable editing, you need to unlock the flow by clicking
-                      on its name and disabling the <b>Lock flow</b> option.
-                    </p>
-                    <p>You can restore this flow from Settings.</p>
-                  </>
+                  ) : (
+                    <>
+                      <p className="mb-2">
+                        You&apos;re entering Langflow. You can edit the{" "}
+                        <b>Ingest flow</b> and other underlying flows. Manual
+                        changes to components, wiring, or I/O can break this
+                        experience.
+                      </p>
+                      <p className="mb-2">
+                        To enable editing, you need to unlock the flow by
+                        clicking on its name and disabling the <b>Lock flow</b>{" "}
+                        option.
+                      </p>
+                      <p>You can restore this flow from Settings.</p>
+                    </>
+                  )
                 }
-                confirmText="Proceed"
-                confirmIcon={<ArrowUpRight />}
+                confirmText={isCloudBrand ? "Contact Us" : "Proceed"}
+                confirmIcon={isCloudBrand ? null : <ArrowUpRight />}
                 variant="warning"
-                onConfirm={(closeDialog) =>
-                  handleEditInLangflow("ingest", closeDialog)
-                }
+                onConfirm={(closeDialog) => {
+                  if (isCloudBrand) {
+                    window.open("mailto:tech-preview@openrag.com");
+                    closeDialog();
+                  } else {
+                    handleEditInLangflow("ingest", closeDialog);
+                  }
+                }}
               />
             </div>
           </div>
