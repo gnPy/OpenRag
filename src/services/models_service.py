@@ -7,6 +7,7 @@ from config.model_constants import (
     OLLAMA_DEFAULT_LANGUAGE_MODEL_PATTERN,
     OPENAI_DEFAULT_LANGUAGE_MODEL,
     OPENAI_VALIDATION_MODELS,
+    WATSONX_DEFAULT_LANGUAGE_MODEL,
 )
 from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL_PREFIX
 from utils.container_utils import transform_localhost_url
@@ -132,8 +133,16 @@ class ModelsService:
         if not model_name:
             return ""
 
-        # Skip formatting if already has a known provider prefix
+        # If the model name already has a known provider prefix, trust the registry
+        # over the prefix — e.g. "openai/gpt-oss-120b" registered under "watsonx"
+        # must be routed as "watsonx/openai/gpt-oss-120b", not sent to OpenAI.
         if any(model_name.startswith(p + "/") for p in KNOWN_PREFIXES):
+            registered_provider = ModelsService._model_provider_registry.get(model_name)
+            if registered_provider is None:
+                await self.update_model_registry()
+                registered_provider = ModelsService._model_provider_registry.get(model_name)
+            if registered_provider and not model_name.startswith(registered_provider + "/"):
+                return f"{registered_provider}/{model_name}"
             return model_name
 
         # Check if provider is explicitly given and not "openai"
@@ -510,7 +519,7 @@ class ModelsService:
                     text_models = text_data.get("resources", [])
                     logger.info(f"Retrieved {len(text_models)} text chat models from Watson API")
 
-                    for i, model in enumerate(text_models):
+                    for model in text_models:
                         model_id = model.get("model_id", "")
                         model_name = model.get("name", model_id)
 
@@ -521,9 +530,19 @@ class ModelsService:
                             {
                                 "value": model_id,
                                 "label": model_name or model_id,
-                                "default": i == 0,  # First model is default
+                                "default": model_id == WATSONX_DEFAULT_LANGUAGE_MODEL,
                             }
                         )
+
+                    language_models.sort(key=lambda x: (not x.get("default", False), x["value"]))
+
+                    if language_models and not any(m.get("default") for m in language_models):
+                        logger.warning(
+                            "WATSONX_DEFAULT_LANGUAGE_MODEL '%s' not found in API response; "
+                            "falling back to first available model as default.",
+                            WATSONX_DEFAULT_LANGUAGE_MODEL,
+                        )
+                        language_models[0]["default"] = True
                 else:
                     logger.warning(
                         f"Failed to retrieve text chat models. Status: {text_response.status_code}, "
@@ -558,7 +577,7 @@ class ModelsService:
                             {
                                 "value": model_id,
                                 "label": model_name or model_id,
-                                "default": i == 0,  # First model is default
+                                "default": i == 0,
                             }
                         )
                 else:
