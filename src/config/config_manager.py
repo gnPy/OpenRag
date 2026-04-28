@@ -1,5 +1,6 @@
 """Configuration management for OpenRAG."""
 
+import hashlib
 import os
 import yaml
 from pathlib import Path
@@ -55,6 +56,22 @@ Do not perform math internally. **Call the calculator tool instead.**
 5. Never invent facts or hallucinate details.
 6. Be concise, direct, and confident.
 7. Do not reveal internal chain-of-thought."""
+
+LEGACY_DEFAULT_SYSTEM_PROMPT_HASHES = frozenset(
+    {
+        # Normalized SHA-256 of the release-saas-0.1 default prompt that included URL ingestion.
+        "768465010dfad0cbe054c0a5d3044004d374f8fcfa5d688ac2e0d2f6ff75ad22",
+    }
+)
+
+
+def _normalized_prompt_hash(system_prompt: str) -> str:
+    normalized_prompt = " ".join((system_prompt or "").split())
+    return hashlib.sha256(normalized_prompt.encode("utf-8")).hexdigest()
+
+
+def _is_legacy_default_system_prompt(system_prompt: str) -> bool:
+    return _normalized_prompt_hash(system_prompt) in LEGACY_DEFAULT_SYSTEM_PROMPT_HASHES
 
 
 @dataclass
@@ -138,8 +155,7 @@ class AgentConfig:
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
     def __post_init__(self):
-        stale_url_markers = ("URL " + "Ingestion Tool", "URL " + "Ingestion Rules")
-        if any(marker in self.system_prompt for marker in stale_url_markers):
+        if _is_legacy_default_system_prompt(self.system_prompt):
             self.system_prompt = DEFAULT_SYSTEM_PROMPT
 
 

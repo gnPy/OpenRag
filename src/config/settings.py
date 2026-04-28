@@ -79,7 +79,19 @@ INGEST_SAMPLE_DATA = os.getenv(
 
 # Default OpenRAG docs sample ingestion source.
 # URL ingestion is disabled; use packaged files from the openrag-documents directory.
-DEFAULT_DOCS_INGEST_SOURCE = os.getenv("DEFAULT_DOCS_INGEST_SOURCE", "files").lower()
+def _resolve_default_docs_ingest_source() -> str:
+    configured_source = (
+        os.getenv("DEFAULT_DOCS_INGEST_SOURCE", "files").strip().lower() or "files"
+    )
+    if configured_source != "files":
+        logger.warning(
+            "DEFAULT_DOCS_INGEST_SOURCE only supports files; ignoring unsupported value",
+            configured_source=configured_source,
+        )
+    return "files"
+
+
+DEFAULT_DOCS_INGEST_SOURCE = _resolve_default_docs_ingest_source()
 
 # Maximum number of files to upload / ingest (in batch) per task when adding knowledge via folder
 UPLOAD_BATCH_SIZE = get_env_int("UPLOAD_BATCH_SIZE", 25)
