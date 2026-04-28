@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict, Optional
 from .tasks import UploadTask, FileTask
 from utils.logging_config import get_logger
 from utils.file_utils import (
@@ -28,6 +28,8 @@ class TaskProcessor:
         file_size: int = None,
         connector_type: str = "local",
         embedding_model: str = None,
+        chunk_size: int = None,
+        chunk_overlap: int = None,
         is_sample_data: bool = False,
         acl: "DocumentACL" = None,
         extra_metadata: dict[str, Any] | None = None,
@@ -39,6 +41,9 @@ class TaskProcessor:
         Args:
             embedding_model: Embedding model to use (defaults to the current
                 embedding model from settings)
+            chunk_size: Optional character window size for re-splitting extracted
+                chunks (non-Langflow path, e.g. connector UI ``chunkSize``).
+            chunk_overlap: Overlap between windows; must be less than ``chunk_size``.
             acl: DocumentACL instance with access control information
         """
         import datetime
@@ -46,7 +51,10 @@ class TaskProcessor:
         from services.document_service import chunk_texts_for_embeddings
         from services.knowledge_access import build_access_context
         from services.knowledge_backend import get_knowledge_backend_service
-        from utils.document_processing import extract_relevant
+        from utils.document_processing import (
+            extract_relevant,
+            resplit_chunks_character_windows,
+        )
 
         # Use provided embedding model or configured model.
         # get_embedding_model() returns empty string when Langflow ingest is enabled,
@@ -99,6 +107,25 @@ class TaskProcessor:
 
             full_doc = await convert_file(file_path, httpx_client=clients.docling_http_client)
             slim_doc = extract_relevant(full_doc)
+
+        if chunk_size is not None:
+            try:
+                cs = int(chunk_size)
+            except (TypeError, ValueError):
+                cs = 0
+            if cs > 0:
+                try:
+                    co = (
+                        int(chunk_overlap)
+                        if chunk_overlap is not None
+                        else 0
+                    )
+                except (TypeError, ValueError):
+                    co = 0
+                if co < cs:
+                    slim_doc["chunks"] = resplit_chunks_character_windows(
+                        slim_doc["chunks"], cs, max(0, co)
+                    )
 
         texts = [c["text"] for c in slim_doc["chunks"]]
 
@@ -297,6 +324,7 @@ class ConnectorFileProcessor(TaskProcessor):
         owner_email: str = None,
         document_service=None,
         models_service=None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(document_service=document_service, models_service=models_service)
         self.connector_service = connector_service
@@ -306,6 +334,7 @@ class ConnectorFileProcessor(TaskProcessor):
         self.jwt_token = jwt_token
         self.owner_name = owner_name
         self.owner_email = owner_email
+        self.ingest_settings = ingest_settings
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -344,6 +373,7 @@ class ConnectorFileProcessor(TaskProcessor):
                 jwt_token=self.jwt_token,
                 owner_name=self.owner_name,
                 owner_email=self.owner_email,
+                ingest_settings=self.ingest_settings,
             )
 
             file_task.status = TaskStatus.COMPLETED
@@ -371,6 +401,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.langflow_connector_service = langflow_connector_service
@@ -380,6 +411,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
         self.jwt_token = jwt_token
         self.owner_name = owner_name
         self.owner_email = owner_email
+        self.ingest_settings = ingest_settings
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -435,6 +467,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
                     jwt_token=self.jwt_token,
                     owner_name=self.owner_name,
                     owner_email=self.owner_email,
+                    ingest_settings=self.ingest_settings,
                 )
 
             file_task.status = TaskStatus.COMPLETED

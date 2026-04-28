@@ -407,6 +407,7 @@ class OpenSearchKnowledgeBackend(KnowledgeBackend):
         query_embeddings = {}
         filter_clauses = self._build_filter_clauses(filters)
         available_models = []
+        failed_models: list[str] = []
         is_wildcard_match_all = isinstance(query, str) and query.strip() == "*"
         resolved_embedding_model = (
             embedding_model or get_embedding_model() or OPENAI_DEFAULT_EMBEDDING_MODEL
@@ -490,15 +491,27 @@ class OpenSearchKnowledgeBackend(KnowledgeBackend):
                 ) from last_exception
 
             embedding_results = await asyncio.gather(
-                *[embed_with_model(model_name) for model_name in available_models]
+                *[embed_with_model(model_name) for model_name in available_models],
+                return_exceptions=True,
             )
-            for model_name, embedding in embedding_results:
-                if embedding is not None:
-                    query_embeddings[model_name] = embedding
+
+            for model_name, result in zip(available_models, embedding_results):
+                if isinstance(result, BaseException):
+                    failed_models.append(model_name)
+                    logger.warning(
+                        "Skipping model with failed embedding; continuing with others",
+                        model=model_name,
+                        error=str(result),
+                    )
+                    continue
+                if isinstance(result, tuple) and result[1] is not None:
+                    successful_model, embedding = result
+                    query_embeddings[successful_model] = embedding
 
             logger.info(
                 "Generated query embeddings",
                 models=list(query_embeddings.keys()),
+                failed_models=failed_models,
                 query_preview=query[:50],
             )
 
@@ -525,46 +538,60 @@ class OpenSearchKnowledgeBackend(KnowledgeBackend):
                     }
                 )
 
-            exists_any_embedding = {
-                "bool": {
-                    "should": [
-                        {"exists": {"field": field_name}}
-                        for field_name in embedding_fields_to_check
-                    ],
-                    "minimum_should_match": 1,
-                }
-            }
-            all_filters = [*filter_clauses, exists_any_embedding]
+            all_filters = list(filter_clauses)
+            if knn_queries:
+                exists_should = [
+                    {"exists": {"field": field_name}}
+                    for field_name in embedding_fields_to_check
+                ]
+                if failed_models:
+                    exists_should.append({"terms": {"embedding_model": failed_models}})
+                all_filters.append(
+                    {
+                        "bool": {
+                            "should": exists_should,
+                            "minimum_should_match": 1,
+                        }
+                    }
+                )
+
+            should_clauses = []
+            if knn_queries:
+                should_clauses.append(
+                    {
+                        "dis_max": {
+                            "tie_breaker": 0.0,
+                            "boost": 0.7,
+                            "queries": knn_queries,
+                        }
+                    }
+                )
+            should_clauses.extend(
+                [
+                    {
+                        "multi_match": {
+                            "query": query,
+                            "fields": ["text^2", "filename^1.5"],
+                            "type": "best_fields",
+                            "operator": "or",
+                            "fuzziness": "AUTO:4,7",
+                            "boost": 0.3 if knn_queries else 1.0,
+                        }
+                    },
+                    {
+                        "match_phrase_prefix": {
+                            "text": {
+                                "query": query,
+                                "max_expansions": 50,
+                                "boost": 0.25,
+                            }
+                        }
+                    },
+                ]
+            )
             query_block = {
                 "bool": {
-                    "should": [
-                        {
-                            "dis_max": {
-                                "tie_breaker": 0.0,
-                                "boost": 0.7,
-                                "queries": knn_queries,
-                            }
-                        },
-                        {
-                            "multi_match": {
-                                "query": query,
-                                "fields": ["text^2", "filename^1.5"],
-                                "type": "best_fields",
-                                "operator": "or",
-                                "fuzziness": "AUTO:4,7",
-                                "boost": 0.3,
-                            }
-                        },
-                        {
-                            "match_phrase_prefix": {
-                                "text": {
-                                    "query": query,
-                                    "max_expansions": 50,
-                                    "boost": 0.25,
-                                }
-                            }
-                        },
-                    ],
+                    "should": should_clauses,
                     "minimum_should_match": 1,
                     "filter": all_filters,
                 }
@@ -602,7 +629,7 @@ class OpenSearchKnowledgeBackend(KnowledgeBackend):
             search_body["min_score"] = score_threshold
 
         fallback_search_body = None
-        if not is_wildcard_match_all:
+        if not is_wildcard_match_all and query_embeddings:
             try:
                 fallback_search_body = copy.deepcopy(search_body)
                 knn_query_blocks = fallback_search_body["query"]["bool"]["should"][0]["dis_max"]["queries"]
@@ -696,11 +723,27 @@ class OpenSearchKnowledgeBackend(KnowledgeBackend):
                     "embedding_models": self._build_terms_agg(chunks, "embedding_model"),
                 }
 
-        return {
+        response: Dict[str, Any] = {
             "results": chunks,
             "aggregations": aggregations,
             "total": len(chunks),
         }
+        if failed_models:
+            response["warnings"] = [
+                {
+                    "code": "embedding_unavailable",
+                    "models": failed_models,
+                    "semantic_search_available": bool(query_embeddings),
+                    "message": (
+                        "Some documents were embedded with models that are "
+                        "no longer reachable (provider removed or misconfigured). "
+                        "Results shown use keyword matching only for those models."
+                        if not query_embeddings
+                        else "Semantic search is degraded for some embedding models."
+                    ),
+                }
+            ]
+        return response
 
 
 def get_knowledge_backend_service(session_manager=None) -> KnowledgeBackend:

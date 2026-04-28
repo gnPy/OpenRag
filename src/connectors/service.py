@@ -48,6 +48,7 @@ class ConnectorService:
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Process a document from a connector using existing processing pipeline"""
         from services.knowledge_access import build_access_context
@@ -104,6 +105,24 @@ class ConnectorService:
             # Process using consolidated processing pipeline
             from models.processors import TaskProcessor
 
+            standard_kwargs: Dict[str, Any] = {}
+            if isinstance(ingest_settings, dict):
+                embedding_model = ingest_settings.get("embeddingModel")
+                if isinstance(embedding_model, str) and embedding_model.strip():
+                    standard_kwargs["embedding_model"] = embedding_model.strip()
+
+                for ui_key, param in (
+                    ("chunkSize", "chunk_size"),
+                    ("chunkOverlap", "chunk_overlap"),
+                ):
+                    raw_value = ingest_settings.get(ui_key)
+                    if raw_value is None:
+                        continue
+                    try:
+                        standard_kwargs[param] = int(raw_value)
+                    except (TypeError, ValueError):
+                        pass
+
             processor = TaskProcessor(document_service=self.document_service, models_service=self.models_service)
             result = await processor.process_document_standard(
                 file_path=tmp_path,
@@ -126,6 +145,7 @@ class ConnectorService:
                     else None,
                     "metadata": document.metadata,
                 },
+                **standard_kwargs,
             )
 
             logger.info("[CONNECTOR] Document processed", document_id=document.id, status=result.get("status"))
@@ -350,6 +370,7 @@ class ConnectorService:
         file_ids: List[str],
         jwt_token: str = None,
         file_infos: List[Dict[str, Any]] = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Sync specific files by their IDs (used for webhook-triggered syncs or manual selection).
@@ -362,6 +383,8 @@ class ConnectorService:
             jwt_token: Optional JWT token for authentication
             file_infos: Optional list of file info dicts with {id, name, mimeType, downloadUrl, size}
                        When provided, download URLs can be used directly without Graph API calls.
+            ingest_settings: Optional UI-style dict (``embeddingModel``, ``chunkSize``, …) passed to
+                ``ConnectorFileProcessor`` when Langflow ingest is disabled.
         """
         if not self.task_service:
             raise ValueError(
@@ -456,6 +479,7 @@ class ConnectorService:
                 else DocumentService(session_manager=self.session_manager)
             ),
             models_service=self.models_service,
+            ingest_settings=ingest_settings,
         )
 
         # Create custom task using TaskService

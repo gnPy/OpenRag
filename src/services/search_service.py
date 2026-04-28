@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from typing import Any, Dict
 
@@ -77,45 +78,26 @@ class SearchService:
         except Exception as e:
             logger.warning("[SEARCH] Could not configure Ollama endpoint from config", error=str(e))
 
-    async def _format_embedding_model_for_client(self, model_name: str) -> str:
+    async def _format_embedding_model_for_client(
+        self,
+        model_name: str,
+        *,
+        strict: bool = False,
+    ) -> str:
         # Prefer the centralized LiteLLM formatting utility from ModelsService.
         if self.models_service is not None:
-            return await self.models_service.get_litellm_model_name(model_name)
+            return await self.models_service.get_litellm_model_name(
+                model_name,
+                strict=strict,
+            )
         # Fallback if service not injected (tests/etc)
         return model_name
 
-    async def search_tool(self, query: str, embedding_model: str = None) -> Dict[str, Any]:
-        """
-        Use this tool to search for documents relevant to the query.
-
-        Args:
-            query (str): query string to search the corpus
-            embedding_model (str): Optional override for embedding model.
-                                  If not provided, uses the current embedding
-                                  model from configuration.
-
-        Returns:
-            dict (str, Any): {"results": [chunks]} on success
-        """
-        from utils.embedding_fields import get_embedding_field_name
-
-        # Strategy: Use provided model, or default to the configured embedding
-        # model. This assumes documents are embedded with that model by default.
-        # Future enhancement: Could auto-detect available models in corpus.
-        embedding_model = embedding_model or get_embedding_model() or OPENAI_DEFAULT_EMBEDDING_MODEL
-        embedding_field_name = get_embedding_field_name(embedding_model)
-
-        logger.info(
-            "[SEARCH] Query started",
-            embedding_model=embedding_model,
-            embedding_field=embedding_field_name,
-            query_preview=query[:50] if query else None,
-        )
-
     async def _generate_query_embedding(self, query: str, model_name: str) -> list[float]:
-        import asyncio
-
-        formatted_model = await self._format_embedding_model_for_client(model_name)
+        formatted_model = await self._format_embedding_model_for_client(
+            model_name,
+            strict=True,
+        )
         delay = EMBED_RETRY_INITIAL_DELAY
         last_exception = None
 
@@ -149,24 +131,8 @@ class SearchService:
                     max_attempts=MAX_EMBED_RETRIES,
                     error=str(exc),
                 )
-                for query_candidate in knn_query_blocks:
-                    knn_section = query_candidate.get("knn")
-                    if isinstance(knn_section, dict):
-                        for params in knn_section.values():
-                            if isinstance(params, dict):
-                                params.pop("num_candidates", None)
-            except (KeyError, IndexError, AttributeError, TypeError):
-                fallback_search_body = None
-
-        # Authentication required - DLS will handle document filtering automatically
-        logger.debug(
-            "search_service authentication info",
-            user_id=user_id,
-            has_jwt_token=jwt_token is not None,
-        )
-        if not user_id:
-            logger.warning("[SEARCH] user_id missing, rejecting search request")
-            return {"results": [], "error": "Authentication required"}
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, EMBED_RETRY_MAX_DELAY)
 
         raise RuntimeError(
             f"Failed to embed query with model {model_name}"
@@ -225,13 +191,17 @@ class SearchService:
         embedding_model: str = None,
         user_email: str = None,
     ) -> Dict[str, Any]:
-        from auth_context import set_auth_context, set_search_filters, set_search_limit, set_score_threshold
+        from auth_context import (
+            set_auth_context,
+            set_search_filters,
+            set_search_limit,
+            set_score_threshold,
+        )
 
         if user_id:
             set_auth_context(user_id, jwt_token)
 
         set_search_filters(filters or {})
-
         set_search_limit(limit)
         set_score_threshold(score_threshold)
 
