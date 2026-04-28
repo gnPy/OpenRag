@@ -4818,7 +4818,7 @@
               "tool_placeholder": {
                 "_input_type": "MessageTextInput",
                 "advanced": true,
-                "display_name": "Tool Placeholder",
+                "display_nOPENRAG_QUERY_FILTERder",
                 "dynamic": false,
                 "info": "A placeholder input for tool mode.",
                 "input_types": [
