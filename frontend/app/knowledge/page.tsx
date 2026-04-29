@@ -25,6 +25,7 @@ import {
   type SearchResult,
   useGetSearchQuery,
 } from "../api/queries/useGetSearchQuery";
+import { useListFiles } from "../api/queries/useListFiles";
 import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
@@ -245,15 +246,16 @@ function SearchPage() {
     enabled: !isWildcardQuery,
   });
 
+  const { files: searchFiles, warnings: searchWarnings } =
+    searchData as SearchResult;
+
   // Merge data from whichever source is active
   const effectiveData: File[] = isWildcardQuery
     ? (listFilesData?.files ?? [])
-    : (searchData as File[]);
+    : searchFiles;
   const isLoading = isWildcardQuery ? isListFilesLoading : isSearchLoading;
   const error = isWildcardQuery ? listFilesError : searchError;
   const isError = isWildcardQuery ? isListFilesError : isSearchError;
-  const { files: searchFiles, warnings: searchWarnings } =
-    searchData as SearchResult;
 
   const isOpenragDocsRow = useCallback((file?: File) => {
     return (
