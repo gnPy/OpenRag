@@ -165,7 +165,11 @@ class ConfigManager:
         Args:
             config_file: Path to configuration file. Defaults to 'config.yaml' in project root.
         """
-        self.config_file = Path(config_file) if config_file else Path("config/config.yaml")
+        if config_file:
+            self.config_file = Path(config_file)
+        else:
+            from config.paths import get_config_file_path
+            self.config_file = Path(get_config_file_path())
         self._config: Optional[OpenRAGConfig] = None
 
 
@@ -236,7 +240,7 @@ class ConfigManager:
             logger.info("Upgrading unencrypted secrets in config.yaml to AES-256-GCM")
             self.save_config_file(self._config, preserve_edited=True)
 
-        logger.debug("Configuration loaded", config=self._config.to_dict())
+        logger.debug("[CONFIG] Configuration loaded successfully")
         return self._config
 
     def _load_env_overrides(

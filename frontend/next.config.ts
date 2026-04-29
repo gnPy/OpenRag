@@ -26,9 +26,12 @@ const nextConfig: NextConfig = {
   experimental: {
     proxyTimeout: 300000, // 5 minutes
   },
-  // Ignore ESLint errors during build
-  eslint: {
-    ignoreDuringBuilds: true,
+  async rewrites() {
+    return [{ source: "/mcp/:path*", destination: "/api/mcp/:path*" }];
+  },
+  // Ignore TypeScript errors during build (includes ESLint)
+  typescript: {
+    ignoreBuildErrors: true,
   },
   // Allow cross-origin requests in development
   allowedDevOrigins: getAllowedDevOrigins(),

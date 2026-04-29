@@ -30,6 +30,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTask } from "@/contexts/task-context";
+import { useSessionIngestSettings } from "@/hooks/useSessionIngestSettings";
 
 // Connectors that sync entire buckets/repositories without a file picker
 const DIRECT_SYNC_PROVIDERS = ["ibm_cos", "aws_s3"];
@@ -65,13 +66,7 @@ function BucketView({
   const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(
     new Set(),
   );
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [browseDialogBucket, setBrowseDialogBucket] = useState<string | null>(
     null,
@@ -417,13 +412,7 @@ export default function UploadProviderPage() {
   const syncMutation = useSyncConnector();
 
   const [selectedFiles, setSelectedFiles] = useState<CloudFile[]>([]);
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
 
   const accessToken = tokenData?.access_token || null;
   const isLoading =
@@ -439,11 +428,9 @@ export default function UploadProviderPage() {
 
   const handleFileSelected = (files: CloudFile[]) => {
     setSelectedFiles(files);
-    console.log(`Selected ${files.length} item(s) from ${provider}:`, files);
-    // You can add additional handling here like triggering sync, etc.
   };
 
-  const handleSync = async (connector: any) => {
+  const handleSync = (connector: { connectionId?: string; type: string }) => {
     if (!connector.connectionId || selectedFiles.length === 0) return;
 
     const chunkErr = getIngestChunkSettingsError(ingestSettings);
@@ -471,11 +458,12 @@ export default function UploadProviderPage() {
         onSuccess: (result) => {
           const taskIds = result.task_ids;
           if (taskIds && taskIds.length > 0) {
-            const taskId = taskIds[0]; // Use the first task ID
-            addTask(taskId);
-            // Redirect to knowledge page already to show the syncing document
+            addTask(taskIds[0]);
             router.push("/knowledge");
           }
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Sync failed");
         },
       },
     );
@@ -646,7 +634,8 @@ export default function UploadProviderPage() {
           accessToken={accessToken || undefined}
           clientId={connector.clientId}
           baseUrl={connector.baseUrl}
-          onSettingsChange={setIngestSettings}
+          ingestSettings={ingestSettings}
+          onIngestSettingsChange={setIngestSettings}
         />
       </div>
 

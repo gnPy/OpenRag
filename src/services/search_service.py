@@ -1,8 +1,13 @@
+import asyncio
 import copy
+import os
 import json
 from collections import Counter
 from typing import Any, Dict
-from config.settings import EMBED_MODEL, clients, get_embedding_model, get_index_name, WATSONX_EMBEDDING_DIMENSIONS
+from agentd.tool_decorator import tool
+from config.settings import clients, get_embedding_model, get_index_name, get_openrag_config
+from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL
+from utils.container_utils import transform_localhost_url
 from auth_context import get_auth_context
 from utils.logging_config import get_logger
 
@@ -13,9 +18,57 @@ EMBED_RETRY_INITIAL_DELAY = 1.0
 EMBED_RETRY_MAX_DELAY = 8.0
 
 
+# Variable used to store the active instance for the tool wrapper
+_global_search_service = None
+
+
+def register_search_service(service: "SearchService") -> None:
+    """
+    Explicitly register the active search service for the @tool wrapper.
+    This prevents stale instance risks and test interference.
+    """
+    global _global_search_service
+    _global_search_service = service
+
+
+@tool
+async def search_tool(query: str, embedding_model: str = None) -> Dict[str, Any]:
+    """
+    Use this tool to search for documents relevant to the query.
+
+    Args:
+        query (str): query string to search the corpus
+        embedding_model (str): Optional override for embedding model.
+                              If not provided, uses the current embedding
+                              model from configuration.
+
+    Returns:
+        dict (str, Any): {"results": [chunks]} on success
+    """
+    if not _global_search_service:
+        logger.error("SearchService tool called before initialization")
+        return {"results": [], "error": "Search service not available"}
+    return await _global_search_service.search_tool(query, embedding_model=embedding_model)
+
+
 class SearchService:
-    def __init__(self, session_manager=None):
+    def __init__(self, session_manager=None, models_service=None):
         self.session_manager = session_manager
+        self.models_service = models_service
+        self._configure_provider_env()
+
+    def _configure_provider_env(self):
+        """Set provider env vars once at init time."""
+        try:
+            config = get_openrag_config()
+            if config.providers.ollama.endpoint:
+                fixed = transform_localhost_url(config.providers.ollama.endpoint)
+                # Use setdefault to avoid clobbering existing env vars if they were
+                # set explicitly via shell, but ensures we have a working default.
+                os.environ.setdefault("OLLAMA_API_BASE", fixed)
+                os.environ.setdefault("OLLAMA_BASE_URL", fixed)
+        except Exception as e:
+            logger.warning("[SEARCH] Could not configure Ollama endpoint from config", error=str(e))
 
     async def search_tool(self, query: str, embedding_model: str = None) -> Dict[str, Any]:
         """
@@ -35,11 +88,11 @@ class SearchService:
         # Strategy: Use provided model, or default to the configured embedding
         # model. This assumes documents are embedded with that model by default.
         # Future enhancement: Could auto-detect available models in corpus.
-        embedding_model = embedding_model or get_embedding_model() or EMBED_MODEL
+        embedding_model = embedding_model or get_embedding_model() or OPENAI_DEFAULT_EMBEDDING_MODEL
         embedding_field_name = get_embedding_field_name(embedding_model)
 
         logger.info(
-            "Search with embedding model",
+            "[SEARCH] Query started",
             embedding_model=embedding_model,
             embedding_field=embedding_field_name,
             query_preview=query[:50] if query else None,
@@ -63,6 +116,7 @@ class SearchService:
         # Get available embedding models from corpus
         query_embeddings = {}
         available_models = []
+        failed_models: list = []
 
         opensearch_client = self.session_manager.get_user_opensearch_client(
             user_id, jwt_token
@@ -145,33 +199,23 @@ class SearchService:
                 available_models = [embedding_model]
 
             # Parallelize embedding generation for all models
-            import asyncio
-
             async def embed_with_model(model_name):
                 delay = EMBED_RETRY_INITIAL_DELAY
                 attempts = 0
                 last_exception = None
 
-                # Format model name for LiteLLM compatibility
-                # The patched client routes through LiteLLM for non-OpenAI providers
-                formatted_model = model_name
-
-                # Skip if already has a provider prefix
-                if not any(model_name.startswith(prefix + "/") for prefix in ["openai", "ollama", "watsonx", "anthropic"]):
-                    # Detect provider from model name characteristics:
-                    # - Ollama: contains ":" (e.g., "nomic-embed-text:latest")
-                    # - WatsonX: check against known IBM embedding models
-                    # - OpenAI: everything else (no prefix needed)
-
-                    if ":" in model_name:
-                        # Ollama models use tags with colons
-                        formatted_model = f"ollama/{model_name}"
-                        logger.debug(f"Formatted Ollama model: {model_name} -> {formatted_model}")
-                    elif model_name in WATSONX_EMBEDDING_DIMENSIONS:
-                        # WatsonX embedding models - use hardcoded list from settings
-                        formatted_model = f"watsonx/{model_name}"
-                        logger.debug(f"Formatted WatsonX model: {model_name} -> {formatted_model}")
-                    # else: OpenAI models don't need a prefix
+                # Use centralized utility for LiteLLM model formatting.
+                # strict=True: if no configured provider claims this model
+                # (e.g. the provider was removed after ingest), raise
+                # immediately rather than entering a ~3s retry loop on an
+                # unroutable model name.
+                if self.models_service:
+                    formatted_model = await self.models_service.get_litellm_model_name(
+                        model_name, strict=True
+                    )
+                else:
+                    # Fallback if service not injected (tests/etc)
+                    formatted_model = model_name
 
                 while attempts < MAX_EMBED_RETRIES:
                     attempts += 1
@@ -212,25 +256,33 @@ class SearchService:
                     f"Failed to embed with model {model_name}"
                 ) from last_exception
 
-            # Run all embeddings in parallel
-            try:
-                embedding_results = await asyncio.gather(
-                    *[embed_with_model(model) for model in available_models]
-                )
-            except Exception as e:
-                logger.error("Embedding generation failed", error=str(e))
-                raise
+            # Run all embeddings in parallel, tolerating per-model failures so
+            # one broken model (e.g. provider credentials removed after ingest)
+            # doesn't take down the entire search. If all models fail we fall
+            # back to keyword-only search below.
+            embedding_results = await asyncio.gather(
+                *[embed_with_model(model) for model in available_models],
+                return_exceptions=True,
+            )
 
-            # Collect successful embeddings
-            for result in embedding_results:
+            for model_name, result in zip(available_models, embedding_results):
+                if isinstance(result, BaseException):
+                    failed_models.append(model_name)
+                    logger.warning(
+                        "Skipping model with failed embedding; continuing with others",
+                        model=model_name,
+                        error=str(result),
+                    )
+                    continue
                 if isinstance(result, tuple) and result[1] is not None:
-                    model_name, embedding = result
-                    query_embeddings[model_name] = embedding
+                    successful_model, embedding = result
+                    query_embeddings[successful_model] = embedding
 
             logger.info(
                 "Generated query embeddings",
                 models=list(query_embeddings.keys()),
-                query_preview=query[:50]
+                failed_models=failed_models,
+                query_preview=query[:50],
             )
         else:
             # Wildcard query - no embedding needed
@@ -274,7 +326,8 @@ class SearchService:
             else:
                 query_block = {"match_all": {}}
         else:
-            # Build multi-model KNN queries
+            # Build multi-model KNN queries (only for models that successfully
+            # produced query embeddings)
             knn_queries = []
             embedding_fields_to_check = []
 
@@ -291,61 +344,74 @@ class SearchService:
                     }
                 })
 
-            # Build exists filter - doc must have at least one embedding field
-            exists_any_embedding = {
-                "bool": {
-                    "should": [{"exists": {"field": f}} for f in embedding_fields_to_check],
-                    "minimum_should_match": 1
-                }
-            }
-
-            # Add exists filter to existing filters
-            all_filters = [*filter_clauses, exists_any_embedding]
+            # Only require an embedding field when we actually have embeddings
+            # to match against — otherwise we'd filter out every doc in keyword
+            # fallback mode.
+            all_filters = list(filter_clauses)
+            if knn_queries:
+                exists_should = [{"exists": {"field": f}} for f in embedding_fields_to_check]
+                # Docs indexed under a failed provider have none of the successful
+                # embedding fields, but keyword matching should still surface them.
+                # Allow them through by matching on their embedding_model value.
+                if failed_models:
+                    exists_should.append({"terms": {"embedding_model": failed_models}})
+                all_filters.append({
+                    "bool": {
+                        "should": exists_should,
+                        "minimum_should_match": 1,
+                    }
+                })
 
             logger.debug(
                 "Building hybrid query with filters",
                 user_filters_count=len(filter_clauses),
                 total_filters_count=len(all_filters),
-                filter_types=[type(f).__name__ for f in all_filters]
+                filter_types=[type(f).__name__ for f in all_filters],
+                knn_queries_count=len(knn_queries),
             )
 
-            # Hybrid search query structure (semantic + keyword)
-            # Use dis_max to pick best score across multiple embedding fields
+            # Hybrid search (semantic + keyword) when embeddings are available;
+            # keyword-only fallback when none succeeded. When falling back, bump
+            # the multi_match boost so keyword scoring isn't artificially damped.
+            should_clauses = []
+            if knn_queries:
+                should_clauses.append({
+                    "dis_max": {
+                        "tie_breaker": 0.0,  # Take only the best match, no blending
+                        "boost": 0.7,         # 70% weight for semantic search
+                        "queries": knn_queries,
+                    }
+                })
+            should_clauses.extend([
+                {
+                    "multi_match": {
+                        "query": query,
+                        "fields": ["text^2", "filename^1.5"],
+                        "type": "best_fields",
+                        "operator": "or",
+                        "fuzziness": "AUTO:4,7",
+                        "boost": 0.3 if knn_queries else 1.0,
+                    }
+                },
+                {
+                    # Prefix fallback for partial input (e.g. "vita" -> "vitamin").
+                    # Avoid bool_prefix here because our current mappings are:
+                    # - text: standard "text" (not search_as_you_type / edge-ngram)
+                    # - filename: "keyword"
+                    # match_phrase_prefix with a bounded expansion is safer.
+                    "match_phrase_prefix": {
+                        "text": {
+                            "query": query,
+                            "max_expansions": 50,
+                            "boost": 0.25,
+                        }
+                    }
+                },
+            ])
+
             query_block = {
                 "bool": {
-                    "should": [
-                        {
-                            "dis_max": {
-                                "tie_breaker": 0.0,  # Take only the best match, no blending
-                                "boost": 0.7,         # 70% weight for semantic search
-                                "queries": knn_queries
-                            }
-                        },
-                        {
-                            "multi_match": {
-                                "query": query,
-                                "fields": ["text^2", "filename^1.5"],
-                                "type": "best_fields",
-                                "operator": "or",
-                                "fuzziness": "AUTO:4,7",
-                                "boost": 0.3,  # 30% weight for keyword search
-                            }
-                        },
-                        {
-                            # Prefix fallback for partial input (e.g. "vita" -> "vitamin").
-                            # Avoid bool_prefix here because our current mappings are:
-                            # - text: standard "text" (not search_as_you_type / edge-ngram)
-                            # - filename: "keyword"
-                            # match_phrase_prefix with a bounded expansion is safer.
-                            "match_phrase_prefix": {
-                                "text": {
-                                    "query": query,
-                                    "max_expansions": 50,
-                                    "boost": 0.25,
-                                }
-                            }
-                        },
-                    ],
+                    "should": should_clauses,
                     "minimum_should_match": 1,
                     "filter": all_filters,
                 }
@@ -383,9 +449,10 @@ class SearchService:
         if not is_wildcard_match_all and score_threshold > 0:
             search_body["min_score"] = score_threshold
 
-        # Prepare fallback search body without num_candidates for clusters that don't support it
+        # Prepare fallback search body without num_candidates for clusters that don't support it.
+        # Only relevant when we actually dispatched KNN queries.
         fallback_search_body = None
-        if not is_wildcard_match_all:
+        if not is_wildcard_match_all and query_embeddings:
             try:
                 fallback_search_body = copy.deepcopy(search_body)
                 knn_query_blocks = (
@@ -407,7 +474,7 @@ class SearchService:
             has_jwt_token=jwt_token is not None,
         )
         if not user_id:
-            logger.debug("search_service: user_id is None/empty, returning auth error")
+            logger.warning("[SEARCH] user_id missing, rejecting search request")
             return {"results": [], "error": "Authentication required"}
 
         # Get user's OpenSearch client with JWT for OIDC auth through session manager
@@ -556,12 +623,30 @@ class SearchService:
                     "embedding_models": _build_terms_agg("embedding_model"),
                 }
 
-        # Return both transformed results and aggregations
-        return {
+        # Return both transformed results and aggregations. Surface degraded
+        # semantic-search signals so the UI can show a non-fatal warning
+        # instead of treating partial-embedding failure as a hard error.
+        response: Dict[str, Any] = {
             "results": chunks,
             "aggregations": aggregations,
             "total": len(chunks),
         }
+        if failed_models:
+            response["warnings"] = [
+                {
+                    "code": "embedding_unavailable",
+                    "models": failed_models,
+                    "semantic_search_available": bool(query_embeddings),
+                    "message": (
+                        "Some documents were embedded with models that are "
+                        "no longer reachable (provider removed or misconfigured). "
+                        "Results shown use keyword matching only for those models."
+                        if not query_embeddings
+                        else "Semantic search is degraded for some embedding models."
+                    ),
+                }
+            ]
+        return response
 
     async def search(
         self,

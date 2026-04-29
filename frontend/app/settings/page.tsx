@@ -1113,7 +1113,7 @@ function KnowledgeSourcesPage() {
       </Card>
 
       {/* API Keys Section */}
-      {(isAuthenticated || isNoAuthMode) && (
+      {(isAuthenticated || isNoAuthMode) && !isIbmAuthMode && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between mb-3">
