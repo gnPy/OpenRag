@@ -8,6 +8,24 @@
  * The transformation inserts "lf." before the "or." app segment in the hostname.
  * Returns null if the current URL does not match the expected IBM SaaS pattern.
  */
+export function getInstanceId(
+  hostname: string = typeof window !== "undefined"
+    ? window.location.hostname
+    : "",
+): string | undefined {
+  const match = hostname.match(/^([^.]+)\.or\./);
+  return match?.[1];
+}
+
+export function getTenantId(
+  hostname: string = typeof window !== "undefined"
+    ? window.location.hostname
+    : "",
+): string | undefined {
+  const match = hostname.match(/\.or\.([^.]+)/);
+  return match?.[1];
+}
+
 export function deriveCloudLangflowUrl(
   locationOrigin: string = typeof window !== "undefined"
     ? window.location.origin

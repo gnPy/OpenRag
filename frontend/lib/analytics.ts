@@ -1,10 +1,15 @@
 import { AnalyticsBrowser } from "@segment/analytics-next";
+import { getInstanceId, getTenantId } from "@/lib/url-utils";
 
 let analytics: AnalyticsBrowser | null = null;
 let _environment = "";
+let _instanceId: string | undefined;
+let _tenantId: string | undefined;
 
 export function initAnalytics(writeKey: string, environment = "") {
   _environment = environment;
+  _instanceId = getInstanceId();
+  _tenantId = getTenantId();
   if (!writeKey || analytics) return;
   analytics = AnalyticsBrowser.load({ writeKey });
 }
@@ -15,6 +20,8 @@ interface RequiredSegmentStaticProperties {
   productCode: string;
   productCodeType: string;
   productTitle: string;
+  instanceId?: string;
+  tenantId?: string;
 }
 
 // These properties are required by IBM Segment event schema for all events or they will be blocked
@@ -26,6 +33,8 @@ export const getRequiredStaticProperties =
     productCode: "WW1544",
     productCodeType: "WWPC",
     productTitle: "OpenRAG",
+    instanceId: _instanceId,
+    tenantId: _tenantId,
   });
 
 export const page = (
