@@ -10,19 +10,26 @@ import {
   type ValueGetterParams,
 } from "ag-grid-community";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
-import { Cloud, FileIcon, Globe, RefreshCw } from "lucide-react";
+import { AlertTriangle, Cloud, FileIcon, Globe, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KnowledgeDropdown } from "@/components/knowledge-dropdown";
 import { ProtectedRoute } from "@/components/protected-route";
+import { Banner, BannerIcon, BannerTitle } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { useKnowledgeFilter } from "@/contexts/knowledge-filter-context";
 import { useTask } from "@/contexts/task-context";
-import { type File, useGetSearchQuery } from "../api/queries/useGetSearchQuery";
+import {
+  EMPTY_SEARCH_RESULT,
+  type File,
+  type SearchResult,
+  useGetSearchQuery,
+} from "../api/queries/useGetSearchQuery";
 import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
 import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdown";
+import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
 import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
 import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -203,13 +210,15 @@ function SearchPage() {
   ]);
 
   const {
-    data: searchData = [],
+    data: searchData = EMPTY_SEARCH_RESULT,
     isLoading: isSearchLoading,
     error,
     isError,
   } = useGetSearchQuery(queryOverride, parsedFilterData, {
     refetchInterval: 5000,
   });
+  const { files: searchFiles, warnings: searchWarnings } =
+    searchData as SearchResult;
 
   const isOpenragDocsRow = useCallback((file?: File) => {
     return (
@@ -303,7 +312,7 @@ function SearchPage() {
     }
   }, [isError, error]);
   const fileResults = buildKnowledgeTableRows(
-    searchData as File[],
+    searchFiles,
     taskFiles,
     !!parsedFilterData,
   );
@@ -666,7 +675,35 @@ function SearchPage() {
           </h2>
         </div>
         {isCloudBrand ? (
-          <KnowledgeSearchBar />
+          <div className="relative overflow-hidden h-12 shrink-0">
+            <div
+              className={cn(
+                "transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "-translate-y-full pointer-events-none select-none"
+                  : "translate-y-0",
+              )}
+            >
+              <KnowledgeSearchBar />
+            </div>
+            <div
+              className={cn(
+                "absolute top-0 left-0 right-0 h-12 transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "translate-y-0"
+                  : "translate-y-full pointer-events-none select-none",
+              )}
+            >
+              <KnowledgeBatchActionsBar
+                selectedCount={selectedRows.length}
+                onDelete={() => setShowBulkDeleteDialog(true)}
+                onCancel={() => {
+                  setSelectedRows([]);
+                  gridRef.current?.api.deselectAll();
+                }}
+              />
+            </div>
+          </div>
         ) : (
           /* Search Input Area */
           <div className="flex-1 flex items-center flex-shrink-0 flex-wrap-reverse gap-3 mb-6">
@@ -755,6 +792,43 @@ function SearchPage() {
             <div className="ml-auto">
               <KnowledgeDropdown />
             </div>
+          </div>
+        )}
+        {searchWarnings.length > 0 && (
+          <div className="mb-4 flex flex-col gap-2">
+            {searchWarnings.map((warning, idx) => {
+              const isEmbeddingWarning =
+                warning.code === "embedding_unavailable";
+              const semanticDown =
+                isEmbeddingWarning &&
+                warning.semantic_search_available === false;
+              const title = isEmbeddingWarning
+                ? semanticDown
+                  ? "Semantic search degraded — keyword results only"
+                  : "Semantic search partially degraded"
+                : warning.message || "Search warning";
+              const details =
+                warning.models && warning.models.length > 0
+                  ? ` Affected embedding model${warning.models.length > 1 ? "s" : ""}: ${warning.models.join(", ")}.`
+                  : "";
+              return (
+                <Banner
+                  key={`${warning.code}-${idx}`}
+                  inset
+                  className="bg-amber-500/10 text-amber-100 border border-amber-500/30"
+                >
+                  <BannerIcon icon={AlertTriangle} />
+                  <BannerTitle>
+                    <span className="font-medium">{title}.</span>
+                    <span className="ml-1 opacity-90">
+                      {isEmbeddingWarning
+                        ? `The provider for some indexed documents is no longer reachable, so results rely on keyword matching.${details} Re-configure the provider or re-ingest those documents with another embedding model to restore semantic search.`
+                        : warning.message}
+                    </span>
+                  </BannerTitle>
+                </Banner>
+              );
+            })}
           </div>
         )}
         {isCloudBrand ? (

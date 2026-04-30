@@ -3,6 +3,10 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.version_utils import OPENRAG_VERSION
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 from dependencies import (
     get_auth_service,
@@ -49,9 +53,7 @@ async def auth_init(
         return JSONResponse(result)
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("[AUTH] OAuth init failed")
         return JSONResponse(
             {"error": f"Failed to initialize OAuth: {str(e)}"}, status_code=500
         )
@@ -76,9 +78,14 @@ async def auth_callback(
             response = JSONResponse(
                 {k: v for k, v in result.items() if k != "jwt_token"}
             )
+            # Store only the raw JWT (without "Bearer " prefix) in the cookie.
+            # The prefix is added by the OpenSearch client when building the Authorization header.
+            jwt_value = result["jwt_token"]
+            if jwt_value.startswith("Bearer "):
+                jwt_value = jwt_value[len("Bearer "):]
             response.set_cookie(
                 key="auth_token",
-                value=result["jwt_token"],
+                value=jwt_value,
                 httponly=True,
                 secure=False,
                 samesite="lax",
@@ -89,9 +96,7 @@ async def auth_callback(
             return JSONResponse(result)
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("[AUTH] OAuth callback failed")
         await TelemetryClient.send_event(Category.AUTHENTICATION, MessageId.ORB_AUTH_OAUTH_FAILED)
         return JSONResponse({"error": f"Callback failed: {str(e)}"}, status_code=500)
 
@@ -103,6 +108,7 @@ async def auth_me(
 ):
     """Get current user information"""
     result = await auth_service.get_user_info(request)
+    result["version"] = OPENRAG_VERSION
     return JSONResponse(result)
 
 

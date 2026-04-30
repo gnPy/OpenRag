@@ -1,3 +1,4 @@
+import traceback
 import asyncio
 import os
 import random
@@ -25,8 +26,9 @@ class TaskService:
     # Cleanup interval in seconds (2 hours)
     CLEANUP_INTERVAL_SECONDS = 2 * 60 * 60
 
-    def __init__(self, document_service=None, ingestion_timeout=3600):
+    def __init__(self, document_service=None, models_service=None, ingestion_timeout=3600):
         self.document_service = document_service
+        self.models_service = models_service
         self.task_store: dict[
             str, dict[str, UploadTask]
         ] = {}  # user_id -> {task_id -> UploadTask}
@@ -115,6 +117,7 @@ class TaskService:
 
         processor = DocumentFileProcessor(
             self.document_service,
+            models_service=self.models_service,
             owner_user_id=user_id,
             jwt_token=jwt_token,
             owner_name=owner_name,
@@ -421,6 +424,7 @@ class TaskService:
                         logger.error(
                             "File processing task exception encountered",
                             status="FAILED",
+                            traceback=traceback.format_exc(),
                             task_number=upload_task.sequence_number,
                             task_id=task_id,
                             file_path=file_task.file_path,
@@ -462,6 +466,16 @@ class TaskService:
 
             # Mark task as completed if all files (including appended ones) are done
             if upload_task.processed_files >= upload_task.total_files:
+                # Force an index refresh BEFORE marking the task COMPLETED so that
+                # callers polling for COMPLETED status can immediately query or delete
+                # the newly indexed chunks without hitting the near-real-time refresh window.
+                if upload_task.successful_files > 0:
+                    try:
+                        from config.settings import clients, get_index_name
+                        await clients.opensearch.indices.refresh(index=get_index_name())
+                    except Exception as e:
+                        logger.debug("Index refresh after ingest failed (non-fatal)", error=str(e))
+
                 upload_task.status = TaskStatus.COMPLETED
                 upload_task.updated_at = time.time()
 

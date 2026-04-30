@@ -9,6 +9,7 @@ import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 // import { Label } from "@/components/ui/label";
 // import { Checkbox } from "@/components/ui/checkbox";
 import { ProtectedRoute } from "@/components/protected-route";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -18,7 +19,9 @@ import {
 import { useKnowledgeFilter } from "@/contexts/knowledge-filter-context";
 import {
   type ChunkResult,
+  EMPTY_SEARCH_RESULT,
   type File,
+  type SearchResult,
   useGetSearchQuery,
 } from "../../api/queries/useGetSearchQuery";
 
@@ -54,10 +57,11 @@ function ChunksPageContent() {
   // const [selectAll, setSelectAll] = useState(false);
 
   // Use the same search query as the knowledge page, but we'll filter for the specific file
-  const { data = [], isFetching } = useGetSearchQuery(
+  const { data = EMPTY_SEARCH_RESULT, isFetching } = useGetSearchQuery(
     queryOverride,
     parsedFilterData,
   );
+  const searchFiles = (data as SearchResult).files;
 
   const handleCopy = useCallback((text: string, index: number) => {
     // Trim whitespace and remove new lines/tabs for cleaner copy
@@ -66,13 +70,11 @@ function ChunksPageContent() {
     setTimeout(() => setActiveCopiedChunkIndex(null), 10 * 1000); // 10 seconds
   }, []);
 
-  const fileData = (data as File[]).find(
-    (file: File) => file.filename === filename,
-  );
+  const fileData = searchFiles.find((file: File) => file.filename === filename);
 
   // Extract chunks for the specific file
   useEffect(() => {
-    if (!filename || !(data as File[]).length) {
+    if (!filename || !searchFiles.length) {
       setChunks([]);
       return;
     }
@@ -80,7 +82,7 @@ function ChunksPageContent() {
     setChunks(
       fileData?.chunks?.map((chunk, i) => ({ ...chunk, index: i + 1 })) || [],
     );
-  }, [data, filename]);
+  }, [searchFiles, filename]);
 
   // Set selected state for all checkboxes when selectAll changes
   // useEffect(() => {
@@ -203,9 +205,9 @@ function ChunksPageContent() {
                       <span className="text-sm font-bold">
                         Chunk {chunk.index}
                       </span>
-                      <span className="bg-background p-1 rounded text-xs text-muted-foreground/70">
+                      <Badge variant="secondary">
                         {chunk.text.length} chars
-                      </span>
+                      </Badge>
                       <div className="py-1">
                         <Button
                           onClick={() => handleCopy(chunk.text, index)}
@@ -221,9 +223,9 @@ function ChunksPageContent() {
                       </div>
                     </div>
 
-                    <span className="bg-background p-1 rounded text-xs text-muted-foreground/70">
+                    <Badge variant="secondary">
                       {chunk.score.toFixed(2)} score
-                    </span>
+                    </Badge>
 
                     {/* TODO: Update to use active toggle */}
                     {/* <span className="px-2 py-1 text-green-500">

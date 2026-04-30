@@ -70,19 +70,16 @@ stringData:
     {{- if .Values.global.opensearch.password }}
     OPENSEARCH_PASSWORD={{ .Values.global.opensearch.password | quote }}
     {{- end }}
-    OPENSEARCH_DATA_PATH=./opensearch-data
-    {{- if .Values.global.opensearch.host }}
-    OPENSEARCH_HOST={{ .Values.global.opensearch.host | quote }}
-    {{- end }}
-    {{- if .Values.global.opensearch.port }}
+    OPENSEARCH_HOST={{ include "openrag.opensearch.host" . | quote }}
     OPENSEARCH_PORT={{ .Values.global.opensearch.port | quote }}
-    {{- end }}
     {{- if .Values.global.opensearch.username }}
     OPENSEARCH_USERNAME={{ .Values.global.opensearch.username | quote }}
     {{- end }}
     {{- if .Values.global.opensearch.indexName }}
     OPENSEARCH_INDEX_NAME={{ .Values.global.opensearch.indexName | quote }}
     {{- end }}
+    LANGFLOW_OPENSEARCH_HOST={{ include "openrag.langflow.opensearch.host" . | quote }}
+    LANGFLOW_OPENSEARCH_PORT={{ include "openrag.langflow.opensearch.port" . | quote }}
 
     # Google OAuth
     {{- if .Values.global.oauth.google.clientId }}
@@ -166,9 +163,26 @@ stringData:
     {{- if .Values.global.imageTag }}
     OPENRAG_VERSION={{ .Values.global.imageTag | quote }}
     {{- end }}
+    # Centralized Path Configuration
+    {{- if .Values.backend.persistence.data.dataPath }}
+    OPENRAG_DATA_PATH={{ .Values.backend.persistence.data.dataPath | quote }}
+    {{- end }}
+    {{- if .Values.backend.persistence.data.backupPath }}
+    OPENRAG_FLOWS_BACKUP_PATH={{ .Values.backend.persistence.data.backupPath | quote }}
+    {{- end }}
+    {{- if .Values.backend.persistence.data.configPath }}
+    OPENRAG_CONFIG_PATH={{ .Values.backend.persistence.data.configPath | quote }}
+    {{- end }}
+    {{- if .Values.backend.persistence.data.keysPath }}
+    OPENRAG_KEYS_PATH={{ .Values.backend.persistence.data.keysPath | quote }}
+    {{- end }}
+    {{- if .Values.backend.persistence.shared.flowsPath }}
+    OPENRAG_FLOWS_PATH={{ .Values.backend.persistence.shared.flowsPath | quote }}
+    {{- end }}
     {{- if .Values.backend.persistence.documents.mountPath }}
     OPENRAG_DOCUMENTS_PATH={{ .Values.backend.persistence.documents.mountPath | quote }}
     {{- end }}
+
     {{- if .Values.backend.encryption.key }}
     OPENRAG_ENCRYPTION_KEY={{ .Values.backend.encryption.key  | quote }}
     {{- end }}

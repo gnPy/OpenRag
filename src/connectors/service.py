@@ -20,6 +20,8 @@ class ConnectorService:
         index_name: str,
         task_service=None,
         session_manager=None,
+        models_service=None,
+        document_service=None,
     ):
         self.clients = patched_async_client
         self.embed_model = embed_model
@@ -27,6 +29,8 @@ class ConnectorService:
         self.task_service = task_service
         self.session_manager = session_manager
         self.connection_manager = ConnectionManager()
+        self.models_service = models_service
+        self.document_service = document_service
 
     async def initialize(self):
         """Initialize the service by loading existing connections"""
@@ -57,18 +61,12 @@ class ConnectorService:
             with open(tmp_path, "wb") as f:
                 f.write(document.content)
 
-            # Use existing process_file_common function with connector document metadata
-            # We'll use the document service's process_file_common method
-            from services.document_service import DocumentService
-
-            doc_service = DocumentService(session_manager=self.session_manager)
-
-            logger.debug("Processing connector document", document_id=document.id)
+            logger.info("[CONNECTOR] Processing document", document_id=document.id, connector_type=connector_type, filename=document.filename)
 
             # Process using consolidated processing pipeline
             from models.processors import TaskProcessor
 
-            processor = TaskProcessor(document_service=doc_service)
+            processor = TaskProcessor(document_service=self.document_service, models_service=self.models_service)
             result = await processor.process_document_standard(
                 file_path=tmp_path,
                 file_hash=document.id,  # Use connector document ID as hash
@@ -82,7 +80,7 @@ class ConnectorService:
                 acl=document.acl,
             )
 
-            logger.debug("Document processing result", result=result)
+            logger.info("[CONNECTOR] Document processed", document_id=document.id, status=result.get("status"))
 
             # If successfully indexed or already exists, update the indexed documents with connector metadata
             if result["status"] in ["indexed", "unchanged"]:
@@ -284,6 +282,7 @@ class ConnectorService:
                 if self.task_service and self.task_service.document_service
                 else DocumentService(session_manager=self.session_manager)
             ),
+            models_service=self.models_service,
         )
 
         # Use file IDs as items (no more fake file paths!)
@@ -310,6 +309,7 @@ class ConnectorService:
         file_ids: List[str],
         jwt_token: str = None,
         file_infos: List[Dict[str, Any]] = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Sync specific files by their IDs (used for webhook-triggered syncs or manual selection).
@@ -322,6 +322,8 @@ class ConnectorService:
             jwt_token: Optional JWT token for authentication
             file_infos: Optional list of file info dicts with {id, name, mimeType, downloadUrl, size}
                        When provided, download URLs can be used directly without Graph API calls.
+            ingest_settings: Optional UI-style dict (``embeddingModel``, ``chunkSize``, …) passed to
+                ``ConnectorFileProcessor`` when Langflow ingest is disabled.
         """
         if not self.task_service:
             raise ValueError(
@@ -415,6 +417,8 @@ class ConnectorService:
                 if self.task_service and self.task_service.document_service
                 else DocumentService(session_manager=self.session_manager)
             ),
+            models_service=self.models_service,
+            ingest_settings=ingest_settings,
         )
 
         # Create custom task using TaskService

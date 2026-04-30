@@ -1,3 +1,4 @@
+from dependencies import get_models_service
 import os
 from typing import Optional
 from urllib.parse import urlparse
@@ -15,6 +16,9 @@ from dependencies import (
     get_current_user,
 )
 from session_manager import User
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class UploadPathBody(BaseModel):
@@ -35,15 +39,10 @@ async def upload(
     try:
 
         from config.settings import is_no_auth_mode
-
-        if is_no_auth_mode():
-            owner_user_id = None
-            owner_name = None
-            owner_email = None
-        else:
-            owner_user_id = user.user_id
-            owner_name = user.name
-            owner_email = user.email
+        is_no_auth = is_no_auth_mode()
+        owner_user_id = user.user_id if (user and not is_no_auth) else None
+        owner_name = user.name if user else None
+        owner_email = user.email if user else None
 
         result = await document_service.process_upload_file(
             file,
@@ -59,8 +58,10 @@ async def upload(
             "AuthenticationException" in error_msg
             or "access denied" in error_msg.lower()
         ):
+            logger.warning("[INGEST] Upload rejected — access denied", error=error_msg)
             return JSONResponse({"error": error_msg}, status_code=403)
         else:
+            logger.exception("[INGEST] Upload failed")
             return JSONResponse({"error": error_msg}, status_code=500)
 
 
@@ -84,15 +85,10 @@ async def upload_path(
     jwt_token = user.jwt_token
 
     from config.settings import is_no_auth_mode
-
-    if is_no_auth_mode():
-        owner_user_id = None
-        owner_name = None
-        owner_email = None
-    else:
-        owner_user_id = user.user_id
-        owner_name = user.name
-        owner_email = user.email
+    is_no_auth = is_no_auth_mode()
+    owner_user_id = user.user_id if (user and not is_no_auth) else None
+    owner_name = user.name if user else None
+    owner_email = user.email if user else None
 
     from api.documents import _ensure_index_exists
     await _ensure_index_exists(jwt_token)
@@ -128,6 +124,12 @@ async def upload_context(
 
     doc_result = await document_service.process_upload_context(file, filename)
 
+    from config.settings import is_no_auth_mode
+    is_no_auth = is_no_auth_mode()
+    owner_user_id = user.user_id if (user and not is_no_auth) else None
+    owner_name = user.name if user else None
+    owner_email = user.email if user else None
+
     response_text, response_id = await chat_service.upload_context_chat(
         doc_result["content"],
         filename,
@@ -135,6 +137,9 @@ async def upload_context(
         jwt_token=jwt_token,
         previous_response_id=previous_response_id,
         endpoint=endpoint,
+        owner=owner_user_id,
+        owner_name=owner_name,
+        owner_email=owner_email,
     )
 
     response_data = {
@@ -163,6 +168,7 @@ async def upload_options(
 async def upload_bucket(
     body: UploadBucketBody,
     task_service=Depends(get_task_service),
+    models_service=Depends(get_models_service),
     session_manager=Depends(get_session_manager),
     user: User = Depends(get_current_user),
 ):
@@ -194,18 +200,13 @@ async def upload_bucket(
     jwt_token = user.jwt_token
 
     from models.processors import S3FileProcessor
-    from config.settings import is_no_auth_mode
 
-    if is_no_auth_mode():
-        owner_user_id = None
-        owner_name = None
-        owner_email = None
-        task_user_id = None
-    else:
-        owner_user_id = user.user_id
-        owner_name = user.name
-        owner_email = user.email
-        task_user_id = user.user_id
+    from config.settings import is_no_auth_mode
+    is_no_auth = is_no_auth_mode()
+    owner_user_id = user.user_id if (user and not is_no_auth) else None
+    owner_name = user.name if user else None
+    owner_email = user.email if user else None
+    task_user_id = user.user_id if (user and not is_no_auth) else None
 
     from api.documents import _ensure_index_exists
     await _ensure_index_exists(jwt_token)
@@ -213,6 +214,7 @@ async def upload_bucket(
     processor = S3FileProcessor(
         task_service.document_service,
         bucket,
+        models_service=models_service,
         s3_client=s3_client,
         owner_user_id=owner_user_id,
         jwt_token=jwt_token,

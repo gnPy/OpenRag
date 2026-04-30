@@ -18,6 +18,7 @@ import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useChat } from "@/contexts/chat-context";
+import { page } from "@/lib/analytics";
 import {
   ANIMATION_DURATION,
   HEADER_HEIGHT,
@@ -67,6 +68,13 @@ export function ChatRenderer({
       setShowLayout(settings.onboarding.current_step >= TOTAL_ONBOARDING_STEPS);
     }
   }, [settings?.onboarding?.current_step]);
+
+  useEffect(() => {
+    if (!showLayout) {
+      page("OpenRAG - Onboarding Page Viewed");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Only fetch conversations on chat page
   const isOnChatPage = pathname === "/" || pathname === "/chat";
@@ -320,6 +328,7 @@ export function ChatRenderer({
                 delay: ANIMATION_DURATION,
               }}
               className={cn("w-full h-full")}
+              data-testid={showLayout ? "onboarding-completed" : undefined}
             >
               {showLayout && (
                 <div className={cn("w-full h-full", !showLayout && "hidden")}>
