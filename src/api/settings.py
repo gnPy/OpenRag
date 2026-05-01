@@ -37,6 +37,7 @@ from dependencies import (
     get_langflow_file_service,
     get_knowledge_filter_service,
     get_chat_service,
+    require_permission,
 )
 from session_manager import User
 
@@ -513,7 +514,7 @@ def _embedding_conflict_response(
 async def update_settings(
     body: SettingsUpdateBody,
     session_manager=Depends(get_session_manager),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
     models_service=Depends(get_models_service),
 ) -> SettingsUpdateResponse:
     """Update settings in configuration"""
@@ -1023,7 +1024,7 @@ async def onboarding(
     task_service=Depends(get_task_service),
     langflow_file_service=Depends(get_langflow_file_service),
     knowledge_filter_service=Depends(get_knowledge_filter_service),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
 ) -> OnboardingResponse:
     """Handle onboarding configuration setup"""
     try:
@@ -1716,7 +1717,7 @@ async def _update_langflow_chunk_settings(config, flows_service):
 
 async def update_onboarding_state(
     body: OnboardingStateBody,
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
 ) -> OnboardingStateResponse:
     """Update onboarding state in configuration"""
     try:
@@ -1806,7 +1807,7 @@ async def rollback_onboarding(
     knowledge_filter_service=Depends(get_knowledge_filter_service),
     flows_service=Depends(get_flows_service),
     chat_service=Depends(get_chat_service),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
 ) -> RollbackResponse:
     """Rollback onboarding configuration when sample data files fail.
 
@@ -2005,7 +2006,7 @@ async def rollback_onboarding(
 async def update_docling_preset(
     body: DoclingPresetBody,
     session_manager=Depends(get_session_manager),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
 ) -> DoclingPresetResponse:
     """Update docling settings in the ingest flow - deprecated endpoint, use /settings instead"""
     try:
@@ -2078,7 +2079,7 @@ async def refresh_openrag_docs(
     models_service=Depends(get_models_service),
     langflow_file_service=Depends(get_langflow_file_service),
     session_manager=Depends(get_session_manager),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("config:write")),
 ) -> RefreshOpenRAGDocsResponse:
     """Manually refresh OpenRAG docs ingestion on demand."""
     try:
