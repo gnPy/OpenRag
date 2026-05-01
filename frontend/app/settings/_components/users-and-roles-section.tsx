@@ -46,6 +46,7 @@ import { getRolePillClass } from "@/lib/role-styles";
 import { cn } from "@/lib/utils";
 
 import { AuditLogFeed } from "./audit-log-feed";
+import { RolePermissionsMatrix } from "./role-permissions-matrix";
 
 interface UserRowProps {
   u: AdminUser;
@@ -148,13 +149,8 @@ function UserRow({
           </SelectTrigger>
           <SelectContent>
             {availableRoles.map((r) => (
-              <SelectItem key={r.id} value={r.id} className="text-sm">
-                <div className="flex items-center justify-between gap-3 w-full">
-                  <span className="capitalize">{r.name}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {r.permissions.length} perms
-                  </span>
-                </div>
+              <SelectItem key={r.id} value={r.id} className="text-sm py-2">
+                <span className="capitalize font-medium">{r.name}</span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -346,24 +342,27 @@ export function UsersAndRolesSection() {
             </div>
           )}
 
-          {/* Available Roles strip */}
+          {/* Available Roles strip + collapsible matrix */}
           {roles.length > 0 && (
-            <div className="pt-2">
-              <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-                Available Roles
-              </p>
-              <div className="flex flex-wrap gap-1.5">
-                {roles.map((r) => (
-                  <span key={r.id} className={getRolePillClass(r.name)}>
-                    {r.name}
-                    <RolePermissionsPreview
-                      name={r.name}
-                      description={r.description}
-                      permissions={r.permissions}
-                    />
-                  </span>
-                ))}
+            <div className="pt-2 space-y-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+                  Available Roles
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {roles.map((r) => (
+                    <span key={r.id} className={getRolePillClass(r.name)}>
+                      {r.name}
+                      <RolePermissionsPreview
+                        name={r.name}
+                        description={r.description}
+                        permissions={r.permissions}
+                      />
+                    </span>
+                  ))}
+                </div>
               </div>
+              <RolePermissionsMatrix />
             </div>
           )}
         </CardContent>
