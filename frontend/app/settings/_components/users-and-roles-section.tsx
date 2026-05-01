@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Search, ShieldCheck, X } from "lucide-react";
+import { Loader2, RefreshCw, Search, ShieldCheck, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAssignRoleMutation } from "@/app/api/mutations/useAssignRoleMutation";
@@ -41,16 +41,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsCloudBrand } from "@/contexts/brand-context";
+import { getRolePillClass } from "@/lib/role-styles";
+import { cn } from "@/lib/utils";
 
 import { AuditLogFeed } from "./audit-log-feed";
-
-const ROLE_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline"> =
-  {
-    admin: "default",
-    developer: "secondary",
-    user: "outline",
-    viewer: "outline",
-  };
 
 interface UserRowProps {
   u: AdminUser;
@@ -71,69 +66,74 @@ function UserRow({
 }: UserRowProps) {
   const [selectedRole, setSelectedRole] = useState<string>("");
   const isSelf = selfDbId && selfDbId === u.id;
+  const availableRoles = roles.filter((r) => !u.roles.includes(r.name));
 
   return (
-    <div className="flex items-center justify-between gap-3 py-3 border-b last:border-b-0">
-      <div className="flex items-center gap-3 min-w-0 flex-1">
-        <Avatar className="rounded-md w-8 h-8 shrink-0">
-          {u.picture_url && (
-            <AvatarImage src={u.picture_url} alt={u.display_name ?? ""} />
-          )}
-          <AvatarFallback className="text-xs rounded-md">
-            {(u.display_name ?? u.email ?? "?").charAt(0).toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium truncate flex items-center gap-1.5">
-            {u.display_name ?? "(unnamed)"}
-            {isSelf && (
-              <Badge variant="outline" className="text-[10px] py-0 px-1.5">
-                you
-              </Badge>
+    <tr className="border-t">
+      <td className="px-4 py-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <Avatar className="rounded-md w-8 h-8 shrink-0">
+            {u.picture_url && (
+              <AvatarImage src={u.picture_url} alt={u.display_name ?? ""} />
             )}
-          </p>
-          <p className="text-xs text-muted-foreground truncate">
-            {u.email ?? u.oauth_subject}
-          </p>
+            <AvatarFallback className="text-xs rounded-md">
+              {(u.display_name ?? u.email ?? "?").charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium truncate">
+                {u.display_name ?? "(unnamed)"}
+              </p>
+              {isSelf && (
+                <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                  you
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
+              {u.email ?? u.oauth_subject}
+            </p>
+          </div>
         </div>
-      </div>
-
-      <div className="flex items-center gap-1.5 flex-wrap justify-end">
-        {u.roles.length === 0 ? (
-          <span className="text-xs text-muted-foreground italic">no roles</span>
-        ) : (
-          u.roles.map((r) => {
-            const role = roles.find((rr) => rr.name === r);
-            return (
-              <Badge
-                key={r}
-                variant={ROLE_BADGE_VARIANT[r] ?? "outline"}
-                className="gap-1"
-              >
-                {r}
-                {role && (
-                  <RolePermissionsPreview
-                    name={role.name}
-                    description={role.description}
-                    permissions={role.permissions}
-                  />
-                )}
-                {role && (
-                  <button
-                    type="button"
-                    aria-label={`Remove ${r}`}
-                    disabled={pending}
-                    onClick={() => onRevoke(u.id, role.id, role.name)}
-                    className="hover:bg-foreground/10 rounded-sm -mr-1 ml-0.5 disabled:opacity-50"
-                  >
-                    <X size={12} />
-                  </button>
-                )}
-              </Badge>
-            );
-          })
-        )}
-
+      </td>
+      <td className="px-4 py-3">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {u.roles.length === 0 ? (
+            <span className="text-xs text-muted-foreground italic">
+              no roles
+            </span>
+          ) : (
+            u.roles.map((r) => {
+              const role = roles.find((rr) => rr.name === r);
+              return (
+                <span key={r} className={getRolePillClass(r)}>
+                  {r}
+                  {role && (
+                    <RolePermissionsPreview
+                      name={role.name}
+                      description={role.description}
+                      permissions={role.permissions}
+                    />
+                  )}
+                  {role && (
+                    <button
+                      type="button"
+                      aria-label={`Remove ${r}`}
+                      disabled={pending}
+                      onClick={() => onRevoke(u.id, role.id, role.name)}
+                      className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-foreground/10 transition-colors -mr-1 disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </span>
+              );
+            })
+          )}
+        </div>
+      </td>
+      <td className="px-4 py-3 text-right">
         <Select
           value={selectedRole}
           onValueChange={(v) => {
@@ -141,32 +141,31 @@ function UserRow({
             const role = roles.find((rr) => rr.id === v);
             if (role) onAssign(u.id, role.id);
           }}
-          disabled={pending}
+          disabled={pending || availableRoles.length === 0}
         >
-          <SelectTrigger className="h-7 w-[140px] text-xs">
+          <SelectTrigger className="h-9 w-[160px] text-sm ml-auto">
             <SelectValue placeholder="+ Assign role" />
           </SelectTrigger>
           <SelectContent>
-            {roles
-              .filter((r) => !u.roles.includes(r.name))
-              .map((r) => (
-                <SelectItem key={r.id} value={r.id} className="text-xs">
-                  <div className="flex items-center justify-between gap-2 w-full">
-                    <span className="capitalize">{r.name}</span>
-                    <span className="text-[10px] text-muted-foreground">
-                      {r.permissions.length} perms
-                    </span>
-                  </div>
-                </SelectItem>
-              ))}
+            {availableRoles.map((r) => (
+              <SelectItem key={r.id} value={r.id} className="text-sm">
+                <div className="flex items-center justify-between gap-3 w-full">
+                  <span className="capitalize">{r.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {r.permissions.length} perms
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
-      </div>
-    </div>
+      </td>
+    </tr>
   );
 }
 
 export function UsersAndRolesSection() {
+  const isCloudBrand = useIsCloudBrand();
   const { user: currentUser } = useAuth();
   const usersQuery = useGetAdminUsersQuery();
   const rolesQuery = useGetAdminRolesQuery();
@@ -226,7 +225,6 @@ export function UsersAndRolesSection() {
     });
   }, [users, search, filterRole]);
 
-  // Resolve current admin's DB id (by oauth subject) so we can mark "you".
   const selfDbId = useMemo(() => {
     if (!currentUser) return undefined;
     const match = users.find(
@@ -237,42 +235,62 @@ export function UsersAndRolesSection() {
   }, [users, currentUser]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck size={18} /> Users & Roles
-          </CardTitle>
+          <div className="flex items-center justify-between mb-3">
+            <CardTitle
+              className={cn(
+                "text-lg flex items-center gap-2",
+                isCloudBrand && "ibm-settings-section-title",
+              )}
+            >
+              <ShieldCheck className="h-5 w-5" /> Users & Roles
+            </CardTitle>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                usersQuery.refetch();
+                rolesQuery.refetch();
+              }}
+              disabled={usersQuery.isFetching || rolesQuery.isFetching}
+            >
+              <RefreshCw
+                className={cn(
+                  "h-4 w-4 mr-2",
+                  (usersQuery.isFetching || rolesQuery.isFetching) &&
+                    "animate-spin",
+                )}
+              />
+              Refresh
+            </Button>
+          </div>
           <CardDescription>
-            Assign or revoke roles. Backend enforces all permission checks; this
-            UI mirrors the live state.
+            Assign or revoke roles for users in your workspace. Backend enforces
+            all permission checks; this UI mirrors the live state.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {/* Search + filter */}
-          <div className="flex items-center gap-2 mb-2">
+        <CardContent className="space-y-4">
+          {/* Search + filter row — heights match Settings primitives (h-9) */}
+          <div className="flex items-center gap-2">
             <div className="relative flex-1">
-              <Search
-                size={14}
-                className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground"
-              />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 placeholder="Search by name, email, or ID"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8 pl-8 text-sm"
+                className="pl-9"
               />
             </div>
             <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="h-8 w-[160px] text-xs">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="All roles" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="__all" className="text-xs">
-                  All roles
-                </SelectItem>
+                <SelectItem value="__all">All roles</SelectItem>
                 {roles.map((r) => (
-                  <SelectItem key={r.id} value={r.name} className="text-xs">
+                  <SelectItem key={r.id} value={r.name}>
                     <span className="capitalize">{r.name}</span>
                   </SelectItem>
                 ))}
@@ -280,71 +298,74 @@ export function UsersAndRolesSection() {
             </Select>
           </div>
 
+          {/* User table — matches API Keys table styling */}
           {isLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground py-6 justify-center">
-              <Loader2 className="animate-spin" size={14} /> Loading users…
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : usersQuery.isError ? (
-            <div className="text-sm text-destructive">
+            <div className="text-sm text-destructive py-4">
               Failed to load users: {(usersQuery.error as Error).message}
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="text-sm text-muted-foreground italic py-4">
+            <div className="text-sm text-muted-foreground italic py-8 text-center">
               {users.length === 0
                 ? "No users found, or you do not have permission to list users."
                 : "No users match your search."}
             </div>
           ) : (
-            <div>
-              {filteredUsers.map((u) => (
-                <UserRow
-                  key={u.id}
-                  u={u}
-                  roles={roles}
-                  onAssign={onAssign}
-                  onRevoke={onRevoke}
-                  pending={isMutating}
-                  selfDbId={selfDbId}
-                />
-              ))}
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                      User
+                    </th>
+                    <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
+                      Roles
+                    </th>
+                    <th className="text-right text-sm font-medium text-muted-foreground px-4 py-3 w-[180px]">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredUsers.map((u) => (
+                    <UserRow
+                      key={u.id}
+                      u={u}
+                      roles={roles}
+                      onAssign={onAssign}
+                      onRevoke={onRevoke}
+                      pending={isMutating}
+                      selfDbId={selfDbId}
+                    />
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
 
+          {/* Available Roles strip */}
           {roles.length > 0 && (
-            <div className="mt-6 pt-4 border-t">
+            <div className="pt-2">
               <p className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
                 Available Roles
               </p>
               <div className="flex flex-wrap gap-1.5">
                 {roles.map((r) => (
-                  <Badge
-                    key={r.id}
-                    variant={ROLE_BADGE_VARIANT[r.name] ?? "outline"}
-                    className="gap-1"
-                  >
-                    <span className="capitalize">{r.name}</span>
+                  <span key={r.id} className={getRolePillClass(r.name)}>
+                    {r.name}
                     <RolePermissionsPreview
                       name={r.name}
                       description={r.description}
                       permissions={r.permissions}
                     />
-                  </Badge>
+                  </span>
                 ))}
               </div>
             </div>
           )}
-
-          <Button
-            variant="ghost"
-            size="sm"
-            className="mt-4"
-            onClick={() => {
-              usersQuery.refetch();
-              rolesQuery.refetch();
-            }}
-          >
-            Refresh
-          </Button>
         </CardContent>
       </Card>
 

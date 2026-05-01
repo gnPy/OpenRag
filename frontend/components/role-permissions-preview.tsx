@@ -55,11 +55,11 @@ export function RolePermissionsPreview({
             type="button"
             aria-label={`Show permissions for ${name}`}
             className={cn(
-              "inline-flex items-center justify-center rounded hover:bg-foreground/10 transition-colors",
-              size === "sm" ? "h-4 w-4" : "h-5 w-5",
+              "inline-flex items-center justify-center rounded hover:bg-foreground/10 transition-colors -mr-0.5",
+              size === "sm" ? "h-5 w-5" : "h-6 w-6",
             )}
           >
-            <Info className={size === "sm" ? "h-3 w-3" : "h-3.5 w-3.5"} />
+            <Info className={size === "sm" ? "h-3.5 w-3.5" : "h-4 w-4"} />
           </button>
         )}
       </PopoverTrigger>
