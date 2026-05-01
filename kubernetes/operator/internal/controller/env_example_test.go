@@ -14,11 +14,11 @@ func Example_envVarPriority() {
 
 	// Simulate operator environment variables (Level 2)
 	// In production, these would be set in the operator's deployment
-	os.Setenv("OPTLF_LANGFLOW_WORKERS", "8")
-	os.Setenv("OPTLF_LANGFLOW_LOG_LEVEL", "INFO")
+	_ = os.Setenv("OPTLF_LANGFLOW_WORKERS", "8")
+	_ = os.Setenv("OPTLF_LANGFLOW_LOG_LEVEL", "INFO")
 	defer func() {
-		os.Unsetenv("OPTLF_LANGFLOW_WORKERS")
-		os.Unsetenv("OPTLF_LANGFLOW_LOG_LEVEL")
+		_ = os.Unsetenv("OPTLF_LANGFLOW_WORKERS")
+		_ = os.Unsetenv("OPTLF_LANGFLOW_LOG_LEVEL")
 	}()
 
 	// Simulate CR spec env vars (Level 3 - highest priority)
@@ -61,13 +61,13 @@ func Example_componentSpecificPrefixes() {
 	}
 
 	// Set operator env vars with different prefixes
-	os.Setenv("OPTLF_WORKERS", "langflow_8")
-	os.Setenv("OPTORBE_WORKERS", "backend_6")
-	os.Setenv("OPTORFE_WORKERS", "frontend_4")
+	_ = os.Setenv("OPTLF_WORKERS", "langflow_8")
+	_ = os.Setenv("OPTORBE_WORKERS", "backend_6")
+	_ = os.Setenv("OPTORFE_WORKERS", "frontend_4")
 	defer func() {
-		os.Unsetenv("OPTLF_WORKERS")
-		os.Unsetenv("OPTORBE_WORKERS")
-		os.Unsetenv("OPTORFE_WORKERS")
+		_ = os.Unsetenv("OPTLF_WORKERS")
+		_ = os.Unsetenv("OPTORBE_WORKERS")
+		_ = os.Unsetenv("OPTORFE_WORKERS")
 	}()
 
 	// Each component gets its own prefix

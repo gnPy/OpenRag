@@ -19,11 +19,11 @@ func TestEnvVarManager_ThreeLevelPriority(t *testing.T) {
 	}
 
 	// Set up operator environment variables (level 2)
-	os.Setenv("OPTLF_VAR_B", "operator_b")
-	os.Setenv("OPTLF_VAR_C", "operator_c")
+	_ = os.Setenv("OPTLF_VAR_B", "operator_b")
+	_ = os.Setenv("OPTLF_VAR_C", "operator_c")
 	defer func() {
-		os.Unsetenv("OPTLF_VAR_B")
-		os.Unsetenv("OPTLF_VAR_C")
+		_ = os.Unsetenv("OPTLF_VAR_B")
+		_ = os.Unsetenv("OPTLF_VAR_C")
 	}()
 
 	// CR spec env vars (level 3 - highest priority)
@@ -50,15 +50,15 @@ func TestEnvVarManager_OperatorEnvPrefixFiltering(t *testing.T) {
 	}
 
 	// Set various env vars - only OPTLF_ should be picked up
-	os.Setenv("OPTLF_TEST_VAR", "langflow_value")
-	os.Setenv("OPTORBE_TEST_VAR", "backend_value")
-	os.Setenv("OPTORFE_TEST_VAR", "frontend_value")
-	os.Setenv("RANDOM_VAR", "random_value")
+	_ = os.Setenv("OPTLF_TEST_VAR", "langflow_value")
+	_ = os.Setenv("OPTORBE_TEST_VAR", "backend_value")
+	_ = os.Setenv("OPTORFE_TEST_VAR", "frontend_value")
+	_ = os.Setenv("RANDOM_VAR", "random_value")
 	defer func() {
-		os.Unsetenv("OPTLF_TEST_VAR")
-		os.Unsetenv("OPTORBE_TEST_VAR")
-		os.Unsetenv("OPTORFE_TEST_VAR")
-		os.Unsetenv("RANDOM_VAR")
+		_ = os.Unsetenv("OPTLF_TEST_VAR")
+		_ = os.Unsetenv("OPTORBE_TEST_VAR")
+		_ = os.Unsetenv("OPTORFE_TEST_VAR")
+		_ = os.Unsetenv("RANDOM_VAR")
 	}()
 
 	// Test Langflow - should only pick up OPTLF_
@@ -84,8 +84,10 @@ func TestEnvVarManager_CREnvVarOverride(t *testing.T) {
 		},
 	}
 
-	os.Setenv("OPTLF_DATABASE_URL", "sqlite:///operator.db")
-	defer os.Unsetenv("OPTLF_DATABASE_URL")
+	_ = os.Setenv("OPTLF_DATABASE_URL", "sqlite:///operator.db")
+	defer func() {
+		_ = os.Unsetenv("OPTLF_DATABASE_URL")
+	}()
 
 	// CR overrides everything
 	crEnvVars := []corev1.EnvVar{
@@ -163,11 +165,11 @@ func TestEnvVarManager_RealWorldScenario(t *testing.T) {
 	manager := NewEnvVarManager()
 
 	// Operator running with some env vars set
-	os.Setenv("OPTLF_LANGFLOW_WORKERS", "8")
-	os.Setenv("OPTLF_LANGFLOW_LOG_LEVEL", "INFO")
+	_ = os.Setenv("OPTLF_LANGFLOW_WORKERS", "8")
+	_ = os.Setenv("OPTLF_LANGFLOW_LOG_LEVEL", "INFO")
 	defer func() {
-		os.Unsetenv("OPTLF_LANGFLOW_WORKERS")
-		os.Unsetenv("OPTLF_LANGFLOW_LOG_LEVEL")
+		_ = os.Unsetenv("OPTLF_LANGFLOW_WORKERS")
+		_ = os.Unsetenv("OPTLF_LANGFLOW_LOG_LEVEL")
 	}()
 
 	// User's CR overrides LOG_LEVEL
