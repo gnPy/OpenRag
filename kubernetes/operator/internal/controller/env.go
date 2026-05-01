@@ -75,7 +75,44 @@ func NewEnvVarManager(config config.OperatorConfig) *EnvVarManager {
 			"OLLAMA_BASE_URL":   "None",
 		},
 		DefaultOpenRagBEEnvVars: map[string]string{
-			// Backend environment variables will be added here
+			// Langflow connection
+			"LANGFLOW_TIMEOUT":         "2400",
+			"LANGFLOW_CONNECT_TIMEOUT": "30",
+			"LANGFLOW_AUTO_LOGIN":      "true",
+			"LANGFLOW_KEY_RETRIES":     "15",
+			"LANGFLOW_KEY_RETRY_DELAY": "2",
+			"LANGFLOW_KEY":             "",
+
+			// Backend data paths
+			"OPENRAG_DATA_PATH":          "/app/backend-data",
+			"OPENRAG_DOCUMENTS_PATH":     "/app/openrag-documents",
+			"OPENRAG_DOCUMENT_PATH":      "/app/openrag-documents",
+			"OPENRAG_FLOWS_BACKUP_PATH":  "/app/backend-data/flow-backups",
+			"OPENRAG_KEYS_PATH":          "/app/backend-data/keys",
+			"OPENRAG_CONFIG_PATH":        "/app/backend-data/config",
+			"OPENRAG_VERSION":            "latest",
+
+			// OpenSearch configuration
+			"OPENSEARCH_DATA_PATH": "./opensearch-data",
+
+			// Logging configuration
+			"LOG_LEVEL":   "DEBUG",
+			"LOG_FORMAT":  "json",
+			"ACCESS_LOG":  "true",
+			"SERVICE_NAME": "openrag",
+
+			// Environment
+			"ENVIRONMENT": "development",
+
+			// Ingestion configuration
+			"INGEST_SAMPLE_DATA":          "true",
+			"DISABLE_INGEST_WITH_LANGFLOW": "false",
+			"INGESTION_TIMEOUT":           "3600",
+			"UPLOAD_BATCH_SIZE":           "25",
+			"MAX_WORKERS":                 "4",
+
+			// Segment analytics (default empty, set via CR or operator env)
+			"SEGMENT_WRITE_KEY": "",
 		},
 		DefaultOpenRagFEEnvVars: map[string]string{
 			// Frontend environment variables will be added here
