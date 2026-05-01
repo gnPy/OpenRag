@@ -58,7 +58,9 @@ from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-router = APIRouter(prefix="/api/admin", tags=["admin"])
+# See note in api/users.py — Next.js proxy strips /api before forwarding,
+# so we mount under /admin and the frontend reaches us at /api/admin/...
+router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 # ---------------------------------------------------------------------------

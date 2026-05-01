@@ -14,7 +14,10 @@ from dependencies import get_current_user, get_db_session, get_rbac_service
 from session_manager import User
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/api/users", tags=["users"])
+# Backend routes are mounted WITHOUT the /api prefix because the Next.js
+# proxy at frontend/app/api/[...path]/route.ts strips it before forwarding.
+# Frontend reaches these via /api/users/me, /api/users/me/permissions.
+router = APIRouter(prefix="/users", tags=["users"])
 
 
 class MeResponse(BaseModel):

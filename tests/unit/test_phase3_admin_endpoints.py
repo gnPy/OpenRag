@@ -95,7 +95,7 @@ async def test_admin_can_list_users(app):
     fastapi_app, _, _ = app
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get("/api/admin/users", headers=_admin_headers())
+        r = await c.get("/admin/users", headers=_admin_headers())
     assert r.status_code == 200
     assert len(r.json()) == 2
 
@@ -105,7 +105,7 @@ async def test_non_admin_cannot_list_users(app):
     fastapi_app, _, _ = app
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get("/api/admin/users", headers=_user_headers())
+        r = await c.get("/admin/users", headers=_user_headers())
     assert r.status_code == 403
     assert r.json()["detail"]["required"] == "users:list"
 
@@ -122,7 +122,7 @@ async def test_admin_can_promote_user(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.post(
-            f"/api/admin/users/{user_id}/roles",
+            f"/admin/users/{user_id}/roles",
             json={"role_id": role_id},
             headers=_admin_headers(),
         )
@@ -142,7 +142,7 @@ async def test_cannot_remove_last_admin(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.delete(
-            f"/api/admin/users/{admin_id}/roles/{admin_role.id}",
+            f"/admin/users/{admin_id}/roles/{admin_role.id}",
             headers=_admin_headers(),
         )
     assert r.status_code == 400
@@ -156,7 +156,7 @@ async def test_admin_can_create_and_delete_custom_role(app):
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         # Create
         r = await c.post(
-            "/api/admin/roles",
+            "/admin/roles",
             json={
                 "name": "reviewer",
                 "description": "Doc reviewer",
@@ -171,12 +171,12 @@ async def test_admin_can_create_and_delete_custom_role(app):
         assert set(role["permissions"]) == {"chat:use", "search:use", "kf:edit:own"}
 
         # List
-        r = await c.get("/api/admin/roles", headers=_admin_headers())
+        r = await c.get("/admin/roles", headers=_admin_headers())
         names = {row["name"] for row in r.json()}
         assert "reviewer" in names
 
         # Delete
-        r = await c.delete(f"/api/admin/roles/{role['id']}", headers=_admin_headers())
+        r = await c.delete(f"/admin/roles/{role['id']}", headers=_admin_headers())
         assert r.status_code == 200
 
 
@@ -189,7 +189,7 @@ async def test_cannot_delete_system_role(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.delete(
-            f"/api/admin/roles/{admin_role.id}", headers=_admin_headers()
+            f"/admin/roles/{admin_role.id}", headers=_admin_headers()
         )
     assert r.status_code == 400
     assert r.json()["detail"]["error"] == "cannot_delete_system_role"
@@ -209,7 +209,7 @@ async def test_role_edit_replaces_permissions_and_invalidates_cache(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.patch(
-            f"/api/admin/roles/{user_role.id}",
+            f"/admin/roles/{user_role.id}",
             json={"permissions": ["search:use"]},
             headers=_admin_headers(),
         )
@@ -230,12 +230,12 @@ async def test_audit_log_records_role_assignment(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         await c.post(
-            f"/api/admin/users/{user_id}/roles",
+            f"/admin/users/{user_id}/roles",
             json={"role_id": dev_role.id},
             headers=_admin_headers(),
         )
 
-        r = await c.get("/api/admin/audit?limit=50", headers=_admin_headers())
+        r = await c.get("/admin/audit?limit=50", headers=_admin_headers())
     assert r.status_code == 200
     events = [row["event"] for row in r.json()]
     assert "user.role.assigned" in events
@@ -246,7 +246,7 @@ async def test_permissions_endpoint(app):
     fastapi_app, _, _ = app
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get("/api/admin/permissions", headers=_admin_headers())
+        r = await c.get("/admin/permissions", headers=_admin_headers())
     assert r.status_code == 200
     names = {p["name"] for p in r.json()}
     # Sample known catalog members
@@ -259,7 +259,7 @@ async def test_cannot_delete_self(app):
     admin_id = PERSONAS["admin"].user_id
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.delete(f"/api/admin/users/{admin_id}", headers=_admin_headers())
+        r = await c.delete(f"/admin/users/{admin_id}", headers=_admin_headers())
     assert r.status_code == 400
     assert r.json()["detail"]["error"] == "cannot_delete_self"
 
@@ -270,7 +270,7 @@ async def test_unknown_permission_rejected_on_create_role(app):
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.post(
-            "/api/admin/roles",
+            "/admin/roles",
             json={"name": "weird", "permissions": ["does:not:exist"]},
             headers=_admin_headers(),
         )
