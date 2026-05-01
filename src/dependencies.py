@@ -16,14 +16,21 @@ Usage:
 """
 
 import dataclasses
-from typing import Optional
+from typing import AsyncIterator, Optional
 
+from cachetools import TTLCache
 from fastapi import Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from session_manager import User
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+# Per-process "we've already ensured a DB row for this user" cache, so we
+# don't pay the round-trip on every authenticated request. Cleared on
+# user/role mutations via the rbac service invalidation hook.
+_ENSURED_USER_IDS: TTLCache[str, bool] = TTLCache(maxsize=4096, ttl=300)
 
 
 # ─────────────────────────────────────────────
@@ -85,6 +92,93 @@ def get_api_key_service(services: dict = Depends(get_services)):
 
 def get_flows_service(services: dict = Depends(get_services)):
     return services["flows_service"]
+
+
+def get_rbac_service(services: dict = Depends(get_services)):
+    return services["rbac_service"]
+
+
+# ─────────────────────────────────────────────
+# Database session
+# ─────────────────────────────────────────────
+
+
+async def get_db_session() -> AsyncIterator[AsyncSession]:
+    """Yield an async DB session for the duration of a request."""
+    from db.engine import SessionLocal, init_engine
+
+    if SessionLocal is None:
+        init_engine()
+    from db.engine import SessionLocal as _SessionLocal
+    assert _SessionLocal is not None
+    async with _SessionLocal() as session:
+        yield session
+
+
+async def _ensure_db_user(user: User) -> None:
+    """Best-effort DB upsert for the authenticated user.
+
+    No-ops for anonymous users in no-auth mode beyond the very first call
+    (which does set up the synthetic anonymous row + role). Failures are
+    logged but never block the request.
+    """
+    if not user or not user.user_id:
+        return
+    if user.user_id in _ENSURED_USER_IDS:
+        return
+    try:
+        from db.engine import SessionLocal, init_engine
+        from services.user_service import ensure_user_row
+
+        if SessionLocal is None:
+            init_engine()
+        from db.engine import SessionLocal as _SessionLocal
+        if _SessionLocal is None:
+            return
+        async with _SessionLocal() as session:
+            await ensure_user_row(session, user)
+            await session.commit()
+        _ENSURED_USER_IDS[user.user_id] = True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("ensure_user_row failed", user_id=user.user_id, error=str(exc))
+
+
+def invalidate_user_ensured_cache(user_id: Optional[str] = None) -> None:
+    """Called after admin mutations so role changes are picked up promptly."""
+    if user_id is None:
+        _ENSURED_USER_IDS.clear()
+    else:
+        _ENSURED_USER_IDS.pop(user_id, None)
+
+
+# ─────────────────────────────────────────────
+# Permission enforcement
+# ─────────────────────────────────────────────
+
+
+def require_permission(perm: str):
+    """FastAPI dependency factory enforcing a permission on the current user.
+
+    Raises HTTP 403 with `{required: <perm>}` when the user lacks it.
+    Honors API key role snapshots via `request.state.api_key_role_ids`.
+    """
+
+    async def _dep(
+        request: Request,
+        user: User = Depends(get_current_user),
+        rbac=Depends(get_rbac_service),
+    ) -> User:
+        role_override = getattr(request.state, "api_key_role_ids", None)
+        perms = await rbac.get_user_permissions(user.user_id, role_override=role_override)
+        if perm not in perms:
+            await rbac.audit_denied(user.user_id, perm)
+            raise HTTPException(
+                status_code=403,
+                detail={"error": "permission_denied", "required": perm},
+            )
+        return user
+
+    return _dep
 
 
 # ─────────────────────────────────────────────
@@ -262,6 +356,7 @@ async def get_current_user(
         user = await _get_ibm_user(request, required=True)
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
+        await _ensure_db_user(user)
         return user
 
     if is_no_auth_mode():
@@ -269,6 +364,7 @@ async def get_current_user(
         request.state.user = user
         effective_token = session_manager.get_effective_jwt_token(None, None)
         user_with_token = dataclasses.replace(user, jwt_token=effective_token)
+        await _ensure_db_user(user_with_token)
         return user_with_token
 
     auth_token = request.cookies.get("auth_token")
@@ -284,6 +380,7 @@ async def get_current_user(
     user_with_token = dataclasses.replace(user, jwt_token=effective_token)
 
     request.state.user = user_with_token
+    await _ensure_db_user(user_with_token)
     return user_with_token
 
 
@@ -306,6 +403,8 @@ async def get_optional_user(
         user = await _get_ibm_user(request, required=False)
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
+        if user:
+            await _ensure_db_user(user)
         return user
 
     if is_no_auth_mode():
@@ -313,6 +412,7 @@ async def get_optional_user(
         request.state.user = user
         effective_token = session_manager.get_effective_jwt_token(None, None)
         user_with_token = dataclasses.replace(user, jwt_token=effective_token)
+        await _ensure_db_user(user_with_token)
         return user_with_token
 
     auth_token = request.cookies.get("auth_token")
@@ -332,6 +432,8 @@ async def get_optional_user(
     )
 
     request.state.user = user_with_token
+    if user_with_token:
+        await _ensure_db_user(user_with_token)
     return user_with_token
 
 
@@ -415,5 +517,12 @@ async def get_api_key_user_async(
 
     request.state.user = user_with_token
     request.state.api_key_id = user_info["key_id"]
+    # Phase 2 will populate api_key_role_ids from the SQL api_keys table.
+    # In Phase 1 we leave it unset so require_permission falls back to the
+    # user's live role membership (no privilege escalation possible).
+    request.state.api_key_role_ids = getattr(
+        request.state, "api_key_role_ids", None
+    )
+    await _ensure_db_user(user_with_token)
 
     return user_with_token

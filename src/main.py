@@ -1446,6 +1446,37 @@ async def initialize_services():
     # API Key service for public API authentication
     api_key_service = APIKeyService(session_manager)
 
+    # ===== RBAC: DB engine, migrations, and service =====
+    from db.engine import init_engine, SessionLocal as _RBACSessionLocal
+    from db.migrations_runtime import (
+        run as run_runtime_migration,
+        run_alembic_upgrade_async,
+    )
+    from services.rbac_service import RBACService
+
+    init_engine()
+
+    try:
+        await run_alembic_upgrade_async("head")
+    except Exception as e:
+        logger.error("Alembic upgrade failed at startup", error=str(e))
+        raise
+
+    # Re-fetch the SessionLocal binding after init_engine in case it was None.
+    from db.engine import SessionLocal as _RBACSessionLocalRefreshed
+    if _RBACSessionLocalRefreshed is not None:
+        async with _RBACSessionLocalRefreshed() as _session:
+            try:
+                await run_runtime_migration(_session)
+                await _session.commit()
+            except Exception as e:
+                logger.error("JSON->DB runtime migration failed", error=str(e))
+                await _session.rollback()
+
+        rbac_service = RBACService(_RBACSessionLocalRefreshed)
+    else:
+        rbac_service = None
+
     return {
         "document_service": document_service,
         "search_service": search_service,
@@ -1461,6 +1492,7 @@ async def initialize_services():
         "session_manager": session_manager,
         "api_key_service": api_key_service,
         "langflow_mcp_service": langflow_mcp_service,
+        "rbac_service": rbac_service,
     }
 
 
@@ -1554,6 +1586,13 @@ async def lifespan(app: FastAPI):
 
     # 6. Global clients cleanup
     await clients.cleanup()
+
+    # 6b. SQL engine cleanup
+    try:
+        from db.engine import dispose_engine
+        await dispose_engine()
+    except Exception as e:
+        logger.error("Error disposing DB engine", error=str(e))
 
     # 7. Telemetry client cleanup
     from utils.telemetry.client import cleanup_telemetry_client
@@ -2015,6 +2054,10 @@ async def create_app():
     app.add_api_route(
         "/docling/health", docling.health, methods=["GET"], tags=["internal"]
     )
+
+    # ===== Users / RBAC Endpoints (JWT auth) =====
+    from api import users as users_api
+    app.include_router(users_api.router)
 
     # ===== API Key Management Endpoints (JWT auth for UI) =====
     app.add_api_route(
