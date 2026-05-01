@@ -2057,7 +2057,9 @@ async def create_app():
 
     # ===== Users / RBAC Endpoints (JWT auth) =====
     from api import users as users_api
+    from api.admin import rbac as admin_rbac
     app.include_router(users_api.router)
+    app.include_router(admin_rbac.router)
 
     # ===== API Key Management Endpoints (JWT auth for UI) =====
     app.add_api_route(
