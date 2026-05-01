@@ -77,6 +77,18 @@ async def test_repeated_calls_are_idempotent(session):
 
 
 @pytest.mark.asyncio
+async def test_new_user_id_matches_oauth_subject(session):
+    """Regression: the SQL users.id must equal the OAuth subject so
+    require_permission can use the JWT sub directly (no extra lookup)."""
+    row = await ensure_user_row(
+        session, _user(uid="oauth-subject-xyz", email="z@x.com")
+    )
+    await session.commit()
+    assert row.id == "oauth-subject-xyz"
+    assert row.oauth_subject == "oauth-subject-xyz"
+
+
+@pytest.mark.asyncio
 async def test_legacy_user_merges_on_real_signin(session, monkeypatch):
     monkeypatch.setenv("OPENRAG_DEFAULT_ROLE", "user")
     # Pre-seed first admin so the legacy merge does NOT take admin.

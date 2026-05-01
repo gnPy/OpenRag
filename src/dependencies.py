@@ -27,10 +27,15 @@ from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
-# Per-process "we've already ensured a DB row for this user" cache, so we
-# don't pay the round-trip on every authenticated request. Cleared on
-# user/role mutations via the rbac service invalidation hook.
-_ENSURED_USER_IDS: TTLCache[str, bool] = TTLCache(maxsize=4096, ttl=300)
+# Maps OAuth user_id (== JWT subject) -> SQL users.id. Doubles as the
+# "we've already ensured a DB row for this user" cache so we don't pay
+# the round-trip on every authenticated request. Cleared on user/role
+# mutations via the rbac service invalidation hook.
+#
+# Necessary because legacy-migrated rows have id == user_id while older
+# Phase-1 new rows had id == uuid4(); permission lookups need the SQL id,
+# not the OAuth subject.
+_ENSURED_USER_IDS: TTLCache[str, str] = TTLCache(maxsize=4096, ttl=300)
 
 
 # ─────────────────────────────────────────────
@@ -115,17 +120,20 @@ async def get_db_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-async def _ensure_db_user(user: User) -> None:
-    """Best-effort DB upsert for the authenticated user.
+async def _ensure_db_user(user: User) -> Optional[str]:
+    """Best-effort DB upsert for the authenticated user. Returns the SQL
+    `users.id` for this user (so callers can cache the OAuth-sub → DB-id
+    mapping). Returns None on failure.
 
     No-ops for anonymous users in no-auth mode beyond the very first call
     (which does set up the synthetic anonymous row + role). Failures are
     logged but never block the request.
     """
     if not user or not user.user_id:
-        return
-    if user.user_id in _ENSURED_USER_IDS:
-        return
+        return None
+    cached_db_id = _ENSURED_USER_IDS.get(user.user_id)
+    if cached_db_id is not None:
+        return cached_db_id
     try:
         from db.engine import SessionLocal, init_engine
         from services.user_service import ensure_user_row
@@ -134,13 +142,30 @@ async def _ensure_db_user(user: User) -> None:
             init_engine()
         from db.engine import SessionLocal as _SessionLocal
         if _SessionLocal is None:
-            return
+            return None
         async with _SessionLocal() as session:
-            await ensure_user_row(session, user)
+            db_row = await ensure_user_row(session, user)
             await session.commit()
-        _ENSURED_USER_IDS[user.user_id] = True
+        _ENSURED_USER_IDS[user.user_id] = db_row.id
+        return db_row.id
     except Exception as exc:  # noqa: BLE001
         logger.warning("ensure_user_row failed", user_id=user.user_id, error=str(exc))
+        return None
+
+
+async def _resolve_db_user_id(user: User) -> str:
+    """Translate an authenticated `User` (which carries the JWT/OAuth
+    subject) to the SQL `users.id` used by the RBAC tables. Falls back to
+    `user.user_id` if no DB row can be resolved (no-auth mode, transient
+    DB error, etc.) so caller behavior degrades gracefully.
+    """
+    if not user or not user.user_id:
+        return ""
+    cached = _ENSURED_USER_IDS.get(user.user_id)
+    if cached is not None:
+        return cached
+    resolved = await _ensure_db_user(user)
+    return resolved or user.user_id
 
 
 def invalidate_user_ensured_cache(user_id: Optional[str] = None) -> None:
@@ -169,9 +194,10 @@ def require_permission(perm: str):
         rbac=Depends(get_rbac_service),
     ) -> User:
         role_override = getattr(request.state, "api_key_role_ids", None)
-        perms = await rbac.get_user_permissions(user.user_id, role_override=role_override)
+        db_user_id = await _resolve_db_user_id(user)
+        perms = await rbac.get_user_permissions(db_user_id, role_override=role_override)
         if perm not in perms:
-            await rbac.audit_denied(user.user_id, perm)
+            await rbac.audit_denied(db_user_id, perm)
             raise HTTPException(
                 status_code=403,
                 detail={"error": "permission_denied", "required": perm},

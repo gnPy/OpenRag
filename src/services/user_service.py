@@ -88,8 +88,13 @@ async def ensure_user_row(session: AsyncSession, user: User) -> UserRow:
         await _assign_bootstrap_or_default(session, role_repo, audit_repo, merged.id)
         return merged
 
-    # Brand-new row
-    new_id = str(uuid.uuid4()) if user.user_id != "anonymous" else "anonymous"
+    # Brand-new row.
+    # We use the OAuth subject (== user.user_id) as the DB primary key so
+    # the SQL `users.id` lines up with the JWT subject and with the
+    # user_id strings already used by connections.json / conversations.json.
+    # If a different provider ever sign-ins with the same subject string we
+    # fall back to a UUID — extremely rare in practice.
+    new_id = subject if subject else str(uuid.uuid4())
     row = UserRow(
         id=new_id,
         oauth_provider=provider,
@@ -101,13 +106,22 @@ async def ensure_user_row(session: AsyncSession, user: User) -> UserRow:
     try:
         await user_repo.add(row)
     except IntegrityError:
-        # Another concurrent sign-in won the race — fetch and return.
         await session.rollback()
         existing = await user_repo.get_by_oauth(provider, subject)
         if existing:
             await user_repo.update_last_login(existing.id)
             return existing
-        raise
+        # Primary-key collision across providers — retry with UUID.
+        new_id = str(uuid.uuid4())
+        row = UserRow(
+            id=new_id,
+            oauth_provider=provider,
+            oauth_subject=subject,
+            email=user.email,
+            display_name=user.name,
+            picture_url=user.picture,
+        )
+        await user_repo.add(row)
 
     await _assign_bootstrap_or_default(session, role_repo, audit_repo, row.id)
     return row
