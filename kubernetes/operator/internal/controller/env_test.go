@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/langflow-ai/openrag-operator/internal/config"
 )
 
 func TestEnvVarManager_ThreeLevelPriority(t *testing.T) {
@@ -162,7 +160,7 @@ func TestEnvVarManager_BuildEnvFileContent(t *testing.T) {
 
 func TestEnvVarManager_RealWorldScenario(t *testing.T) {
 	// Simulate a real deployment scenario
-	manager := NewEnvVarManager(config.OperatorConfig{})
+	manager := NewEnvVarManager()
 
 	// Operator running with some env vars set
 	os.Setenv("OPTLF_LANGFLOW_WORKERS", "8")
@@ -186,7 +184,7 @@ func TestEnvVarManager_RealWorldScenario(t *testing.T) {
 }
 
 func TestEnvVarManager_NewEnvVarManagerDefaults(t *testing.T) {
-	manager := NewEnvVarManager(config.OperatorConfig{})
+	manager := NewEnvVarManager()
 
 	// Verify Langflow defaults
 	assert.NotNil(t, manager.DefaultLangflowEnvVars)

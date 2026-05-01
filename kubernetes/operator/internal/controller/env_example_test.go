@@ -5,14 +5,12 @@ import (
 	"os"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/langflow-ai/openrag-operator/internal/config"
 )
 
 // Example demonstrates the three-level environment variable priority system
 func Example_envVarPriority() {
 	// Create the EnvVarManager with hardcoded defaults
-	manager := NewEnvVarManager(config.OperatorConfig{})
+	manager := NewEnvVarManager()
 
 	// Simulate operator environment variables (Level 2)
 	// In production, these would be set in the operator's deployment

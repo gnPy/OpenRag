@@ -5,8 +5,6 @@ import (
 	"strings"
 
 	corev1 "k8s.io/api/core/v1"
-
-	"github.com/langflow-ai/openrag-operator/internal/config"
 )
 
 const (
@@ -16,16 +14,14 @@ const (
 )
 
 type EnvVarManager struct {
-	Config config.OperatorConfig
 	// a map makes look up faster and easier
 	DefaultLangflowEnvVars  map[string]string
 	DefaultOpenRagBEEnvVars map[string]string
 	DefaultOpenRagFEEnvVars map[string]string
 }
 
-func NewEnvVarManager(config config.OperatorConfig) *EnvVarManager {
+func NewEnvVarManager() *EnvVarManager {
 	return &EnvVarManager{
-		Config: config,
 		DefaultLangflowEnvVars: map[string]string{
 			// Database configuration
 			"LANGFLOW_DATABASE_URL": "sqlite:////app/data/langflow.db",
@@ -76,6 +72,7 @@ func NewEnvVarManager(config config.OperatorConfig) *EnvVarManager {
 		},
 		DefaultOpenRagBEEnvVars: map[string]string{
 			// Langflow connection
+			"LANGFLOW_URL":             "http://langflow:7860",
 			"LANGFLOW_TIMEOUT":         "2400",
 			"LANGFLOW_CONNECT_TIMEOUT": "30",
 			"LANGFLOW_AUTO_LOGIN":      "true",
@@ -84,32 +81,32 @@ func NewEnvVarManager(config config.OperatorConfig) *EnvVarManager {
 			"LANGFLOW_KEY":             "",
 
 			// Backend data paths
-			"OPENRAG_DATA_PATH":          "/app/backend-data",
-			"OPENRAG_DOCUMENTS_PATH":     "/app/openrag-documents",
-			"OPENRAG_DOCUMENT_PATH":      "/app/openrag-documents",
-			"OPENRAG_FLOWS_BACKUP_PATH":  "/app/backend-data/flow-backups",
-			"OPENRAG_KEYS_PATH":          "/app/backend-data/keys",
-			"OPENRAG_CONFIG_PATH":        "/app/backend-data/config",
-			"OPENRAG_VERSION":            "latest",
+			"OPENRAG_DATA_PATH":         "/app/backend-data",
+			"OPENRAG_DOCUMENTS_PATH":    "/app/openrag-documents",
+			"OPENRAG_DOCUMENT_PATH":     "/app/openrag-documents", // omg which one?
+			"OPENRAG_FLOWS_BACKUP_PATH": "/app/backend-data/flow-backups",
+			"OPENRAG_KEYS_PATH":         "/app/backend-data/keys",
+			"OPENRAG_CONFIG_PATH":       "/app/backend-data/config",
+			"OPENRAG_VERSION":           "latest",
 
 			// OpenSearch configuration
 			"OPENSEARCH_DATA_PATH": "./opensearch-data",
 
 			// Logging configuration
-			"LOG_LEVEL":   "DEBUG",
-			"LOG_FORMAT":  "json",
-			"ACCESS_LOG":  "true",
+			"LOG_LEVEL":    "DEBUG",
+			"LOG_FORMAT":   "json",
+			"ACCESS_LOG":   "true",
 			"SERVICE_NAME": "openrag",
 
 			// Environment
 			"ENVIRONMENT": "development",
 
 			// Ingestion configuration
-			"INGEST_SAMPLE_DATA":          "true",
+			"INGEST_SAMPLE_DATA":           "true",
 			"DISABLE_INGEST_WITH_LANGFLOW": "false",
-			"INGESTION_TIMEOUT":           "3600",
-			"UPLOAD_BATCH_SIZE":           "25",
-			"MAX_WORKERS":                 "4",
+			"INGESTION_TIMEOUT":            "3600",
+			"UPLOAD_BATCH_SIZE":            "25",
+			"MAX_WORKERS":                  "4",
 
 			// Segment analytics (default empty, set via CR or operator env)
 			"SEGMENT_WRITE_KEY": "",
