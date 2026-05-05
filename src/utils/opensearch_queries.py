@@ -41,17 +41,21 @@ def build_filename_search_body(filename: str, size: int = 1, source: Union[bool,
 
 
 def build_rename_match_query(
-    owner: Optional[str],
+    _owner: Optional[str],
     filename_aliases: List[str],
     document_id: Optional[str] = None,
 ) -> dict:
     """
-    Bool query matching all chunks for a rename: optional owner, filename in aliases,
+    Bool query matching all chunks for a rename: filename in aliases,
     optional document_id (must match every targeted chunk when provided).
+
+    Note: We do not add an `owner` term here. The OpenSearch client is already
+    scoped by the caller's JWT (same as delete-by-filename). Requiring `owner`
+    in the query breaks renames when indexed chunks have a missing or legacy
+    `owner` value that still matches the user's search results.
+    The `_owner` parameter is kept for API compatibility with callers.
     """
     must: List[dict] = []
-    if owner and owner != "anonymous":
-        must.append({"term": {"owner": owner}})
     should_terms = [{"term": {"filename": a}} for a in filename_aliases if a]
     must.append({"bool": {"should": should_terms, "minimum_should_match": 1}})
     did = (document_id or "").strip()
@@ -61,19 +65,17 @@ def build_rename_match_query(
 
 
 def build_document_id_match_query(
-    owner: Optional[str],
+    _owner: Optional[str],
     document_id: str,
 ) -> dict:
-    """All chunks for a logical document (owner + document_id)."""
+    """All chunks for a logical document (document_id), JWT-scoped by the client."""
     did = (document_id or "").strip()
     must: List[dict] = [{"term": {"document_id": did}}]
-    if owner and owner != "anonymous":
-        must.insert(0, {"term": {"owner": owner}})
     return {"bool": {"must": must}}
 
 
 def build_document_id_not_matching_filenames_query(
-    owner: Optional[str],
+    _owner: Optional[str],
     document_id: str,
     filenames_to_match: List[str],
 ) -> dict:
@@ -83,8 +85,6 @@ def build_document_id_not_matching_filenames_query(
     """
     did = (document_id or "").strip()
     must: List[dict] = [{"term": {"document_id": did}}]
-    if owner and owner != "anonymous":
-        must.insert(0, {"term": {"owner": owner}})
     terms = [t for t in filenames_to_match if t]
     if not terms:
         return {"bool": {"must": must}}
@@ -103,18 +103,35 @@ def build_document_id_not_matching_filenames_query(
     }
 
 
+def build_rename_source_url_match_query(
+    _owner: Optional[str],
+    source_url: str,
+    document_id: Optional[str] = None,
+) -> dict:
+    """
+    Match chunks by exact source_url (when the UI grouped the row by URL but filename in index differs).
+    JWT on the OpenSearch client scopes hits to the current user.
+    """
+    must: List[dict] = []
+    su = (source_url or "").strip()
+    if su:
+        must.append({"term": {"source_url": su}})
+    did = (document_id or "").strip()
+    if did:
+        must.append({"term": {"document_id": did}})
+    return {"bool": {"must": must}}
+
+
 def build_rename_collision_query(
-    owner: Optional[str],
+    _owner: Optional[str],
     candidate_filenames: List[str],
     exclude_document_id: Optional[str] = None,
 ) -> dict:
     """
-    True for chunks that use one of candidate_filenames, optionally scoped by owner,
-    excluding the document being renamed (same document_id on all its chunks).
+    True for chunks that use one of candidate_filenames, excluding the document
+    being renamed. Scoped by the JWT on the OpenSearch client (same as delete-by-filename).
     """
     must: List[dict] = []
-    if owner and owner != "anonymous":
-        must.append({"term": {"owner": owner}})
     should_terms = [{"term": {"filename": c}} for c in candidate_filenames if c]
     must.append({"bool": {"should": should_terms, "minimum_should_match": 1}})
     ex = (exclude_document_id or "").strip()

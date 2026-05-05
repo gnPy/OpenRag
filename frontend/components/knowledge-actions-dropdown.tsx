@@ -26,11 +26,14 @@ import { Button } from "./ui/button";
 
 export interface RenameDialogTarget {
   filename: string;
+  /** Indexed `filename` for the rename API when it differs from the grid label (e.g. URL-grouped rows). */
+  renameCurrentFilename?: string;
   documentId?: string;
 }
 
 interface KnowledgeActionsDropdownProps {
   filename: string;
+  renameCurrentFilename?: string;
   documentId?: string;
   connectorType?: string;
   /** Host the rename modal outside the grid (e.g. knowledge page) so refetch does not unmount it. */
@@ -51,6 +54,7 @@ const RENAME_DISABLED_CONNECTOR_TYPES = new Set([
 
 export const KnowledgeActionsDropdown = ({
   filename,
+  renameCurrentFilename,
   documentId,
   connectorType,
   onOpenRename,
@@ -144,7 +148,11 @@ export const KnowledgeActionsDropdown = ({
               className="text-primary focus:text-primary cursor-pointer"
               disabled={!onOpenRename}
               onClick={() => {
-                onOpenRename?.({ filename, documentId });
+                onOpenRename?.({
+                  filename,
+                  renameCurrentFilename: renameCurrentFilename ?? filename,
+                  documentId,
+                });
               }}
             >
               <Pencil className="h-4 w-4 mr-2" />

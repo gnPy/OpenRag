@@ -5,7 +5,10 @@ import {
 } from "@tanstack/react-query";
 import type { ParsedQueryData } from "@/contexts/knowledge-filter-context";
 import { SEARCH_CONSTANTS } from "@/lib/constants";
-import { buildSearchPayloadFilters } from "@/lib/filter-normalization";
+import {
+  buildSearchPayloadFilters,
+  type DataSourceRef,
+} from "@/lib/filter-normalization";
 
 export interface SearchPayload {
   query: string;
@@ -13,6 +16,7 @@ export interface SearchPayload {
   scoreThreshold: number;
   filters?: {
     data_sources?: string[];
+    data_source_refs?: DataSourceRef[];
     document_types?: string[];
     owners?: string[];
     connector_types?: string[];

@@ -65,6 +65,10 @@ export interface RequestBody {
   previous_response_id?: string;
   filters?: {
     data_sources?: string[];
+    data_source_refs?: Array<{
+      filename?: string;
+      document_id?: string | null;
+    }>;
     document_types?: string[];
     owners?: string[];
     connector_types?: string[];

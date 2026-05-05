@@ -32,7 +32,6 @@ import type {
 
 function ChatPage() {
   const isDebugMode = process.env.NEXT_PUBLIC_OPENRAG_DEBUG === "true";
-  const _isCloudBrand = useIsCloudBrand();
   const {
     endpoint,
     setEndpoint,

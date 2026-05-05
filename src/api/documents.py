@@ -9,6 +9,34 @@ from session_manager import User
 logger = get_logger(__name__)
 
 
+async def _sync_knowledge_filters_after_rename(
+    session_manager,
+    user_id: str,
+    jwt_token: str | None,
+    old_filename: str,
+    new_filename: str,
+    document_id: str | None,
+) -> None:
+    """Patch saved knowledge filters (refs + selection keys) after a successful rename."""
+    try:
+        from services.knowledge_filter_service import KnowledgeFilterService
+
+        svc = KnowledgeFilterService(session_manager)
+        await svc.sync_filters_after_document_rename(
+            old_filename=old_filename,
+            new_filename=new_filename,
+            document_id=document_id,
+            user_id=user_id,
+            jwt_token=jwt_token,
+        )
+    except Exception as e:
+        logger.warning(
+            "Could not sync knowledge filters after document rename",
+            error=str(e),
+            old_filename=old_filename,
+        )
+
+
 class DeleteDocumentBody(BaseModel):
     filename: str
 
@@ -122,6 +150,30 @@ async def _count_chunks_for_query(
     return _hits_total_value(resp)
 
 
+async def _sample_document_id_from_query(
+    opensearch_client,
+    index_name: str,
+    query: dict,
+    sample_size: int = 100,
+) -> str | None:
+    """Return a non-empty document_id from sample hits, or None."""
+    resp = await opensearch_client.search(
+        index=index_name,
+        body={
+            "query": query,
+            "size": sample_size,
+            "_source": ["document_id"],
+            "track_total_hits": True,
+        },
+    )
+    for h in resp.get("hits", {}).get("hits", []):
+        src = h.get("_source") or {}
+        did = src.get("document_id")
+        if did is not None and str(did).strip():
+            return str(did).strip()
+    return None
+
+
 async def _rename_target_filename_taken(
     opensearch_client,
     index_name: str,
@@ -201,6 +253,7 @@ async def rename_document_chunks_core(
         build_document_id_match_query,
         build_document_id_not_matching_filenames_query,
         build_rename_match_query,
+        build_rename_source_url_match_query,
     )
 
     current = (current_filename or "").strip()
@@ -255,7 +308,29 @@ async def rename_document_chunks_core(
 
         query_all = build_rename_match_query(user_id, aliases, None)
         total = await _count_chunks_for_query(opensearch_client, index_name, query_all)
+
+        # UI may group rows by source_url when filename is empty; `current` can be a URL.
+        if total == 0 and current.lower().startswith(("http://", "https://")):
+            q_url = build_rename_source_url_match_query(user_id, current, None)
+            n_url = await _count_chunks_for_query(
+                opensearch_client, index_name, q_url
+            )
+            if n_url > 0:
+                query_all = q_url
+                total = n_url
+
         if total == 0:
+            # After a partial rename, no chunk may still use `current` (all carry
+            # `new_name`) so the "old name" query returns 0. If the client did not
+            # keep document_id, discover it from chunks that already use the target
+            # filename so the resume-by-document_id path can run.
+            if not doc_id_opt and new_aliases:
+                q_new = build_rename_match_query(user_id, new_aliases, None)
+                sampled = await _sample_document_id_from_query(
+                    opensearch_client, index_name, q_new
+                )
+                if sampled:
+                    doc_id_opt = sampled
             if not doc_id_opt or not new_aliases:
                 return (
                     {
@@ -304,6 +379,14 @@ async def rename_document_chunks_core(
                     user_id=user_id,
                     document_id=doc_id_opt,
                     new_filename=new_name,
+                )
+                await _sync_knowledge_filters_after_rename(
+                    session_manager,
+                    user_id,
+                    jwt_token,
+                    current,
+                    new_name,
+                    doc_id_opt,
                 )
                 return (
                     {
@@ -383,6 +466,14 @@ async def rename_document_chunks_core(
                         updated=total_updated,
                         document_id=doc_id_opt,
                         new_filename=new_name,
+                    )
+                    await _sync_knowledge_filters_after_rename(
+                        session_manager,
+                        user_id,
+                        jwt_token,
+                        current,
+                        new_name,
+                        effective_doc_id,
                     )
                     return (
                         {
@@ -531,6 +622,7 @@ async def rename_document_chunks_core(
                 409,
             )
 
+        # Only update display filename; document_id and all other fields (filters, dedup) stay the same.
         ubq_body = {
             "query": query_apply,
             "script": {
@@ -579,6 +671,14 @@ async def rename_document_chunks_core(
                     old_filename=current,
                     new_filename=new_name,
                 )
+                await _sync_knowledge_filters_after_rename(
+                    session_manager,
+                    user_id,
+                    jwt_token,
+                    current,
+                    new_name,
+                    effective_doc_id,
+                )
                 return (
                     {
                         "success": True,
@@ -601,6 +701,11 @@ async def rename_document_chunks_core(
             attempts=rename_ubq_max_attempts,
             user_id=user_id,
         )
+        report_doc_id = effective_doc_id
+        if report_doc_id is None:
+            report_doc_id = await _sample_document_id_from_query(
+                opensearch_client, index_name, query_all
+            )
         return (
             {
                 "success": False,
@@ -614,7 +719,7 @@ async def rename_document_chunks_core(
                     f"Rename applied to some chunks only ({total_updated} updated, "
                     f"{remaining_old} still use the old name). Save again to retry."
                 ),
-                "document_id": effective_doc_id,
+                "document_id": report_doc_id,
             },
             422,
         )
@@ -706,7 +811,10 @@ async def check_filename_exists(
 
         candidate_filenames = get_filename_aliases(filename)
         if not candidate_filenames:
-            return JSONResponse({"exists": False, "filename": filename}, status_code=200)
+            return JSONResponse(
+                {"exists": False, "filename": filename, "match_type": "filename"},
+                status_code=200,
+            )
 
         logger.debug("Checking filename existence", filename=filename, index_name=get_index_name())
         exists = False
@@ -726,7 +834,10 @@ async def check_filename_exists(
             if "index_not_found_exception" in str(search_err):
                 logger.info("Index does not exist, creating it now before upload")
                 await _ensure_index_exists(jwt_token)
-                return JSONResponse({"exists": False, "filename": filename}, status_code=200)
+                return JSONResponse(
+                    {"exists": False, "filename": filename, "match_type": "filename"},
+                    status_code=200,
+                )
             raise
 
         return JSONResponse(

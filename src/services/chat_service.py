@@ -101,29 +101,11 @@ class ChatService:
         score_threshold = get_score_threshold()
 
         # Build the complete filter expression like the search service does
+        from utils.search_filter_clauses import build_user_filter_clauses
+
         filter_expression = {}
         if filters:
-            filter_clauses = []
-            # Map frontend filter names to backend field names
-            field_mapping = {
-                "data_sources": "filename",
-                "document_types": "mimetype",
-                "owners": "owner",
-                "connector_types": "connector_type",
-            }
-
-            for filter_key, values in filters.items():
-                if values is not None and isinstance(values, list) and len(values) > 0:
-                    # Map frontend key to backend field name
-                    field_name = field_mapping.get(filter_key, filter_key)
-
-                    if len(values) == 1:
-                        # Single value filter
-                        filter_clauses.append({"term": {field_name: values[0]}})
-                    else:
-                        # Multiple values filter
-                        filter_clauses.append({"terms": {field_name: values}})
-
+            filter_clauses = build_user_filter_clauses(filters)
             if filter_clauses:
                 filter_expression["filter"] = filter_clauses
 
@@ -214,34 +196,12 @@ class ChatService:
         # Add provider credentials to headers
         await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
 
+        from utils.search_filter_clauses import build_user_filter_clauses
+
         # Build the complete filter expression like the chat service does
         filter_expression = {}
-        has_user_filters = False
-        filter_clauses = []
-
-        if filters:
-            # Map frontend filter names to backend field names
-            field_mapping = {
-                "data_sources": "filename",
-                "document_types": "mimetype",
-                "owners": "owner",
-                "connector_types": "connector_type",
-            }
-
-            for filter_key, values in filters.items():
-                if values is not None and isinstance(values, list) and len(values) > 0:
-                    # Map frontend key to backend field name
-                    field_name = field_mapping.get(filter_key, filter_key)
-
-                    if len(values) == 1:
-                        # Single value filter
-                        filter_clauses.append({"term": {field_name: values[0]}})
-                    else:
-                        # Multiple values filter
-                        filter_clauses.append({"terms": {field_name: values}})
-
-            if filter_clauses:
-                has_user_filters = True
+        filter_clauses = build_user_filter_clauses(filters) if filters else []
+        has_user_filters = bool(filter_clauses)
 
         # If no user filters are active, exclude sample data from nudges
         if not has_user_filters:

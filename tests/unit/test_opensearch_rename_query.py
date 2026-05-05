@@ -8,12 +8,11 @@ from utils.opensearch_queries import (
 )
 
 
-def test_rename_query_includes_owner_and_filename_should():
+def test_rename_query_filename_should_no_owner_term():
     q = build_rename_match_query("user-1", ["a.txt", "a.md"], None)
     assert q == {
         "bool": {
             "must": [
-                {"term": {"owner": "user-1"}},
                 {
                     "bool": {
                         "should": [
@@ -28,7 +27,7 @@ def test_rename_query_includes_owner_and_filename_should():
     }
 
 
-def test_rename_query_skips_owner_for_anonymous():
+def test_rename_query_anonymous_same_shape():
     q = build_rename_match_query("anonymous", ["b.pdf"], None)
     assert q["bool"]["must"] == [
         {
@@ -45,12 +44,11 @@ def test_rename_query_adds_document_id():
     assert {"term": {"document_id": "doc-xyz"}} in q["bool"]["must"]
 
 
-def test_rename_collision_query_owner_and_exclude_document_id():
+def test_rename_collision_query_exclude_document_id_no_owner():
     q = build_rename_collision_query("user-1", ["x.txt", "x.md"], "doc-1")
     assert q == {
         "bool": {
             "must": [
-                {"term": {"owner": "user-1"}},
                 {
                     "bool": {
                         "should": [
@@ -59,7 +57,7 @@ def test_rename_collision_query_owner_and_exclude_document_id():
                         ],
                         "minimum_should_match": 1,
                     },
-                },
+                }
             ],
             "must_not": [{"term": {"document_id": "doc-1"}}],
         }
@@ -79,12 +77,11 @@ def test_rename_collision_query_anonymous_no_owner_term():
     assert "must_not" not in q["bool"]
 
 
-def test_document_id_match_query_includes_owner():
+def test_document_id_match_query_no_owner():
     q = build_document_id_match_query("user-1", "doc-1")
     assert q == {
         "bool": {
             "must": [
-                {"term": {"owner": "user-1"}},
                 {"term": {"document_id": "doc-1"}},
             ]
         }
@@ -96,7 +93,6 @@ def test_document_id_not_matching_filenames_must_not():
         "user-1", "doc-1", ["out.pdf", "out.md"]
     )
     assert q["bool"]["must"] == [
-        {"term": {"owner": "user-1"}},
         {"term": {"document_id": "doc-1"}},
     ]
     assert "must_not" in q["bool"]
