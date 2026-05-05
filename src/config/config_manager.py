@@ -37,6 +37,7 @@ class WatsonXConfig:
 class OllamaConfig:
     """Ollama provider configuration."""
     endpoint: str = ""
+    resolved_endpoint: str = ""
     configured: bool = False
 
 
@@ -47,6 +48,10 @@ class ProvidersConfig:
     anthropic: AnthropicConfig
     watsonx: WatsonXConfig
     ollama: OllamaConfig
+
+    def any_configured(self) -> bool:
+        """Return True if at least one provider is marked as configured."""
+        return any(p.configured for p in (self.openai, self.anthropic, self.watsonx, self.ollama))
 
     def get_provider_config(self, provider: str):
         """Get configuration for a specific provider."""
@@ -97,6 +102,8 @@ class OnboardingState:
     upload_steps: Optional[Dict[str, Any]] = field(default=None)
     openrag_docs_filter_id: Optional[str] = field(default=None)
     user_doc_filter_id: Optional[str] = field(default=None)
+    openrag_docs_ingested_version: Optional[str] = field(default=None)
+    openrag_docs_remote_signature: Optional[str] = field(default=None)
 
 
 @dataclass
@@ -113,12 +120,22 @@ class OpenRAGConfig:
     def from_dict(cls, data: Dict[str, Any]) -> "OpenRAGConfig":
         """Create config from dictionary."""
         providers_data = data.get("providers", {})
+        
+        # Import inside to avoid circular dependencies if any
+        from utils.encryption import decrypt_secret
+        
+        def _decrypt_provider(p_data: dict) -> dict:
+            new_data = dict(p_data)
+            if "api_key" in new_data:
+                new_data["api_key"] = decrypt_secret(new_data["api_key"])
+            return new_data
+            
         return cls(
             providers=ProvidersConfig(
-                openai=OpenAIConfig(**providers_data.get("openai", {})),
-                anthropic=AnthropicConfig(**providers_data.get("anthropic", {})),
-                watsonx=WatsonXConfig(**providers_data.get("watsonx", {})),
-                ollama=OllamaConfig(**providers_data.get("ollama", {})),
+                openai=OpenAIConfig(**_decrypt_provider(providers_data.get("openai", {}))),
+                anthropic=AnthropicConfig(**_decrypt_provider(providers_data.get("anthropic", {}))),
+                watsonx=WatsonXConfig(**_decrypt_provider(providers_data.get("watsonx", {}))),
+                ollama=OllamaConfig(**_decrypt_provider(providers_data.get("ollama", {}))),
             ),
             knowledge=KnowledgeConfig(**data.get("knowledge", {})),
             agent=AgentConfig(**data.get("agent", {})),
@@ -148,8 +165,14 @@ class ConfigManager:
         Args:
             config_file: Path to configuration file. Defaults to 'config.yaml' in project root.
         """
-        self.config_file = Path(config_file) if config_file else Path("config/config.yaml")
+        if config_file:
+            self.config_file = Path(config_file)
+        else:
+            from config.paths import get_config_file_path
+            self.config_file = Path(get_config_file_path())
         self._config: Optional[OpenRAGConfig] = None
+
+
 
     def load_config(self) -> OpenRAGConfig:
         """Load configuration from environment variables and config file.
@@ -174,6 +197,9 @@ class ConfigManager:
             "agent": {},
             "onboarding": {},
         }
+        
+        needs_encryption_upgrade = False
+        from utils.encryption import get_master_secret
 
         # Load from config file if it exists
         if self.config_file.exists():
@@ -185,10 +211,12 @@ class ConfigManager:
                 if "providers" in file_config:
                     for provider in ["openai", "anthropic", "watsonx", "ollama"]:
                         if provider in file_config["providers"]:
-                            config_data["providers"][provider].update(
-                                file_config["providers"][provider]
-                            )
-
+                            provider_data = file_config["providers"][provider]
+                            # Check if api_key is unencrypted and we have a key
+                            if "api_key" in provider_data and isinstance(provider_data["api_key"], str) and provider_data["api_key"]:
+                                if get_master_secret() is not None:
+                                    needs_encryption_upgrade = True
+                            config_data["providers"][provider].update(provider_data)
                 for section in ["knowledge", "agent", "onboarding"]:
                     if section in file_config:
                         config_data[section].update(file_config[section])
@@ -208,7 +236,11 @@ class ConfigManager:
         # Create config object
         self._config = OpenRAGConfig.from_dict(config_data)
 
-        logger.debug("Configuration loaded", config=self._config.to_dict())
+        if needs_encryption_upgrade:
+            logger.info("Upgrading unencrypted secrets in config.yaml to AES-256-GCM")
+            self.save_config_file(self._config, preserve_edited=True)
+
+        logger.debug("[CONFIG] Configuration loaded successfully")
         return self._config
 
     def _load_env_overrides(
@@ -282,11 +314,12 @@ class ConfigManager:
         self._config = None
         return self.load_config()
 
-    def save_config_file(self, config: Optional[OpenRAGConfig] = None) -> bool:
+    def save_config_file(self, config: Optional[OpenRAGConfig] = None, preserve_edited: bool = False) -> bool:
         """Save configuration to file.
 
         Args:
             config: Configuration to save. If None, uses current config.
+            preserve_edited: If True, do not forcefully set the 'edited' flag upon saving.
 
         Returns:
             True if saved successfully, False otherwise.
@@ -294,15 +327,25 @@ class ConfigManager:
         if config is None:
             config = self.get_config()
 
-        # Mark config as edited when saving
-        config.edited = True
+        # Mark config as edited when saving manually
+        if not preserve_edited:
+            config.edited = True
 
         try:
             # Ensure directory exists
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
 
+            config_dict = config.to_dict()
+            
+            # Encrypt provider API keys before saving
+            from utils.encryption import encrypt_secret
+            providers = config_dict.get("providers", {})
+            for provider_name, provider_config in providers.items():
+                if "api_key" in provider_config:
+                    provider_config["api_key"] = encrypt_secret(provider_config["api_key"])
+
             with open(self.config_file, "w") as f:
-                yaml.dump(config.to_dict(), f, default_flow_style=False, indent=2)
+                yaml.dump(config_dict, f, default_flow_style=False, indent=2)
 
             # Update cached config to reflect the edited flags
             self._config = config
@@ -311,7 +354,7 @@ class ConfigManager:
             return True
         except Exception as e:
             logger.error(f"Failed to save configuration to {self.config_file}: {e}")
-            return False
+            raise e
 
     def update_onboarding_state(self, **kwargs) -> bool:
         """Update onboarding state fields.

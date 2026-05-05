@@ -43,6 +43,27 @@ class ConfigSection:
 
 
 CONFIG_SECTIONS: list[ConfigSection] = [
+    # ── Security ────────────────────────────────────────────────
+    ConfigSection("Security", [
+        ConfigField(
+            "openrag_encryption_key", "OPENRAG_ENCRYPTION_KEY", "OpenRAG Master Key",
+            placeholder="Auto-generated secure Base64 key",
+            secret=True, required=True,
+            helper_text="32-byte Base64 key for securing your database credentials (auto-generates if empty)",
+        ),
+        ConfigField(
+            "openrag_tenant_id", "OPENRAG_TENANT_ID", "Tenant ID",
+            placeholder="openrag", default="openrag",
+            helper_text="Identifier for AAD tenant binding (default: openrag)",
+        ),
+        ConfigField(
+            "openrag_enforce_prerequisites", "OPENRAG_ENFORCE_PREREQUISITES", "Enforce Prerequisites",
+            placeholder="false", default="false",
+            advanced=True,
+            helper_text="If true, application will fail to start if the encryption key is missing",
+        ),
+    ]),
+
     # ── OpenSearch ──────────────────────────────────────────────
     ConfigSection("OpenSearch", [
         ConfigField(
@@ -67,12 +88,6 @@ CONFIG_SECTIONS: list[ConfigSection] = [
             helper_text="Override for remote OpenSearch instances (default: 9200)",
         ),
         ConfigField(
-            "opensearch_data_path", "OPENSEARCH_DATA_PATH", "Data Path",
-            placeholder="~/.openrag/data/opensearch-data",
-            default="$HOME/.openrag/data/opensearch-data",
-            helper_text="Directory to persist OpenSearch indices across upgrades",
-        ),
-        ConfigField(
             "opensearch_index_name", "OPENSEARCH_INDEX_NAME", "Index Name",
             placeholder="documents", default="documents",
             helper_text="Name of the index to use in OpenSearch",
@@ -90,6 +105,12 @@ CONFIG_SECTIONS: list[ConfigSection] = [
         ConfigField(
             "langflow_superuser", "LANGFLOW_SUPERUSER", "Admin Username",
             placeholder="admin", default="admin",
+        ),
+        ConfigField(
+            "langflow_data_path", "LANGFLOW_DATA_PATH", "Data Path",
+            placeholder="~/.openrag/data/langflow-data",
+            default="$HOME/.openrag/data/langflow-data",
+            helper_text="Directory to persist Langflow flows and state across restarts",
         ),
         ConfigField(
             "langflow_public_url", "LANGFLOW_PUBLIC_URL", "Public URL",
@@ -181,7 +202,48 @@ CONFIG_SECTIONS: list[ConfigSection] = [
             "aws_secret_access_key", "AWS_SECRET_ACCESS_KEY", "Secret Access Key",
             placeholder="", secret=True,
         ),
+        ConfigField(
+            "aws_s3_endpoint", "AWS_S3_ENDPOINT", "S3 Endpoint URL (optional)",
+            placeholder="",
+            helper_text="Leave empty for AWS S3. For MinIO, R2, or other S3-compatible services, enter the endpoint URL.",
+        ),
+        ConfigField(
+            "aws_region", "AWS_REGION", "AWS Region (optional)",
+            placeholder="us-east-1",
+            default="us-east-1",
+            helper_text="AWS region (e.g. us-east-1, eu-west-1). Default: us-east-1.",
+        ),
     ], advanced=True, gate_prompt="Configure AWS credentials?"),
+
+    # ── IBM Cloud Object Storage ─────────────────────────────────
+    ConfigSection("IBM Cloud Object Storage", [
+        ConfigField(
+            "ibm_cos_api_key", "IBM_COS_API_KEY", "API Key",
+            placeholder="",
+            helper_text="Create API key at https://cloud.ibm.com/iam/apikeys",
+            secret=True,
+        ),
+        ConfigField(
+            "ibm_cos_service_instance_id", "IBM_COS_SERVICE_INSTANCE_ID",
+            "Service Instance ID (CRN)",
+            placeholder="crn:v1:bluemix:...",
+        ),
+        ConfigField(
+            "ibm_cos_endpoint", "IBM_COS_ENDPOINT", "Service Endpoint",
+            placeholder="https://s3.us-south.cloud-object-storage.appdomain.cloud",
+            helper_text="Endpoints: https://cloud.ibm.com/docs/cloud-object-storage?topic=cloud-object-storage-endpoints",
+        ),
+        ConfigField(
+            "ibm_cos_hmac_access_key_id", "IBM_COS_HMAC_ACCESS_KEY_ID",
+            "HMAC Access Key ID (optional)",
+            placeholder="",
+        ),
+        ConfigField(
+            "ibm_cos_hmac_secret_access_key", "IBM_COS_HMAC_SECRET_ACCESS_KEY",
+            "HMAC Secret Access Key (optional)",
+            placeholder="", secret=True,
+        ),
+    ], advanced=True, gate_prompt="Configure IBM Cloud Object Storage?"),
 
     # ── Langfuse ────────────────────────────────────────────────
     ConfigSection("Langfuse", [

@@ -16,43 +16,57 @@ import {
 } from "@/components/provider-health-banner";
 import { TaskNotificationMenu } from "@/components/task-notification-menu";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useChat } from "@/contexts/chat-context";
 import { useKnowledgeFilter } from "@/contexts/knowledge-filter-context";
 import { useTask } from "@/contexts/task-context";
 import { ANIMATION_DURATION, HEADER_HEIGHT } from "@/lib/constants";
+import { isFailureLikeTask } from "@/lib/task-utils";
 import { cn } from "@/lib/utils";
 import { AnimatedConditional } from "./animated-conditional";
 import { ChatRenderer } from "./chat-renderer";
 import { Header } from "./header";
+import FailedTasksInfo from "./tasks_details";
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { isMenuOpen, closeMenu } = useTask();
-  const { isPanelOpen, closePanelOnly } = useKnowledgeFilter();
+  const { tasks, isMenuOpen } = useTask();
+  const isCloudBrand = useIsCloudBrand();
+  const { isPanelOpen, panelMode, closePanelOnly } = useKnowledgeFilter();
+  const failedTasks = tasks.filter(isFailureLikeTask);
 
   const isOnKnowledgePage = pathname.startsWith("/knowledge");
 
   // Only one panel can be open at a time
   useEffect(() => {
-    if (isMenuOpen) closePanelOnly();
+    if (isMenuOpen) {
+      closePanelOnly();
+    }
   }, [isMenuOpen, closePanelOnly]);
-  useEffect(() => {
-    if (isPanelOpen) closeMenu();
-  }, [isPanelOpen, closeMenu]);
 
-  const { isLoading, isAuthenticated, isNoAuthMode } = useAuth();
+  const { isLoading, isAuthenticated, isNoAuthMode, isIbmAuthMode } = useAuth();
   const { isOnboardingComplete } = useChat();
 
-  const authPaths = ["/login", "/auth/callback"];
+  const authPaths = ["/login", "/auth/callback", "/unauthorized"];
   const isAuthPage = authPaths.includes(pathname);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated && !isNoAuthMode && !isAuthPage) {
-      const redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`;
-      router.push(redirectUrl);
+    if (isLoading || isAuthenticated || isNoAuthMode || isAuthPage) return;
+    if (isIbmAuthMode) {
+      router.push("/unauthorized");
+      return;
     }
-  }, [isLoading, isAuthenticated, isNoAuthMode, isAuthPage, pathname, router]);
+    router.push(`/login?redirect=${encodeURIComponent(pathname)}`);
+  }, [
+    isLoading,
+    isAuthenticated,
+    isNoAuthMode,
+    isIbmAuthMode,
+    isAuthPage,
+    pathname,
+    router,
+  ]);
 
   const { data: settings, isLoading: isSettingsLoading } = useGetSettingsQuery({
     enabled: !isAuthPage && (isAuthenticated || isNoAuthMode),
@@ -86,7 +100,12 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     isMenuOpen || (isPanelOpen && isOnKnowledgePage && !isMenuOpen);
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-muted dark:bg-black relative">
+    <div
+      className={cn(
+        "h-screen w-screen flex flex-col relative",
+        isCloudBrand ? "bg-background" : "bg-muted dark:bg-black",
+      )}
+    >
       {/* Banner — full width */}
       <div className="w-full z-10 bg-background">
         <AnimatedConditional
@@ -129,9 +148,9 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
             "overflow-hidden bg-sidebar flex flex-row justify-end transition-[width] duration-200 ease-linear",
             isRightPanelOpen && "border-l border-sidebar-border",
           )}
-          style={{ width: isRightPanelOpen ? "320px" : "0px" }}
+          style={{ width: isRightPanelOpen ? "360px" : "0px" }}
         >
-          <div className="w-[320px] h-full shrink-0">
+          <div className="w-[360px] h-full shrink-0">
             <AnimatePresence mode="wait">
               {isMenuOpen && (
                 <motion.div
@@ -154,7 +173,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <KnowledgeFilterPanel />
+                  {panelMode === "ingestion-status" ? (
+                    <FailedTasksInfo failedTasks={failedTasks} />
+                  ) : (
+                    <KnowledgeFilterPanel />
+                  )}
                 </motion.div>
               )}
             </AnimatePresence>

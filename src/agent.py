@@ -135,14 +135,10 @@ async def async_response_stream(
 
         full_response = ""
         chunk_count = 0
-        detected_tool_call = False  # Track if we've detected a tool call
+        detected_tool_call = False
         async for chunk in response:
             chunk_count += 1
-            logger.debug(
-                "Stream chunk received", chunk_count=chunk_count, chunk=str(chunk)
-            )
 
-            # Yield the raw event as JSON for the UI to process
             import json
 
             # Also extract text content for logging
@@ -159,7 +155,7 @@ async def async_response_stream(
                 else:
                     delta_text = str(chunk.delta)
                 full_response += delta_text
-            
+
             # Enhanced logging for tool call detection (Granite 3.3 8b investigation)
             chunk_attrs = dir(chunk) if hasattr(chunk, '__dict__') else []
             tool_related_attrs = [attr for attr in chunk_attrs if 'tool' in attr.lower() or 'call' in attr.lower() or 'retrieval' in attr.lower()]
@@ -181,12 +177,12 @@ async def async_response_stream(
                     chunk_data = chunk.__dict__
                 else:
                     chunk_data = str(chunk)
-                
+
                 # Log detailed chunk structure for investigation (especially for Granite 3.3 8b)
                 if isinstance(chunk_data, dict):
                     # Check for any fields that might indicate tool usage
                     potential_tool_fields = {
-                        k: v for k, v in chunk_data.items() 
+                        k: v for k, v in chunk_data.items()
                         if any(keyword in str(k).lower() for keyword in ['tool', 'call', 'retrieval', 'function', 'result', 'output'])
                     }
                     if potential_tool_fields:
@@ -219,7 +215,7 @@ async def async_response_stream(
                         'retrieved_documents' in chunk_data,
                         'retrieval_results' in chunk_data,
                     ])
-                    
+
                     if has_results:
                         logger.info(
                             "Detected implicit tool call in backend, injecting synthetic event",
@@ -235,15 +231,15 @@ async def async_response_stream(
                                 "tool_name": "Retrieval",
                                 "status": "completed",
                                 "inputs": {"implicit": True, "backend_detected": True},
-                                "results": chunk_data.get('results') or chunk_data.get('outputs') or 
-                                         chunk_data.get('retrieved_documents') or 
+                                "results": chunk_data.get('results') or chunk_data.get('outputs') or
+                                         chunk_data.get('retrieved_documents') or
                                          chunk_data.get('retrieval_results') or []
                             }
                         }
                         # Send the synthetic event first
                         yield (json.dumps(synthetic_event, default=str) + "\n").encode("utf-8")
                         detected_tool_call = True  # Mark that we've injected a tool call
-                
+
                 yield (json.dumps(chunk_data, default=str) + "\n").encode("utf-8")
             except Exception as e:
                 # Fallback to string representation
@@ -259,10 +255,7 @@ async def async_response_stream(
         logger.info("Response generated", log_prefix=log_prefix, response=full_response)
 
     except Exception as e:
-        logger.error("Exception in streaming", error=str(e))
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("[AGENT] Streaming failed")
         raise
 
 
@@ -317,10 +310,7 @@ async def async_response(
                     msg = error_msg
             raise ValueError(msg)
     except Exception as e:
-        logger.error("Exception in non-streaming response", error=str(e))
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("[AGENT] Non-streaming response failed")
         raise
 
 
@@ -388,10 +378,7 @@ async def async_langflow_stream(
             yield chunk
         logger.debug("Langflow stream completed")
     except Exception as e:
-        logger.error("Exception in langflow stream", error=str(e))
-        import traceback
-
-        traceback.print_exc()
+        logger.exception("[AGENT] Langflow stream failed")
         raise
 
 
@@ -625,8 +612,73 @@ async def async_langflow_chat(
             message_count=len(conversation_state["messages"]),
         )
 
+    # Extract sources from retrieval tool calls in the response
+    sources = []
+
+    # Layer 1: Structured output items (OpenAI Responses API format).
+    # Relaxed: check for any output item with a non-empty `results` field,
+    # regardless of `type` string (Langflow may use different type names).
+    if hasattr(response_obj, "output") and response_obj.output:
+        for output_item in response_obj.output:
+            for result in getattr(output_item, "results", None) or []:
+                rd = (
+                    result.model_dump()
+                    if hasattr(result, "model_dump")
+                    else (result if isinstance(result, dict) else {})
+                )
+                if "text" in rd:
+                    sources.append({
+                        "filename": rd.get("filename", ""),
+                        "text": rd.get("text", ""),
+                        "score": rd.get("score", 0),
+                        "page": rd.get("page"),
+                        "mimetype": rd.get("mimetype"),
+                    })
+
+    # Layer 2: Top-level dict inspection (mirrors streaming middleware in async_response_stream).
+    # Langflow may embed retrieval results directly in the response dict rather than
+    # inside typed output items.
+    if not sources:
+        resp_dict = (
+            response_obj.model_dump()
+            if hasattr(response_obj, "model_dump")
+            else getattr(response_obj, "__dict__", {})
+        )
+        implicit_results = (
+            resp_dict.get("results")
+            or resp_dict.get("outputs")
+            or resp_dict.get("retrieved_documents")
+            or resp_dict.get("retrieval_results")
+            or []
+        )
+        if isinstance(implicit_results, list):
+            for result in implicit_results:
+                if isinstance(result, dict) and "text" in result:
+                    sources.append({
+                        "filename": result.get("filename", ""),
+                        "text": result.get("text", ""),
+                        "score": result.get("score", 0),
+                        "page": result.get("page"),
+                        "mimetype": result.get("mimetype"),
+                    })
+
+    # Layer 3: Citation-text fallback.
+    # Parse "(Source: filename)" patterns emitted by the LLM when it cites documents.
+    # This is the last-resort fallback when Langflow's response object carries no
+    # structured retrieval data.
+    if not sources:
+        import re
+        for match in re.finditer(r"\(Source:\s*([^\)]+)\)", response_text):
+            sources.append({
+                "filename": match.group(1).strip(),
+                "text": "",
+                "score": 0,
+                "page": None,
+                "mimetype": None,
+            })
+
     if not store_conversation:
-        return response_text, response_id
+        return response_text, response_id, sources
 
     # Store the conversation thread with its response_id
     if response_id:
@@ -662,7 +714,7 @@ async def async_langflow_chat(
     else:
         logger.warning("No response_id received from langflow, conversation not stored")
 
-    return response_text, response_id
+    return response_text, response_id, sources
 
 
 # Async langflow function with conversation storage (streaming)
@@ -698,47 +750,55 @@ async def async_langflow_chat_stream(
     response_id = None
     usage_data = None
     collected_chunks = []  # Store all chunks for function call data
+    error_occurred = False
 
-    async for chunk in async_stream(
-        langflow_client,
-        prompt,
-        flow_id,
-        extra_headers=extra_headers,
-        previous_response_id=previous_response_id,
-        log_prefix="langflow",
-    ):
-        # Extract text content to build full response for history
-        try:
-            import json
+    try:
+        async for chunk in async_stream(
+            langflow_client,
+            prompt,
+            flow_id,
+            extra_headers=extra_headers,
+            previous_response_id=previous_response_id,
+            log_prefix="langflow",
+        ):
+            # Extract text content to build full response for history
+            try:
+                import json
 
-            chunk_data = json.loads(chunk.decode("utf-8"))
-            collected_chunks.append(chunk_data)  # Collect all chunk data
+                chunk_data = json.loads(chunk.decode("utf-8"))
+                collected_chunks.append(chunk_data)  # Collect all chunk data
 
-            if "delta" in chunk_data and "content" in chunk_data["delta"]:
-                full_response += chunk_data["delta"]["content"]
-            # Extract response_id from chunk
-            if "id" in chunk_data:
-                response_id = chunk_data["id"]
-            elif "response_id" in chunk_data:
-                response_id = chunk_data["response_id"]
-            # Capture usage from response.completed event
-            if chunk_data.get("type") == "response.completed":
-                response_obj = chunk_data.get("response", {})
-                usage_data = response_obj.get("usage")
-        except:
-            pass
-        yield chunk
+                if "delta" in chunk_data and "content" in chunk_data["delta"]:
+                    full_response += chunk_data["delta"]["content"]
+                # Extract response_id from chunk
+                if "id" in chunk_data:
+                    response_id = chunk_data["id"]
+                elif "response_id" in chunk_data:
+                    response_id = chunk_data["response_id"]
 
-    # Add the complete assistant response to message history with response_id, timestamp, and function call data
-    if full_response:
-        assistant_message = {
-            "role": "assistant",
-            "content": full_response,
-            "response_id": response_id,
-            "timestamp": datetime.now(),
-            "chunks": collected_chunks,  # Store complete chunk data for function calls
-        }
-        # Store usage data if available (from response.completed event)
+                # Check for error status
+                if chunk_data.get("finish_reason") == "error" or chunk_data.get("status") == "failed":
+                    error_occurred = True
+                    logger.error("Error detected in Langflow stream chunk")
+                # Capture usage from response.completed event
+                if chunk_data.get("type") == "response.completed":
+                    response_obj = chunk_data.get("response", {})
+                    usage_data = response_obj.get("usage")
+            except:
+                pass
+            yield chunk
+
+        # Add the complete assistant response to message history with response_id, timestamp, and function call data
+        if full_response:
+            assistant_message = {
+                "role": "assistant",
+                "content": full_response,
+                "response_id": response_id,
+                "timestamp": datetime.now(),
+                "chunks": collected_chunks,  # Store complete chunk data for function calls
+                "error": error_occurred,  # Mark if this was an error response
+            }
+            # Store usage data if available (from response.completed event)
         if usage_data:
             assistant_message["response_data"] = {"usage": usage_data}
         conversation_state["messages"].append(assistant_message)
@@ -760,34 +820,67 @@ async def async_langflow_chat_stream(
             logger.debug(
                 f"Stored langflow conversation thread for user {user_id} with response_id: {response_id}"
             )
+    except Exception as e:
+        # Log the error
+        logger.error(f"Error in langflow chat stream: {e}", exc_info=True)
+        error_occurred = True
+
+        # Store error message in conversation history so it persists
+        error_message = {
+            "role": "assistant",
+            "content": f"Sorry, I encountered an error: {str(e)}",
+            "timestamp": datetime.now(),
+            "error": True,
+        }
+        conversation_state["messages"].append(error_message)
+
+        # Try to store the conversation with error message
+        # Use a temporary response_id if we don't have one
+        if not response_id:
+            response_id = f"error_{user_id}_{int(datetime.now().timestamp())}"
+
+        try:
+            conversation_state["last_activity"] = datetime.now()
+            await store_conversation_thread(user_id, response_id, conversation_state)
+            logger.debug(f"Stored conversation with error for user {user_id}")
+        except Exception as store_error:
+            logger.error(f"Failed to store error conversation: {store_error}")
+
+        # Re-raise the exception so it propagates to the API layer
+        raise
 
 
 async def delete_user_conversation(user_id: str, response_id: str) -> bool:
-    """Delete a conversation for a user from both memory and persistent storage (async, non-blocking)"""
+    """Delete a conversation for a user from both memory and persistent storage.
+
+    Returns:
+        True  — conversation was found and deleted from at least one store.
+        False — conversation did not exist in any store (confirmed not-found).
+
+    Raises:
+        Exception — on unexpected storage errors so callers can distinguish
+                    a confirmed "not found" from a backend failure.
+    """
     deleted = False
 
+    # Delete from in-memory storage (cannot raise)
+    if user_id in active_conversations and response_id in active_conversations[user_id]:
+        del active_conversations[user_id][response_id]
+        logger.debug(f"Deleted conversation {response_id} from memory for user {user_id}")
+        deleted = True
+
+    # Delete from persistent storage — let real errors propagate to the caller
+    conversation_deleted = await conversation_persistence.delete_conversation_thread(user_id, response_id)
+    if conversation_deleted:
+        logger.debug(f"Deleted conversation {response_id} from persistent storage for user {user_id}")
+        deleted = True
+
+    # Release session ownership (best-effort; never masks storage errors above)
     try:
-        # Delete from in-memory storage
-        if user_id in active_conversations and response_id in active_conversations[user_id]:
-            del active_conversations[user_id][response_id]
-            logger.debug(f"Deleted conversation {response_id} from memory for user {user_id}")
-            deleted = True
-
-        # Delete from persistent storage
-        conversation_deleted = await conversation_persistence.delete_conversation_thread(user_id, response_id)
-        if conversation_deleted:
-            logger.debug(f"Deleted conversation {response_id} from persistent storage for user {user_id}")
-            deleted = True
-
-        # Release session ownership
-        try:
-            from services.session_ownership_service import session_ownership_service
-            session_ownership_service.release_session(user_id, response_id)
-            logger.debug(f"Released session ownership for {response_id} for user {user_id}")
-        except Exception as e:
-            logger.warning(f"Failed to release session ownership: {e}")
-
-        return deleted
+        from services.session_ownership_service import session_ownership_service
+        session_ownership_service.release_session(user_id, response_id)
+        logger.debug(f"Released session ownership for {response_id} for user {user_id}")
     except Exception as e:
-        logger.error(f"Error deleting conversation {response_id} for user {user_id}: {e}")
-        return False
+        logger.warning(f"Failed to release session ownership: {e}")
+
+    return deleted

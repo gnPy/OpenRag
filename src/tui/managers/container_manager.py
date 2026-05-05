@@ -74,6 +74,17 @@ def format_port_conflict_message(conflicts: List[tuple[str, int, str]], max_show
 class ContainerManager:
     """Manages Docker/Podman container lifecycle for OpenRAG."""
 
+    OPENRAG_IMAGE_REPOS = {
+        "langflowai/openrag-backend",
+        "langflowai/openrag-frontend",
+        "langflowai/openrag-langflow",
+        "langflowai/openrag-opensearch",
+        "langflowai/openrag-dashboards",
+        "langflow/langflow",
+        "opensearchproject/opensearch",
+        "opensearchproject/opensearch-dashboards",
+    }
+
     def __init__(self, compose_file: Optional[Path] = None):
         self.platform_detector = PlatformDetector()
         self.runtime_info = self.platform_detector.detect_runtime()
@@ -105,6 +116,16 @@ class ContainerManager:
             "osdash": "dashboards",
             "langflow": "langflow",
         }
+
+    @staticmethod
+    def _extract_repository(image_tag: str) -> str:
+        """Extract repository name from <repository>:<tag> image reference."""
+        return image_tag.rsplit(":", 1)[0] if ":" in image_tag else image_tag
+
+    def _is_openrag_repository(self, repository: str) -> bool:
+        """Check whether repository is OpenRAG-related, with optional registry prefix."""
+        repo = repository.lower()
+        return any(repo == known or repo.endswith(f"/{known}") for known in self.OPENRAG_IMAGE_REPOS)
 
     def _find_compose_file(self, filename: str) -> Path:
         """Find compose file in centralized TUI directory, current directory, or package resources."""
@@ -555,6 +576,51 @@ class ContainerManager:
 
         except Exception as e:
             return False, "", f"Command execution failed: {e}"
+
+    async def _list_openrag_images(
+        self, include_created: bool = False
+    ) -> tuple[bool, List[Dict[str, str]], str]:
+        """List OpenRAG-related images available in the container runtime."""
+        format_parts = ["{{.Repository}}:{{.Tag}}", "{{.ID}}"]
+        if include_created:
+            format_parts.append("{{.CreatedAt}}")
+
+        success, stdout, stderr = await self._run_runtime_command(
+            ["images", "--format", "\t".join(format_parts)]
+        )
+        if not success:
+            return False, [], stderr
+
+        images: List[Dict[str, str]] = []
+        for raw_line in stdout.strip().splitlines():
+            if not raw_line.strip():
+                continue
+
+            parts = raw_line.split("\t")
+            if len(parts) < 2:
+                continue
+
+            image_tag = parts[0].strip()
+            image_id = parts[1].strip()
+
+            # Skip untagged entries to avoid broad cleanup touching unrelated images.
+            if "<none>" in image_tag:
+                continue
+
+            repository = self._extract_repository(image_tag)
+            if not self._is_openrag_repository(repository):
+                continue
+
+            image_data = {
+                "full_tag": image_tag,
+                "repo": repository,
+                "id": image_id,
+            }
+            if include_created and len(parts) >= 3:
+                image_data["created"] = parts[2].strip()
+            images.append(image_data)
+
+        return True, images, ""
 
     def _process_service_json(
         self, service: Dict, services: Dict[str, ServiceInfo]
@@ -1212,23 +1278,37 @@ class ContainerManager:
 
         yield False, "Clearing OpenSearch data volume..."
 
-        # Get opensearch data path from env config
-        from .env_manager import EnvManager
-        env_manager = EnvManager()
-        env_manager.load_existing_env()
-        opensearch_data_path = Path(env_manager.config.opensearch_data_path.replace("$HOME", str(Path.home()))).expanduser().absolute()
+        # The volume name is 'opensearch-data' as defined in docker-compose.yml.
+        # Docker Compose usually prefixes it with the project name (defaulting to the directory name).
+        volume_name = "opensearch-data"
+        
+        possible_names = list(dict.fromkeys([
+            volume_name,
+            f"{Path.cwd().name.lower()}_{volume_name}",              # e.g. openrag_opensearch-data
+            f"{Path.cwd().name.lower().replace('-', '')}_{volume_name}",  # e.g. openrag_opensearch-data (dashes stripped)
+        ]))
 
-        if not opensearch_data_path.exists():
-            yield True, "OpenSearch data directory does not exist, skipping"
+        # List volumes and find the correct one
+        list_success, stdout, _ = await self._run_runtime_command(["volume", "ls", "--format", "{{.Name}}"])
+        if not list_success:
+            yield False, "Could not list Docker volumes"
             return
 
-        # Use alpine with root to clear container-owned files
-        success, msg = await self.clear_directory_with_container(opensearch_data_path)
+        existing_volumes = set(stdout.splitlines())
+        found_name = next((n for n in possible_names if n in existing_volumes), None)
 
-        if success:
-            yield True, "OpenSearch data cleared successfully"
+        if found_name is None:
+            yield True, "OpenSearch data volume not found — already removed or never created"
+            return
+
+        # Only clear the volume we know exists
+        cmd = ["run", "--rm", "-v", f"{found_name}:/work:Z", "alpine", "sh", "-c",
+            "rm -rf /work/* /work/.[!.]* 2>/dev/null; echo done"]
+        success, stdout, stderr = await self._run_runtime_command(cmd)
+        if success and "done" in stdout:
+            yield True, f"OpenSearch data volume '{found_name}' cleared successfully"
         else:
-            yield False, f"Failed to clear OpenSearch data: {msg}"
+            yield False, f"Failed to clear OpenSearch data volume '{found_name}': {stderr}"
 
     async def reset_services(self) -> AsyncIterator[tuple[bool, str]]:
         """Reset all services (stop, remove containers/volumes, clear data) and yield progress updates."""
@@ -1236,22 +1316,44 @@ class ContainerManager:
 
         # Stop and remove everything
         success, stdout, stderr = await self._run_compose_command(
-            ["down", "--volumes", "--remove-orphans", "--rmi", "local"]
+            ["down", "--volumes", "--remove-orphans"]
         )
 
         if not success:
             yield False, f"Failed to stop services: {stderr}"
             return
 
-        yield False, "Cleaning up container data..."
+        yield False, "Removing OpenRAG images..."
+        success, images, stderr = await self._list_openrag_images()
+        if not success:
+            yield False, f"Failed to list OpenRAG images: {stderr}"
+            return
 
-        # Additional cleanup - remove any remaining containers/volumes
-        # This is more thorough than just compose down
-        await self._run_runtime_command(["system", "prune", "-f"])
+        if not images:
+            yield True, "System reset completed - OpenRAG containers and volumes removed"
+            return
+
+        # Deduplicate by image ID (same ID can have multiple tags)
+        image_ids = []
+        seen = set()
+        for image in images:
+            image_id = image["id"]
+            if image_id in seen:
+                continue
+            seen.add(image_id)
+            image_ids.append((image_id, image["full_tag"]))
+
+        removed = 0
+        for image_id, image_tag in image_ids:
+            success, _, stderr = await self._run_runtime_command(["rmi", image_id])
+            if success:
+                removed += 1
+            else:
+                yield False, f"Could not remove {image_tag}: {stderr.strip()}"
 
         yield (
             True,
-            "System reset completed - all containers, volumes, and local images removed",
+            f"System reset completed - removed {removed} OpenRAG image(s)",
         )
 
     async def get_service_logs(
@@ -1391,7 +1493,6 @@ class ContainerManager:
         2. Identifies OpenRAG-related images (openrag-backend, openrag-frontend, langflow, opensearch, dashboards)
         3. For each repository, keeps only the latest/currently used image
         4. Removes old images
-        5. Prunes dangling images
         
         Yields:
             Tuples of (success, message) for progress updates
@@ -1402,69 +1503,20 @@ class ContainerManager:
 
         yield False, "Scanning for OpenRAG images..."
 
-        # Get list of all images
-        success, stdout, stderr = await self._run_runtime_command(
-            ["images", "--format", "{{.Repository}}:{{.Tag}}\t{{.ID}}\t{{.CreatedAt}}"]
-        )
-
+        success, images, stderr = await self._list_openrag_images(include_created=True)
         if not success:
             yield False, f"Failed to list images: {stderr}"
             return
 
-        # Parse images and group by repository
-        openrag_repos = {
-            "langflowai/openrag-backend",
-            "langflowai/openrag-frontend",
-            "langflowai/openrag-langflow",
-            "langflowai/openrag-opensearch",
-            "langflowai/openrag-dashboards",
-            "langflow/langflow",  # Also include base langflow images
-            "opensearchproject/opensearch",
-            "opensearchproject/opensearch-dashboards",
-        }
-
         images_by_repo = {}
-        for line in stdout.strip().split("\n"):
-            if not line.strip():
-                continue
-            
-            parts = line.split("\t")
-            if len(parts) < 3:
-                continue
-            
-            image_tag, image_id, created_at = parts[0], parts[1], parts[2]
-            
-            # Skip <none> tags (dangling images will be handled separately)
-            if "<none>" in image_tag:
-                continue
-            
-            # Extract repository name (without tag)
-            if ":" in image_tag:
-                repo = image_tag.rsplit(":", 1)[0]
-            else:
-                repo = image_tag
-            
-            # Check if this is an OpenRAG-related image
-            if any(openrag_repo in repo for openrag_repo in openrag_repos):
-                if repo not in images_by_repo:
-                    images_by_repo[repo] = []
-                images_by_repo[repo].append({
-                    "full_tag": image_tag,
-                    "id": image_id,
-                    "created": created_at,
-                })
+        for image in images:
+            repo = image["repo"]
+            if repo not in images_by_repo:
+                images_by_repo[repo] = []
+            images_by_repo[repo].append(image)
 
         if not images_by_repo:
             yield True, "No OpenRAG images found to prune"
-            # Still run dangling image cleanup
-            yield False, "Cleaning up dangling images..."
-            success, stdout, stderr = await self._run_runtime_command(
-                ["image", "prune", "-f"]
-            )
-            if success:
-                yield True, "Dangling images cleaned up"
-            else:
-                yield False, f"Failed to prune dangling images: {stderr}"
             return
 
         # Get currently used images (from running/stopped containers)
@@ -1522,21 +1574,6 @@ class ContainerManager:
         else:
             yield True, "No old images were removed"
 
-        # Clean up dangling images (untagged images)
-        yield False, "Cleaning up dangling images..."
-        success, stdout, stderr = await self._run_runtime_command(
-            ["image", "prune", "-f"]
-        )
-        
-        if success:
-            # Parse output to see if anything was removed
-            if stdout.strip():
-                yield True, f"Dangling images cleaned: {stdout.strip()}"
-            else:
-                yield True, "No dangling images to clean"
-        else:
-            yield False, f"Failed to prune dangling images: {stderr}"
-
         yield True, "Image pruning completed"
 
     async def prune_all_images(self) -> AsyncIterator[tuple[bool, str]]:
@@ -1545,7 +1582,6 @@ class ContainerManager:
         This is a more aggressive pruning that:
         1. Stops all running services
         2. Removes ALL OpenRAG-related images (not just old versions)
-        3. Prunes dangling images
         
         This frees up maximum disk space but requires re-downloading images on next start.
         
@@ -1570,54 +1606,10 @@ class ContainerManager:
 
         yield False, "Scanning for OpenRAG images..."
 
-        # Get list of all images
-        success, stdout, stderr = await self._run_runtime_command(
-            ["images", "--format", "{{.Repository}}:{{.Tag}}\t{{.ID}}"]
-        )
-
+        success, images_to_remove, stderr = await self._list_openrag_images()
         if not success:
             yield False, f"Failed to list images: {stderr}"
             return
-
-        # Parse images and identify ALL OpenRAG-related images
-        openrag_repos = {
-            "langflowai/openrag-backend",
-            "langflowai/openrag-frontend",
-            "langflowai/openrag-langflow",
-            "langflowai/openrag-opensearch",
-            "langflowai/openrag-dashboards",
-            "langflow/langflow",
-            "opensearchproject/opensearch",
-            "opensearchproject/opensearch-dashboards",
-        }
-
-        images_to_remove = []
-        for line in stdout.strip().split("\n"):
-            if not line.strip():
-                continue
-            
-            parts = line.split("\t")
-            if len(parts) < 2:
-                continue
-            
-            image_tag, image_id = parts[0], parts[1]
-            
-            # Skip <none> tags (will be handled by prune)
-            if "<none>" in image_tag:
-                continue
-            
-            # Extract repository name (without tag)
-            if ":" in image_tag:
-                repo = image_tag.rsplit(":", 1)[0]
-            else:
-                repo = image_tag
-            
-            # Check if this is an OpenRAG-related image
-            if any(openrag_repo in repo for openrag_repo in openrag_repos):
-                images_to_remove.append({
-                    "full_tag": image_tag,
-                    "id": image_id,
-                })
 
         if not images_to_remove:
             yield True, "No OpenRAG images found to remove"
@@ -1642,19 +1634,4 @@ class ContainerManager:
             else:
                 yield False, "No images were removed"
 
-        # Clean up dangling images
-        yield False, "Cleaning up dangling images..."
-        success, stdout, stderr = await self._run_runtime_command(
-            ["image", "prune", "-f"]
-        )
-        
-        if success:
-            if stdout.strip():
-                yield True, f"Dangling images cleaned: {stdout.strip()}"
-            else:
-                yield True, "No dangling images to clean"
-        else:
-            yield False, f"Failed to prune dangling images: {stderr}"
-
         yield True, "All OpenRAG images removed successfully"
-

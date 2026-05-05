@@ -23,7 +23,10 @@ export interface UnifiedCloudPickerProps {
   // OneDrive/SharePoint specific props
   clientId?: string;
   baseUrl?: string;
-  // Ingest settings
+  /** Controlled ingest state from the upload page (single source of truth). */
+  ingestSettings?: IngestSettings;
+  onIngestSettingsChange?: (settings: IngestSettings) => void;
+  /** @deprecated Prefer ingestSettings + onIngestSettingsChange from the page. */
   onSettingsChange?: (settings: IngestSettings) => void;
   isIngesting: boolean;
 }
@@ -110,4 +113,17 @@ export interface IngestSettings {
   ocr: boolean;
   pictureDescriptions: boolean;
   embeddingModel: string;
+}
+
+/** Inline error message if chunk settings are invalid; otherwise null. */
+export function getIngestChunkSettingsError(
+  settings: Pick<IngestSettings, "chunkSize" | "chunkOverlap">,
+): string | null {
+  if (settings.chunkSize < 1) {
+    return "Chunk size must be at least 1";
+  }
+  if (settings.chunkOverlap >= settings.chunkSize) {
+    return "Chunk overlap must be less than chunk size";
+  }
+  return null;
 }

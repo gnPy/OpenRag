@@ -101,6 +101,9 @@ async def langflow_endpoint(
                     previous_response_id=body.previous_response_id,
                     stream=True,
                     filter_id=body.filter_id,
+                    owner=user.user_id,
+                    owner_name=user.name,
+                    owner_email=user.email,
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -118,13 +121,14 @@ async def langflow_endpoint(
                 previous_response_id=body.previous_response_id,
                 stream=False,
                 filter_id=body.filter_id,
+                owner=user.user_id,
+                owner_name=user.name,
+                owner_email=user.email,
             )
             return JSONResponse(result)
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        logger.error("Langflow request failed", error=str(e))
+        logger.exception("[CHAT] Langflow request failed")
         return JSONResponse(
             {"error": f"Langflow request failed: {str(e)}"}, status_code=500
         )
@@ -139,6 +143,7 @@ async def chat_history_endpoint(
         history = await chat_service.get_chat_history(user.user_id)
         return JSONResponse(history)
     except Exception as e:
+        logger.exception("[CHAT] Failed to get chat history")
         return JSONResponse(
             {"error": f"Failed to get chat history: {str(e)}"}, status_code=500
         )
@@ -153,6 +158,7 @@ async def langflow_history_endpoint(
         history = await chat_service.get_langflow_history(user.user_id)
         return JSONResponse(history)
     except Exception as e:
+        logger.exception("[CHAT] Failed to get langflow history")
         return JSONResponse(
             {"error": f"Failed to get langflow history: {str(e)}"}, status_code=500
         )

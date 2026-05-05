@@ -8,19 +8,23 @@ import { useGetSettingsQuery } from "@/app/api/queries/useGetSettingsQuery";
 import { AssistantMessage } from "@/app/chat/_components/assistant-message";
 import Nudges from "@/app/chat/_components/nudges";
 import { UserMessage } from "@/app/chat/_components/user-message";
-import type { Message, SelectedFilters } from "@/app/chat/_types/types";
+import type { Message } from "@/app/chat/_types/types";
 import OnboardingCard from "@/app/onboarding/_components/onboarding-card";
 import { useChat } from "@/contexts/chat-context";
 import { useChatStreaming } from "@/hooks/useChatStreaming";
+import { trackButton, trackLLMCall } from "@/lib/analytics";
+import type { FilterInput } from "@/lib/filter-normalization";
+import { buildSearchPayloadFilters } from "@/lib/filter-normalization";
 
 import { OnboardingStep } from "./onboarding-step";
 import OnboardingUpload from "./onboarding-upload";
 
 // Filters for OpenRAG documentation
-const OPENRAG_DOCS_FILTERS: SelectedFilters = {
-  data_sources: ["openrag-documentation.pdf"],
+const OPENRAG_DOCS_FILTERS: FilterInput = {
+  data_sources: [],
   document_types: [],
   owners: [],
+  connector_types: ["openrag_docs"],
 };
 
 export function OnboardingContent({
@@ -82,6 +86,12 @@ export function OnboardingContent({
 
   const { streamingMessage, isLoading, sendMessage } = useChatStreaming({
     onComplete: async (message, newResponseId) => {
+      trackLLMCall({
+        mode: "onboarding",
+        model: settings?.agent?.llm_model,
+        inputTokens: message.usage?.input_tokens,
+        outputTokens: message.usage?.output_tokens,
+      });
       setAssistantMessage(message);
       // Save assistant message to backend
       await updateOnboardingMutation.mutateAsync({
@@ -139,6 +149,11 @@ export function OnboardingContent({
   const NUDGES = ["What is OpenRAG?"];
 
   const handleNudgeClick = async (nudge: string) => {
+    trackButton({
+      CTA: `Learn Basics - ${nudge}`,
+      elementId: "onboarding-nudge",
+      namespace: "onboarding",
+    });
     setSelectedNudge(nudge);
     setAssistantMessage(null);
 
@@ -178,7 +193,9 @@ export function OnboardingContent({
         previousResponseId: responseId || undefined,
         // Send both filter_id and filters (selections)
         filter_id: filterToUse?.id,
-        filters: openragDocsFilterId ? OPENRAG_DOCS_FILTERS : undefined,
+        filters: openragDocsFilterId
+          ? buildSearchPayloadFilters(OPENRAG_DOCS_FILTERS)
+          : undefined,
       });
     }, 1500);
   };

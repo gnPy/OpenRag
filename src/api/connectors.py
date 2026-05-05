@@ -1,4 +1,4 @@
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, Request
 from pydantic import BaseModel
@@ -88,6 +88,13 @@ async def get_synced_file_ids_for_connector(
 class ConnectorSyncBody(BaseModel):
     max_files: Optional[int] = None
     selected_files: Optional[List[Any]] = None
+    # When True, ingest ALL files from the connector (bypasses the existing-files gate).
+    # Used by direct-sync providers like IBM COS on initial ingest.
+    sync_all: bool = False
+    # When set, only ingest files from these buckets (IBM COS specific).
+    bucket_filter: Optional[List[str]] = None
+    # Per-request ingest options from the connector upload UI (overrides saved Knowledge for this sync).
+    settings: Optional[Dict[str, Any]] = None
 
 
 async def list_connectors(
@@ -96,12 +103,12 @@ async def list_connectors(
 ):
     """List available connector types with metadata"""
     try:
-        connector_types = (
-            connector_service.connection_manager.get_available_connector_types()
+        connector_types = connector_service.connection_manager.get_available_connector_types(
+            user_id=user.user_id
         )
         return JSONResponse({"connectors": connector_types})
     except Exception as e:
-        logger.info("Error listing connectors", error=str(e))
+        logger.error("[CONNECTOR] Error listing connectors", error=str(e))
         return JSONResponse({"connectors": []})
 
 
@@ -192,14 +199,61 @@ async def connector_sync(
         if selected_files:
             # Explicit files selected (e.g., from file picker) - sync those specific files
             from .documents import _ensure_index_exists
-            await _ensure_index_exists()
+            await _ensure_index_exists(jwt_token)
             task_id = await connector_service.sync_specific_files(
                 working_connection.connection_id,
                 user.user_id,
                 selected_files,
                 jwt_token=jwt_token,
                 file_infos=file_infos,
+                ingest_settings=body.settings,
             )
+        elif body.sync_all or body.bucket_filter:
+            # Full ingest: discover and ingest all files (or files from specific buckets).
+            # Used by direct-sync providers (IBM COS) on initial ingest or per-bucket sync.
+            logger.info(
+                "Full connector ingest requested",
+                connector_type=connector_type,
+                bucket_filter=body.bucket_filter,
+            )
+            connector = await connector_service.get_connector(working_connection.connection_id)
+            if body.bucket_filter:
+                # List only files from the requested buckets, then sync_specific_files
+                original_buckets = connector.bucket_names
+                connector.bucket_names = body.bucket_filter
+                try:
+                    all_file_ids = []
+                    page_token = None
+                    while True:
+                        result = await connector.list_files(page_token=page_token)
+                        for f in result.get("files", []):
+                            all_file_ids.append(f["id"])
+                        page_token = result.get("next_page_token")
+                        if not page_token:
+                            break
+                finally:
+                    connector.bucket_names = original_buckets
+
+                if not all_file_ids:
+                    return JSONResponse(
+                        {"status": "no_files", "message": "No files found in the selected buckets."},
+                        status_code=200,
+                    )
+                task_id = await connector_service.sync_specific_files(
+                    working_connection.connection_id,
+                    user.user_id,
+                    all_file_ids,
+                    jwt_token=jwt_token,
+                    ingest_settings=body.settings,
+                )
+            else:
+                # sync_all: ingest everything the connector can see
+                task_id = await connector_service.sync_connector_files(
+                    working_connection.connection_id,
+                    user.user_id,
+                    max_files=max_files,
+                    jwt_token=jwt_token,
+                )
         else:
             # No files specified - sync only files already in OpenSearch for this connector
             # This ensures deleted files stay deleted
@@ -209,7 +263,7 @@ async def connector_sync(
                 session_manager=session_manager,
                 jwt_token=jwt_token,
             )
-            
+
             if not existing_file_ids and not existing_filenames:
                 return JSONResponse(
                     {
@@ -218,7 +272,7 @@ async def connector_sync(
                     },
                     status_code=200,
                 )
-            
+
             # If we have document_ids (connector file IDs), use sync_specific_files
             # Otherwise, use filename filtering with sync_connector_files
             if existing_file_ids:
@@ -499,15 +553,10 @@ async def connector_webhook(
             )
 
         except Exception as e:
-            logger.error(
-                "Failed to process webhook for connection",
+            logger.exception(
+                "[CONNECTOR] Failed to process webhook",
                 connection_id=connection.connection_id,
-                error=str(e),
             )
-            import traceback
-
-            traceback.print_exc()
-
             return JSONResponse(
                 {
                     "status": "error",
@@ -602,6 +651,8 @@ async def connector_disconnect(
         )
 
 
+# ---------------------------------------------------------------------------
+
 async def sync_all_connectors(
     connector_service=Depends(get_connector_service),
     session_manager=Depends(get_session_manager),
@@ -615,7 +666,7 @@ async def sync_all_connectors(
         jwt_token = user.jwt_token
 
         # Cloud connector types to sync
-        cloud_connector_types = ["google_drive", "onedrive", "sharepoint"]
+        cloud_connector_types = ["google_drive", "onedrive", "sharepoint", "ibm_cos", "aws_s3"]
         
         all_task_ids = []
         synced_connectors = []

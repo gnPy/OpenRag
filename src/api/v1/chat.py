@@ -28,6 +28,21 @@ class ChatV1Body(BaseModel):
     filter_id: Optional[str] = None
 
 
+def _extract_sources(item: dict) -> list[dict]:
+    """Extract sources from a retrieval tool call item."""
+    sources = []
+    for result in item.get("results", []):
+        if isinstance(result, dict) and "text" in result:
+            sources.append({
+                "filename": result.get("filename", ""),
+                "text": result.get("text", ""),
+                "score": result.get("score", 0),
+                "page": result.get("page"),
+                "mimetype": result.get("mimetype"),
+            })
+    return sources
+
+
 async def _transform_stream_to_sse(raw_stream, chat_id_container: dict):
     """Transform raw Langflow streaming format to clean SSE events for v1 API."""
     full_text = ""
@@ -63,6 +78,13 @@ async def _transform_stream_to_sse(raw_stream, chat_id_container: dict):
             if delta_text:
                 full_text += delta_text
                 yield f"data: {json.dumps({'type': 'content', 'delta': delta_text})}\n\n"
+
+            # Emit sources from retrieval tool calls
+            item = chunk_data.get("item", {})
+            if item.get("type") in ("retrieval_call", "tool_call") and item.get("results"):
+                sources = _extract_sources(item)
+                if sources:
+                    yield f"data: {json.dumps({'type': 'sources', 'sources': sources})}\n\n"
 
             if not chat_id:
                 chat_id = chunk_data.get("id") or chunk_data.get("response_id")
@@ -106,6 +128,9 @@ async def chat_create_endpoint(
             previous_response_id=body.chat_id,
             stream=True,
             filter_id=body.filter_id,
+            owner=user.user_id,
+            owner_name=user.name,
+            owner_email=user.email,
         )
         chat_id_container = {}
         return StreamingResponse(
@@ -121,6 +146,9 @@ async def chat_create_endpoint(
             previous_response_id=body.chat_id,
             stream=False,
             filter_id=body.filter_id,
+            owner=user.user_id,
+            owner_name=user.name,
+            owner_email=user.email,
         )
         return JSONResponse({
             "response": result.get("response", ""),
@@ -204,6 +232,8 @@ async def chat_delete_endpoint(
     """Delete a conversation. DELETE /v1/chat/{chat_id}"""
     try:
         result = await chat_service.delete_session(user.user_id, chat_id)
+        if result.get("not_found"):
+            return JSONResponse({"error": "Conversation not found"}, status_code=404)
         if result.get("success"):
             return JSONResponse({"success": True})
         else:

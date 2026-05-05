@@ -1,35 +1,29 @@
 services:
   opensearch:
     image: langflowai/openrag-opensearch:${OPENRAG_VERSION:-latest}
-    #build:
-    #context: .
-    #dockerfile: Dockerfile
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile
     container_name: os
     depends_on:
       - openrag-backend
     environment:
       - discovery.type=single-node
       - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_PASSWORD}
-    # Run security setup in background after OpenSearch starts
-    command: >
-      bash -c "
-        # Ensure data directory has correct permissions
-        sudo chown -R opensearch:opensearch /usr/share/opensearch/data || true
-
-        # Start OpenSearch in background
-        /usr/share/opensearch/opensearch-docker-entrypoint.sh opensearch &
-
-        # Wait a bit for OpenSearch to start, then apply security config
-        sleep 10 && /usr/share/opensearch/setup-security.sh &
-
-        # Wait for background processes
-        wait
-      "
+      - OPENSEARCH_JAVA_OPTS=-Xms1g -Xmx1g
     ports:
       - "9200:9200"
       - "9600:9600"
     volumes:
-      - ${OPENSEARCH_DATA_PATH:-./opensearch-data}:/usr/share/opensearch/data:U,z
+      - opensearch-data:/usr/share/opensearch/data
+    stop_grace_period: 2m
+    healthcheck:
+      test: ["CMD-SHELL", "curl -ku admin:$$OPENSEARCH_PASSWORD 'https://localhost:9200/_cluster/health' -s | grep -qE '\"status\":\"(green|yellow)\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+    restart: unless-stopped
 
   dashboards:
     image: opensearchproject/opensearch-dashboards:3.0.0
@@ -65,6 +59,8 @@ services:
       - INGEST_SAMPLE_DATA=${INGEST_SAMPLE_DATA:-true}
       - NUDGES_FLOW_ID=${NUDGES_FLOW_ID}
       - OPENSEARCH_PORT=${OPENSEARCH_PORT:-9200}
+      - LANGFLOW_OPENSEARCH_HOST=${LANGFLOW_OPENSEARCH_HOST:-${OPENSEARCH_HOST:-opensearch}}
+      - LANGFLOW_OPENSEARCH_PORT=${LANGFLOW_OPENSEARCH_PORT:-${OPENSEARCH_PORT:-9200}}
       - OPENSEARCH_USERNAME=${OPENSEARCH_USERNAME:-admin}
       - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -80,14 +76,26 @@ services:
       - WEBHOOK_BASE_URL=${WEBHOOK_BASE_URL}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_S3_ENDPOINT=${AWS_S3_ENDPOINT}
+      - AWS_REGION=${AWS_REGION}
+      - IBM_COS_API_KEY=${IBM_COS_API_KEY}
+      - IBM_COS_SERVICE_INSTANCE_ID=${IBM_COS_SERVICE_INSTANCE_ID}
+      - IBM_COS_ENDPOINT=${IBM_COS_ENDPOINT}
+      - IBM_COS_HMAC_ACCESS_KEY_ID=${IBM_COS_HMAC_ACCESS_KEY_ID}
+      - IBM_COS_HMAC_SECRET_ACCESS_KEY=${IBM_COS_HMAC_SECRET_ACCESS_KEY}
+      - IBM_COS_AUTH_ENDPOINT=${IBM_COS_AUTH_ENDPOINT}
       - OPENSEARCH_INDEX_NAME=${OPENSEARCH_INDEX_NAME:-documents}
       - LANGFLOW_KEY=${LANGFLOW_KEY}
+      - SEGMENT_WRITE_KEY=${SEGMENT_WRITE_KEY:-}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
       - LANGFLOW_KEY_RETRIES=${LANGFLOW_KEY_RETRIES:-15}
       - LANGFLOW_KEY_RETRY_DELAY=${LANGFLOW_KEY_RETRY_DELAY:-2.0}
       - LANGFLOW_VERSION=${LANGFLOW_VERSION}
       - LOG_FORMAT=${LOG_FORMAT}
       - SERVICE_NAME=${SERVICE_NAME}
       - SESSION_SECRET=${SESSION_SECRET}
+      - JWT_SIGNING_KEY=${JWT_SIGNING_KEY}
+      - OPENRAG_ENCRYPTION_KEY=${OPENRAG_ENCRYPTION_KEY}
       - LOG_LEVEL=${LOG_LEVEL:-INFO}
       - NO_COLOR=${NO_COLOR:-}
       - ACCESS_LOG=${ACCESS_LOG:-true}
@@ -97,11 +105,15 @@ services:
       - UPLOAD_BATCH_SIZE=${UPLOAD_BATCH_SIZE:-25}
       - MAX_WORKERS=${MAX_WORKERS:-4}
     volumes:
-      - ${OPENRAG_DOCUMENTS_PATH:-./openrag-documents}:/app/openrag-documents:Z
+      - ${OPENRAG_DOCUMENTS_PATH:-./openrag-documents}:/app/openrag-documents:U,z
       - ${OPENRAG_KEYS_PATH:-./keys}:/app/keys:U,z
       - ${OPENRAG_FLOWS_PATH:-./flows}:/app/flows:U,z
-      - ${OPENRAG_CONFIG_PATH:-./config}:/app/config:Z
-      - ${OPENRAG_DATA_PATH:-./data}:/app/data:Z
+      - ${OPENRAG_FLOWS_BACKUP_PATH:-./flows/backup}:/app/flows/backup:U,z
+      - ${OPENRAG_CONFIG_PATH:-./config}:/app/config:U,z
+      - ${OPENRAG_DATA_PATH:-./data}:/app/data:U,z
+    # Linux: Docker Engine does not auto-inject host.docker.internal; map it to the host gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   openrag-frontend:
     image: langflowai/openrag-frontend:${OPENRAG_VERSION:-latest}
@@ -117,8 +129,6 @@ services:
       - "${FRONTEND_PORT:-3000}:3000"
 
   langflow:
-    volumes:
-      - ${OPENRAG_FLOWS_PATH:-./flows}:/app/flows:U,z
     image: langflowai/openrag-langflow:${OPENRAG_VERSION:-latest}
     build:
       context: .
@@ -126,18 +136,25 @@ services:
     container_name: langflow
     ports:
       - "${LANGFLOW_PORT:-7860}:7860"
+    volumes:
+      - ${OPENRAG_FLOWS_PATH:-./flows}:/app/flows:U,z
+      - ${LANGFLOW_DATA_PATH:-./langflow-data}:/app/langflow-data:U,z
+    # Linux: Docker Engine does not auto-inject host.docker.internal; map it to the host gateway
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - LANGFUSE_SECRET_KEY=${LANGFUSE_SECRET_KEY:-}
       - LANGFUSE_PUBLIC_KEY=${LANGFUSE_PUBLIC_KEY:-}
       - LANGFUSE_HOST=${LANGFUSE_HOST:-}
       - LANGFLOW_DEACTIVATE_TRACING
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-None}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-None}
-      - WATSONX_API_KEY=${WATSONX_API_KEY:-None}
-      - WATSONX_ENDPOINT=${WATSONX_ENDPOINT:-None}
-      - WATSONX_PROJECT_ID=${WATSONX_PROJECT_ID:-None}
-      - OLLAMA_BASE_URL=${OLLAMA_ENDPOINT:-None}
-      - LANGFLOW_LOAD_FLOWS_PATH=/app/flows
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - WATSONX_APIKEY=${WATSONX_API_KEY}
+      - WATSONX_URL=${WATSONX_URL:-${WATSONX_ENDPOINT}}
+      - WATSONX_PROJECT_ID=${WATSONX_PROJECT_ID}
+      - OLLAMA_BASE_URL=${OLLAMA_ENDPOINT}
+      - LANGFLOW_CONFIG_DIR=/app/langflow-data
+      - LANGFLOW_DATABASE_URL=${LANGFLOW_DATABASE_URL:-sqlite:////app/langflow-data/langflow.db}
       - LANGFLOW_SECRET_KEY=${LANGFLOW_SECRET_KEY}
       - JWT=None
       - OWNER=None
@@ -151,16 +168,16 @@ services:
       - ALLOWED_GROUPS=[]
       - OPENRAG-QUERY-FILTER="{}"
       - OPENSEARCH_PASSWORD=${OPENSEARCH_PASSWORD}
-      - OPENSEARCH_HOST=${OPENSEARCH_HOST:-opensearch}
-      - OPENSEARCH_PORT=${OPENSEARCH_PORT:-9200}
-      - OPENSEARCH_URL=https://${OPENSEARCH_HOST:-opensearch}:${OPENSEARCH_PORT:-9200}
+      - OPENSEARCH_HOST=${LANGFLOW_OPENSEARCH_HOST:-${OPENSEARCH_HOST:-opensearch}}
+      - OPENSEARCH_PORT=${LANGFLOW_OPENSEARCH_PORT:-${OPENSEARCH_PORT:-9200}}
+      - OPENSEARCH_URL=https://${LANGFLOW_OPENSEARCH_HOST:-${OPENSEARCH_HOST:-opensearch}}:${LANGFLOW_OPENSEARCH_PORT:-${OPENSEARCH_PORT:-9200}}
       - OPENSEARCH_INDEX_NAME=${OPENSEARCH_INDEX_NAME:-documents}
       - DOCLING_SERVE_URL=${DOCLING_SERVE_URL:-http://host.docker.internal:5001}
       - FILENAME=None
       - MIMETYPE=None
       - FILESIZE=0
-      - SELECTED_EMBEDDING_MODEL=${SELECTED_EMBEDDING_MODEL:-}
-      - LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT=JWT,OPENRAG-QUERY-FILTER,OPENSEARCH_PASSWORD,OPENSEARCH_URL,DOCLING_SERVE_URL,OWNER,OWNER_NAME,OWNER_EMAIL,CONNECTOR_TYPE,DOCUMENT_ID,SOURCE_URL,ALLOWED_USERS,ALLOWED_GROUPS,FILENAME,MIMETYPE,FILESIZE,SELECTED_EMBEDDING_MODEL,OPENAI_API_KEY,ANTHROPIC_API_KEY,WATSONX_API_KEY,WATSONX_ENDPOINT,WATSONX_PROJECT_ID,OLLAMA_BASE_URL,OPENSEARCH_INDEX_NAME
+      - SELECTED_EMBEDDING_MODEL=${SELECTED_EMBEDDING_MODEL:-text-embedding-3-small}
+      - LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT=JWT,OPENRAG-QUERY-FILTER,OPENSEARCH_PASSWORD,OPENSEARCH_URL,DOCLING_SERVE_URL,OWNER,OWNER_NAME,OWNER_EMAIL,CONNECTOR_TYPE,DOCUMENT_ID,SOURCE_URL,ALLOWED_USERS,ALLOWED_GROUPS,FILENAME,MIMETYPE,FILESIZE,SELECTED_EMBEDDING_MODEL,OPENAI_API_KEY,ANTHROPIC_API_KEY,WATSONX_APIKEY,WATSONX_URL,WATSONX_PROJECT_ID,OLLAMA_BASE_URL,OPENSEARCH_INDEX_NAME
       - LANGFLOW_LOG_LEVEL=DEBUG
       - LANGFLOW_WORKERS=${LANGFLOW_WORKERS:-1}
       - LANGFLOW_AUTO_LOGIN=${LANGFLOW_AUTO_LOGIN}
@@ -170,3 +187,6 @@ services:
       - LANGFLOW_ENABLE_SUPERUSER_CLI=${LANGFLOW_ENABLE_SUPERUSER_CLI}
       # - DEFAULT_FOLDER_NAME=OpenRAG
       - HIDE_GETTING_STARTED_PROGRESS=true
+
+volumes:
+  opensearch-data:

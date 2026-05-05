@@ -13,6 +13,11 @@ import { useOnboardingRollbackMutation } from "@/app/api/mutations/useOnboarding
 import { useGetSettingsQuery } from "@/app/api/queries/useGetSettingsQuery";
 import { useGetTasksQuery } from "@/app/api/queries/useGetTasksQuery";
 import type { ProviderHealthResponse } from "@/app/api/queries/useProviderHealthQuery";
+import {
+  CLOUD_EXCLUDED_PROVIDERS,
+  EMBEDDING_PROVIDER_ORDER,
+  LLM_PROVIDER_ORDER,
+} from "@/app/settings/_helpers/model-helpers";
 import { useDoclingHealth } from "@/components/docling-health-banner";
 import AnthropicLogo from "@/components/icons/anthropic-logo";
 import IBMLogo from "@/components/icons/ibm-logo";
@@ -25,6 +30,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useIsCloudBrand } from "@/contexts/brand-context";
+import {
+  trackButton,
+  trackProcessFailure,
+  trackProcessSuccess,
+} from "@/lib/analytics";
 import { cn } from "@/lib/utils";
 import { AnimatedProviderSteps } from "./animated-provider-steps";
 import { AnthropicOnboarding } from "./anthropic-onboarding";
@@ -60,6 +71,7 @@ const OnboardingCard = ({
   isCompleted = false,
 }: OnboardingCardProps) => {
   const { isHealthy: isDoclingHealthy } = useDoclingHealth();
+  const isCloudBrand = useIsCloudBrand();
 
   const [modelProvider, setModelProvider] = useState<string>(
     isEmbedding ? "openai" : "anthropic",
@@ -77,9 +89,12 @@ const OnboardingCard = ({
     if (!currentSettings?.providers) return;
 
     // Define provider order based on whether it's embedding or not
-    const providerOrder = isEmbedding
-      ? ["openai", "watsonx", "ollama"]
-      : ["anthropic", "openai", "watsonx", "ollama"];
+    const fullOrder = isEmbedding
+      ? EMBEDDING_PROVIDER_ORDER
+      : LLM_PROVIDER_ORDER;
+    const providerOrder = isCloudBrand
+      ? fullOrder.filter((p) => !CLOUD_EXCLUDED_PROVIDERS.includes(p))
+      : fullOrder;
 
     // Find the first provider with an API key
     for (const provider of providerOrder) {
@@ -109,7 +124,7 @@ const OnboardingCard = ({
         return;
       }
     }
-  }, [currentSettings, isEmbedding]);
+  }, [currentSettings, isEmbedding, isCloudBrand]);
 
   const handleSetModelProvider = (provider: string) => {
     setIsLoadingModels(false);
@@ -171,6 +186,8 @@ const OnboardingCard = ({
 
   const [error, setError] = useState<string | null>(null);
 
+  const [onboardingTaskId, setOnboardingTaskId] = useState<string | null>(null);
+
   // Track which tasks we've already handled to prevent infinite loops
   const handledFailedTasksRef = useRef<Set<string>>(new Set());
 
@@ -199,14 +216,76 @@ const OnboardingCard = ({
     },
   });
 
+  // Mutations
+  const onboardingMutation = useOnboardingMutation({
+    onSuccess: (data) => {
+      console.log("Onboarding completed successfully", data);
+
+      if (data.task_id) {
+        setOnboardingTaskId(data.task_id);
+      }
+
+      // Update provider health cache to healthy since backend just validated
+      const provider =
+        (isEmbedding ? settings.embedding_provider : settings.llm_provider) ||
+        modelProvider;
+      const healthData: ProviderHealthResponse = {
+        status: "healthy",
+        message: "Provider is configured and working correctly",
+        provider: provider,
+      };
+      queryClient.setQueryData(["provider", "health"], healthData);
+      setError(null);
+      if (!isEmbedding) {
+        trackProcessSuccess({
+          processType: "Onboarding",
+          process: "LLM Setup",
+          resultValue: provider,
+          category: "Setup",
+        });
+        setCurrentStep(totalSteps);
+        setTimeout(() => {
+          onComplete();
+        }, 1000);
+      } else {
+        trackProcessSuccess({
+          processType: "Onboarding",
+          process: "Embedding Setup",
+          resultValue: provider,
+          category: "Setup",
+        });
+        setCurrentStep(0);
+      }
+    },
+    onError: (error) => {
+      trackProcessFailure({
+        processType: "Onboarding",
+        process: isEmbedding ? "Embedding Setup" : "LLM Setup",
+        resultValue: error.message,
+        category: "Setup",
+      });
+      setError(error.message);
+      setCurrentStep(totalSteps);
+      rollbackMutation.mutate({ embedding_only: isEmbedding });
+    },
+  });
+
   // Monitor tasks and call onComplete when all tasks are done
   useEffect(() => {
     if (currentStep === null || !tasks || !isEmbedding) {
       return;
     }
 
+    if (!onboardingMutation.isSuccess) {
+      return;
+    }
+
+    const relevantTasks = onboardingTaskId
+      ? tasks.filter((task) => task.task_id === onboardingTaskId)
+      : [];
+
     // Check if there are any active tasks (pending, running, or processing)
-    const activeTasks = tasks.find(
+    const activeTasks = relevantTasks.find(
       (task) =>
         task.status === "pending" ||
         task.status === "running" ||
@@ -214,12 +293,12 @@ const OnboardingCard = ({
     );
 
     // Check if any task failed at the top level
-    const failedTask = tasks.find(
+    const failedTask = relevantTasks.find(
       (task) => task.status === "failed" || task.status === "error",
     );
 
     // Check if any completed task has at least one failed file
-    const completedTaskWithFailedFile = tasks.find((task) => {
+    const completedTaskWithFailedFile = relevantTasks.find((task) => {
       // Must have files object
       if (!task.files || typeof task.files !== "object") {
         return false;
@@ -280,20 +359,48 @@ const OnboardingCard = ({
           : "Sample data ingestion failed. Please try again.";
 
       // Set error message and jump back one step (exactly like onboardingMutation.onError)
+      trackProcessFailure({
+        processType: "Onboarding",
+        process: "Sample Data Ingest",
+        resultValue: errorMessage,
+        category: "Setup",
+        task_id: taskWithFailure.task_id,
+        duration_seconds: taskWithFailure.duration_seconds,
+        total_files: taskWithFailure.total_files,
+        failed_files: taskWithFailure.failed_files,
+      });
+
       setError(errorMessage);
       setCurrentStep(totalSteps);
-      rollbackMutation.mutate();
+      rollbackMutation.mutate({ embedding_only: isEmbedding });
       return;
     }
 
+    const hasSuccessfulTasks =
+      relevantTasks.length > 0 &&
+      (!activeTasks || (activeTasks.successful_files ?? 0) > 0);
+
+    const hasIngestionDisabledOrDone =
+      !onboardingTaskId && currentStep === totalSteps - 1;
+
     // If at least one processed file, no failures, and we've started onboarding, complete it
     if (
-      (((!activeTasks || (activeTasks.successful_files ?? 0) > 0) &&
-        tasks.length > 0) ||
-        (tasks.length === 0 && currentStep === totalSteps - 1)) && // Complete because no files were ingested
+      (hasSuccessfulTasks || hasIngestionDisabledOrDone) &&
       !isCompleted &&
-      !taskWithFailure
+      !taskWithFailure &&
+      currentStep === totalSteps - 1
     ) {
+      const completedTask = relevantTasks.find((t) => t.status === "completed");
+      trackProcessSuccess({
+        processType: "Onboarding",
+        process: "Sample Data Ingest",
+        category: "Setup",
+        task_id: completedTask?.task_id,
+        duration_seconds: completedTask?.duration_seconds,
+        total_files: completedTask?.total_files,
+        successful_files: completedTask?.successful_files,
+      });
+
       // Set to final step to show "Done"
       setCurrentStep(totalSteps);
       // Wait a bit before completing
@@ -309,39 +416,9 @@ const OnboardingCard = ({
     isEmbedding,
     totalSteps,
     rollbackMutation,
+    onboardingMutation.isSuccess,
+    onboardingTaskId,
   ]);
-
-  // Mutations
-  const onboardingMutation = useOnboardingMutation({
-    onSuccess: (data) => {
-      console.log("Onboarding completed successfully", data);
-
-      // Update provider health cache to healthy since backend just validated
-      const provider =
-        (isEmbedding ? settings.embedding_provider : settings.llm_provider) ||
-        modelProvider;
-      const healthData: ProviderHealthResponse = {
-        status: "healthy",
-        message: "Provider is configured and working correctly",
-        provider: provider,
-      };
-      queryClient.setQueryData(["provider", "health"], healthData);
-      setError(null);
-      if (!isEmbedding) {
-        setCurrentStep(totalSteps);
-        setTimeout(() => {
-          onComplete();
-        }, 1000);
-      } else {
-        setCurrentStep(0);
-      }
-    },
-    onError: (error) => {
-      setError(error.message);
-      setCurrentStep(totalSteps);
-      rollbackMutation.mutate();
-    },
-  });
 
   const handleComplete = () => {
     const currentProvider = isEmbedding
@@ -350,9 +427,7 @@ const OnboardingCard = ({
 
     if (
       !currentProvider ||
-      (isEmbedding &&
-        !settings.embedding_model &&
-        !showProviderConfiguredMessage) ||
+      (isEmbedding && !settings.embedding_model) ||
       (!isEmbedding && !settings.llm_model)
     ) {
       toast.error("Please complete all required fields");
@@ -368,17 +443,7 @@ const OnboardingCard = ({
     // Set the provider field
     if (isEmbedding) {
       onboardingData.embedding_provider = currentProvider;
-      // If provider is already configured, use the existing embedding model from settings
-      // Otherwise, use the embedding model from the form
-      if (
-        showProviderConfiguredMessage &&
-        currentSettings?.knowledge?.embedding_model
-      ) {
-        onboardingData.embedding_model =
-          currentSettings.knowledge.embedding_model;
-      } else {
-        onboardingData.embedding_model = settings.embedding_model;
-      }
+      onboardingData.embedding_model = settings.embedding_model;
     } else {
       onboardingData.llm_provider = currentProvider;
       onboardingData.llm_model = settings.llm_model;
@@ -403,6 +468,18 @@ const OnboardingCard = ({
       onboardingData.ollama_endpoint = settings.ollama_endpoint;
     }
 
+    trackButton({
+      CTA: isEmbedding ? "Complete - Embedding Setup" : "Complete - LLM Setup",
+      elementId: "onboarding-complete-button",
+      namespace: "onboarding",
+      payload: isEmbedding
+        ? {
+            embedding_provider: currentProvider,
+            embedding_model: settings.embedding_model,
+          }
+        : { llm_provider: currentProvider, llm_model: settings.llm_model },
+    });
+
     // Record the start time when user clicks Complete
     setProcessingStartTime(Date.now());
     onboardingMutation.mutate(onboardingData);
@@ -410,8 +487,7 @@ const OnboardingCard = ({
   };
 
   const isComplete =
-    (isEmbedding &&
-      (!!settings.embedding_model || showProviderConfiguredMessage)) ||
+    (isEmbedding && !!settings.embedding_model) ||
     (!isEmbedding && !!settings.llm_model && isDoclingHealthy);
 
   return (
@@ -450,6 +526,7 @@ const OnboardingCard = ({
                   {!isEmbedding && (
                     <TabsTrigger
                       value="anthropic"
+                      data-testid={`anthropic-llm-tab`}
                       className={cn(
                         error &&
                           modelProvider === "anthropic" &&
@@ -462,7 +539,7 @@ const OnboardingCard = ({
                       >
                         <div
                           className={cn(
-                            "flex items-center justify-center gap-2 w-8 h-8 rounded-md border",
+                            "flex items-center justify-center gap-2 w-8 h-8 rounded-none border",
                             modelProvider === "anthropic"
                               ? "bg-[#D97757]"
                               : "bg-muted",
@@ -488,6 +565,7 @@ const OnboardingCard = ({
                         modelProvider === "openai" &&
                         "data-[state=active]:border-destructive",
                     )}
+                    data-testid={`openai-${isEmbedding ? "embedding" : "llm"}-tab`}
                   >
                     <TabTrigger
                       selected={modelProvider === "openai"}
@@ -495,7 +573,7 @@ const OnboardingCard = ({
                     >
                       <div
                         className={cn(
-                          "flex items-center justify-center gap-2 w-8 h-8 rounded-md border",
+                          "flex items-center justify-center gap-2 w-8 h-8 rounded-none border",
                           modelProvider === "openai" ? "bg-white" : "bg-muted",
                         )}
                       >
@@ -513,6 +591,7 @@ const OnboardingCard = ({
                   </TabsTrigger>
                   <TabsTrigger
                     value="watsonx"
+                    data-testid={`watsonx-${isEmbedding ? "embedding" : "llm"}-tab`}
                     className={cn(
                       error &&
                         modelProvider === "watsonx" &&
@@ -525,7 +604,7 @@ const OnboardingCard = ({
                     >
                       <div
                         className={cn(
-                          "flex items-center justify-center gap-2 w-8 h-8 rounded-md border",
+                          "flex items-center justify-center gap-2 w-8 h-8 rounded-none border",
                           modelProvider === "watsonx"
                             ? "bg-[#1063FE]"
                             : "bg-muted",
@@ -543,36 +622,41 @@ const OnboardingCard = ({
                       IBM watsonx.ai
                     </TabTrigger>
                   </TabsTrigger>
-                  <TabsTrigger
-                    value="ollama"
-                    className={cn(
-                      error &&
-                        modelProvider === "ollama" &&
-                        "data-[state=active]:border-destructive",
-                    )}
-                  >
-                    <TabTrigger
-                      selected={modelProvider === "ollama"}
-                      isLoading={isLoadingModels}
+                  {!isCloudBrand && (
+                    <TabsTrigger
+                      value="ollama"
+                      data-testid={`ollama-${isEmbedding ? "embedding" : "llm"}-tab`}
+                      className={cn(
+                        error &&
+                          modelProvider === "ollama" &&
+                          "data-[state=active]:border-destructive",
+                      )}
                     >
-                      <div
-                        className={cn(
-                          "flex items-center justify-center gap-2 w-8 h-8 rounded-md border",
-                          modelProvider === "ollama" ? "bg-white" : "bg-muted",
-                        )}
+                      <TabTrigger
+                        selected={modelProvider === "ollama"}
+                        isLoading={isLoadingModels}
                       >
-                        <OllamaLogo
+                        <div
                           className={cn(
-                            "w-4 h-4 shrink-0",
+                            "flex items-center justify-center gap-2 w-8 h-8 rounded-none border",
                             modelProvider === "ollama"
-                              ? "text-black"
-                              : "text-muted-foreground",
+                              ? "bg-white"
+                              : "bg-muted",
                           )}
-                        />
-                      </div>
-                      Ollama
-                    </TabTrigger>
-                  </TabsTrigger>
+                        >
+                          <OllamaLogo
+                            className={cn(
+                              "w-4 h-4 shrink-0",
+                              modelProvider === "ollama"
+                                ? "text-black"
+                                : "text-muted-foreground",
+                            )}
+                          />
+                        </div>
+                        Ollama
+                      </TabTrigger>
+                    </TabsTrigger>
+                  )}
                 </TabsList>
                 {!isEmbedding && (
                   <TabsContent value="anthropic">
@@ -619,19 +703,21 @@ const OnboardingCard = ({
                     }
                   />
                 </TabsContent>
-                <TabsContent value="ollama">
-                  <OllamaOnboarding
-                    setSettings={setSettings}
-                    setIsLoadingModels={setIsLoadingModels}
-                    isEmbedding={isEmbedding}
-                    alreadyConfigured={
-                      providerAlreadyConfigured && modelProvider === "ollama"
-                    }
-                    existingEndpoint={
-                      currentSettings?.providers?.ollama?.endpoint
-                    }
-                  />
-                </TabsContent>
+                {!isCloudBrand && (
+                  <TabsContent value="ollama">
+                    <OllamaOnboarding
+                      setSettings={setSettings}
+                      setIsLoadingModels={setIsLoadingModels}
+                      isEmbedding={isEmbedding}
+                      alreadyConfigured={
+                        providerAlreadyConfigured && modelProvider === "ollama"
+                      }
+                      existingEndpoint={
+                        currentSettings?.providers?.ollama?.endpoint
+                      }
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
 
               <Tooltip>
@@ -639,6 +725,7 @@ const OnboardingCard = ({
                   <div>
                     <Button
                       size="sm"
+                      data-testid="onboarding-complete-button"
                       onClick={handleComplete}
                       disabled={!isComplete || isLoadingModels}
                       loading={onboardingMutation.isPending}

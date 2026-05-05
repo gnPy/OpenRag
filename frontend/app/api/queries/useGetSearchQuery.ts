@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import type { ParsedQueryData } from "@/contexts/knowledge-filter-context";
 import { SEARCH_CONSTANTS } from "@/lib/constants";
+import { buildSearchPayloadFilters } from "@/lib/filter-normalization";
 
 export interface SearchPayload {
   query: string;
@@ -63,17 +64,49 @@ export interface File {
   allowed_groups?: string[];
 }
 
+// Non-fatal signal from the backend — e.g. an embedding provider was removed
+// so some models in the corpus can't be queried semantically. Results still
+// come back via keyword matching.
+export interface SearchWarning {
+  code: string;
+  models?: string[];
+  semantic_search_available?: boolean;
+  message?: string;
+}
+
+export interface SearchResult {
+  files: File[];
+  warnings: SearchWarning[];
+}
+
+const EMPTY_SEARCH_RESULT: SearchResult = { files: [], warnings: [] };
+export { EMPTY_SEARCH_RESULT };
+
 export const useGetSearchQuery = (
   query: string,
   queryData?: ParsedQueryData | null,
   options?: Omit<UseQueryOptions, "queryKey" | "queryFn">,
 ) => {
   const queryClient = useQueryClient();
+  const getFileIdentity = (chunk: ChunkResult): string => {
+    const normalizedFilename = chunk.filename?.trim();
+    if (normalizedFilename) {
+      return normalizedFilename;
+    }
+
+    const normalizedSourceUrl = chunk.source_url?.trim();
+    if (normalizedSourceUrl) {
+      return normalizedSourceUrl;
+    }
+
+    return "Untitled source";
+  };
 
   // Normalize the query to match what will actually be searched
   const effectiveQuery = query || queryData?.query || "*";
+  const normalizedQuery = effectiveQuery.trim();
 
-  async function getFiles(): Promise<File[]> {
+  async function getFiles(): Promise<SearchResult> {
     try {
       // For wildcard queries, use a high limit to get all files
       // Otherwise use the limit from queryData or default to 100
@@ -83,46 +116,25 @@ export const useGetSearchQuery = (
         ? SEARCH_CONSTANTS.WILDCARD_QUERY_LIMIT
         : queryData?.limit || 100;
 
+      const baseScoreThreshold =
+        queryData?.scoreThreshold ?? SEARCH_CONSTANTS.DEFAULT_SCORE_THRESHOLD;
+      const isShortSingleTokenQuery =
+        normalizedQuery !== "*" &&
+        normalizedQuery.length > 0 &&
+        normalizedQuery.length <= 4 &&
+        !normalizedQuery.includes(" ");
+      const dynamicScoreThreshold = isShortSingleTokenQuery
+        ? Math.min(baseScoreThreshold, 1.0)
+        : baseScoreThreshold;
+
       const searchPayload: SearchPayload = {
         query: effectiveQuery,
         limit: searchLimit,
-        scoreThreshold: queryData?.scoreThreshold || 0,
+        scoreThreshold: dynamicScoreThreshold,
       };
       if (queryData?.filters) {
-        const filters = queryData.filters;
-
-        // Only include filters if they're not wildcards (not "*")
-        const hasSpecificFilters =
-          !filters.data_sources.includes("*") ||
-          !filters.document_types.includes("*") ||
-          !filters.owners.includes("*") ||
-          (filters.connector_types && !filters.connector_types.includes("*"));
-
-        if (hasSpecificFilters) {
-          const processedFilters: SearchPayload["filters"] = {};
-
-          // Only add filter arrays that don't contain wildcards
-          if (!filters.data_sources.includes("*")) {
-            processedFilters.data_sources = filters.data_sources;
-          }
-          if (!filters.document_types.includes("*")) {
-            processedFilters.document_types = filters.document_types;
-          }
-          if (!filters.owners.includes("*")) {
-            processedFilters.owners = filters.owners;
-          }
-          if (
-            filters.connector_types &&
-            !filters.connector_types.includes("*")
-          ) {
-            processedFilters.connector_types = filters.connector_types;
-          }
-
-          // Only add filters object if it has any actual filters
-          if (Object.keys(processedFilters).length > 0) {
-            searchPayload.filters = processedFilters;
-          }
-        }
+        searchPayload.filters =
+          buildSearchPayloadFilters(queryData.filters) ?? undefined;
       }
 
       const response = await fetch(`/api/search`, {
@@ -165,7 +177,8 @@ export const useGetSearchQuery = (
       >();
 
       (data.results || []).forEach((chunk: ChunkResult) => {
-        const existing = fileMap.get(chunk.filename);
+        const fileIdentity = getFileIdentity(chunk);
+        const existing = fileMap.get(fileIdentity);
         if (existing) {
           existing.chunks.push(chunk);
           existing.totalScore += chunk.score;
@@ -179,8 +192,8 @@ export const useGetSearchQuery = (
             existing.embedding_dimensions = chunk.embedding_dimensions;
           }
         } else {
-          fileMap.set(chunk.filename, {
-            filename: chunk.filename,
+          fileMap.set(fileIdentity, {
+            filename: fileIdentity,
             mimetype: chunk.mimetype,
             chunks: [chunk],
             totalScore: chunk.score,
@@ -216,7 +229,11 @@ export const useGetSearchQuery = (
         allowed_groups: file.allowed_groups || [],
       }));
 
-      return files;
+      const warnings: SearchWarning[] = Array.isArray(data.warnings)
+        ? data.warnings
+        : [];
+
+      return { files, warnings };
     } catch (error) {
       console.error("Error getting files", error);
       // Re-throw the error so React Query can handle it and trigger onError callbacks
@@ -228,6 +245,7 @@ export const useGetSearchQuery = (
     {
       queryKey: ["search", queryData, query],
       placeholderData: (prev) => prev,
+      staleTime: 0,
       queryFn: getFiles,
       retry: false, // Don't retry on errors - show them immediately
       ...options,

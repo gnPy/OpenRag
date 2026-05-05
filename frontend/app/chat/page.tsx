@@ -5,16 +5,21 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Button } from "@/components/ui/button";
+import { useIsCloudBrand } from "@/contexts/brand-context";
 import { type EndpointType, useChat } from "@/contexts/chat-context";
 import { useTask } from "@/contexts/task-context";
 import { useChatStreaming } from "@/hooks/useChatStreaming";
+import { trackLLMCall } from "@/lib/analytics";
 import { FILE_CONFIRMATION, FILES_REGEX } from "@/lib/constants";
+import { buildSearchPayloadFilters } from "@/lib/filter-normalization";
+import { cn } from "@/lib/utils";
 import { useLoadingStore } from "@/stores/loadingStore";
 import { useGetConversationsQuery } from "../api/queries/useGetConversationsQuery";
 import { useGetNudgesQuery } from "../api/queries/useGetNudgesQuery";
 import { useGetSettingsQuery } from "../api/queries/useGetSettingsQuery";
 import { AssistantMessage } from "./_components/assistant-message";
 import { ChatInput, type ChatInputHandle } from "./_components/chat-input";
+import { ErrorMessage } from "./_components/error-message";
 import Nudges from "./_components/nudges";
 import { UserMessage } from "./_components/user-message";
 import type {
@@ -22,12 +27,12 @@ import type {
   KnowledgeFilterData,
   Message,
   RequestBody,
-  SelectedFilters,
   ToolCallResult,
 } from "./_types/types";
 
 function ChatPage() {
   const isDebugMode = process.env.NEXT_PUBLIC_OPENRAG_DEBUG === "true";
+  const isCloudBrand = useIsCloudBrand();
   const {
     endpoint,
     setEndpoint,
@@ -94,6 +99,9 @@ function ChatPage() {
     }
   }, [selectedFilter]);
 
+  // Get settings for model info used in analytics
+  const { data: settings } = useGetSettingsQuery();
+
   // Use the chat streaming hook
   const apiEndpoint = endpoint === "chat" ? "/api/chat" : "/api/langflow";
   const {
@@ -104,6 +112,12 @@ function ChatPage() {
   } = useChatStreaming({
     endpoint: apiEndpoint,
     onComplete: (message, responseId) => {
+      trackLLMCall({
+        mode: "chat",
+        model: settings?.agent?.llm_model,
+        inputTokens: message.usage?.input_tokens,
+        outputTokens: message.usage?.output_tokens,
+      });
       setMessages((prev) => [...prev, message]);
       setLoading(false);
       setWaitingTooLong(false);
@@ -283,6 +297,7 @@ function ChatPage() {
         role: "assistant",
         content: `❌ Failed to process document. Please try again.`,
         timestamp: new Date(),
+        error: true,
       };
       setMessages((prev) => [...prev.slice(0, -1), errorMessage]);
     } finally {
@@ -367,6 +382,7 @@ function ChatPage() {
           content: string;
           timestamp?: string;
           response_id?: string;
+          error?: boolean;
           chunks?: Array<{
             item?: {
               type?: string;
@@ -394,6 +410,7 @@ function ChatPage() {
             role: msg.role as "user" | "assistant",
             content: msg.content,
             timestamp: new Date(msg.timestamp || new Date()),
+            error: msg.error || false,
           };
 
           // Extract function calls from chunks or response_data
@@ -650,8 +667,7 @@ function ChatPage() {
     };
   }, [endpoint, setPreviousResponseIds, setLoading]);
 
-  // Get settings to check onboarding completion
-  const { data: settings } = useGetSettingsQuery();
+  // Check onboarding completion
 
   // Check if onboarding is complete (current_step >= 4 means complete)
   const TOTAL_ONBOARDING_STEPS = 4;
@@ -662,25 +678,7 @@ function ChatPage() {
   // Prepare filters for nudges (same as chat)
   const processedFiltersForNudges = parsedFilterData?.filters
     ? (() => {
-        const filters = parsedFilterData.filters;
-        const processed: SelectedFilters = {
-          data_sources: [],
-          document_types: [],
-          owners: [],
-        };
-        processed.data_sources = filters.data_sources.includes("*")
-          ? []
-          : filters.data_sources;
-        processed.document_types = filters.document_types.includes("*")
-          ? []
-          : filters.document_types;
-        processed.owners = filters.owners.includes("*") ? [] : filters.owners;
-
-        const hasFilters =
-          processed.data_sources.length > 0 ||
-          processed.document_types.length > 0 ||
-          processed.owners.length > 0;
-        return hasFilters ? processed : undefined;
+        return buildSearchPayloadFilters(parsedFilterData.filters);
       })()
     : undefined;
 
@@ -703,25 +701,7 @@ function ChatPage() {
     // Prepare filters
     const processedFilters = parsedFilterData?.filters
       ? (() => {
-          const filters = parsedFilterData.filters;
-          const processed: SelectedFilters = {
-            data_sources: [],
-            document_types: [],
-            owners: [],
-          };
-          processed.data_sources = filters.data_sources.includes("*")
-            ? []
-            : filters.data_sources;
-          processed.document_types = filters.document_types.includes("*")
-            ? []
-            : filters.document_types;
-          processed.owners = filters.owners.includes("*") ? [] : filters.owners;
-
-          const hasFilters =
-            processed.data_sources.length > 0 ||
-            processed.document_types.length > 0 ||
-            processed.owners.length > 0;
-          return hasFilters ? processed : undefined;
+          return buildSearchPayloadFilters(parsedFilterData.filters);
         })()
       : undefined;
 
@@ -784,32 +764,14 @@ function ChatPage() {
 
         const requestBody: RequestBody = {
           prompt: userMessage.content,
-          ...(parsedFilterData?.filters &&
-            (() => {
-              const filters = parsedFilterData.filters;
-              const processed: SelectedFilters = {
-                data_sources: [],
-                document_types: [],
-                owners: [],
-              };
-              // Only copy non-wildcard arrays
-              processed.data_sources = filters.data_sources.includes("*")
-                ? []
-                : filters.data_sources;
-              processed.document_types = filters.document_types.includes("*")
-                ? []
-                : filters.document_types;
-              processed.owners = filters.owners.includes("*")
-                ? []
-                : filters.owners;
-
-              // Only include filters if any array has values
-              const hasFilters =
-                processed.data_sources.length > 0 ||
-                processed.document_types.length > 0 ||
-                processed.owners.length > 0;
-              return hasFilters ? { filters: processed } : {};
-            })()),
+          ...(parsedFilterData?.filters
+            ? (() => {
+                const processedFilters = buildSearchPayloadFilters(
+                  parsedFilterData.filters,
+                );
+                return processedFilters ? { filters: processedFilters } : {};
+              })()
+            : {}),
           limit: parsedFilterData?.limit ?? 10,
           scoreThreshold: parsedFilterData?.scoreThreshold ?? 0,
         };
@@ -905,6 +867,7 @@ function ChatPage() {
             role: "assistant",
             content: "Sorry, I encountered an error. Please try again.",
             timestamp: new Date(),
+            error: true,
           };
           setMessages((prev) => [...prev, errorMessage]);
         }
@@ -917,6 +880,7 @@ function ChatPage() {
           content:
             "Sorry, I couldn't connect to the chat service. Please try again.",
           timestamp: new Date(),
+          error: true,
         };
         setMessages((prev) => [...prev, errorMessage]);
       }
@@ -1087,8 +1051,10 @@ function ChatPage() {
         </div>
       )}
 
-      <StickToBottom.Content className="flex flex-col min-h-full overflow-x-hidden p-6">
-        <div className="flex flex-col place-self-center space-y-6 max-w-[960px] w-full mx-auto">
+      <StickToBottom.Content
+        className={cn("flex flex-col min-h-full overflow-x-hidden p-6")}
+      >
+        <div className="flex flex-col place-self-center space-y-6 max-w-content w-full mx-auto">
           {messages.length === 0 && !streamingMessage ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">
               <div className="text-center">
@@ -1149,23 +1115,30 @@ function ChatPage() {
                         }-${index}-${message.timestamp?.getTime()}`}
                         className="space-y-6 group"
                       >
-                        <AssistantMessage
-                          content={message.content}
-                          functionCalls={message.functionCalls}
-                          messageIndex={index}
-                          expandedFunctionCalls={expandedFunctionCalls}
-                          onToggle={toggleFunctionCall}
-                          showForkButton={endpoint === "chat"}
-                          onFork={(e) => handleForkConversation(index, e)}
-                          animate={false}
-                          isInactive={index < messages.length - 1}
-                          isInitialGreeting={
-                            index === 0 &&
-                            messages.length === 1 &&
-                            message.content === "How can I assist?"
-                          }
-                          usage={message.usage}
-                        />
+                        {message.error ? (
+                          <ErrorMessage
+                            content={message.content}
+                            animate={false}
+                          />
+                        ) : (
+                          <AssistantMessage
+                            content={message.content}
+                            functionCalls={message.functionCalls}
+                            messageIndex={index}
+                            expandedFunctionCalls={expandedFunctionCalls}
+                            onToggle={toggleFunctionCall}
+                            showForkButton={endpoint === "chat"}
+                            onFork={(e) => handleForkConversation(index, e)}
+                            animate={false}
+                            isInactive={index < messages.length - 1}
+                            isInitialGreeting={
+                              index === 0 &&
+                              messages.length === 1 &&
+                              message.content === "How can I assist?"
+                            }
+                            usage={message.usage}
+                          />
+                        )}
                       </div>
                     ),
               )}
@@ -1209,7 +1182,7 @@ function ChatPage() {
           )}
         </div>
       </StickToBottom.Content>
-      <div className="p-6 pt-0 max-w-[960px] mx-auto w-full">
+      <div className="p-6 pt-0 max-w-content mx-auto w-full">
         {/* Input Area - Fixed at bottom */}
         <ChatInput
           ref={chatInputRef}
@@ -1252,6 +1225,7 @@ function ChatPage() {
               }
             }
           }}
+          ingestViaChat={settings?.ingest_via_chat ?? false}
           onFilterSelect={handleFilterSelect}
           onFilePickerClick={handleFilePickerClick}
           onFileSelected={setUploadedFile}
@@ -1264,9 +1238,17 @@ function ChatPage() {
 }
 
 export default function ProtectedChatPage() {
+  const isCloudBrand = useIsCloudBrand();
   return (
     <ProtectedRoute>
-      <div className="flex w-full h-full overflow-hidden">
+      <div
+        className={cn(
+          "flex w-full h-full overflow-hidden",
+          isCloudBrand && "ibm-chat-page",
+          isCloudBrand &&
+            "bg-[var(--chat-surface-bg)] [background-image:linear-gradient(0deg,var(--chat-surface-gradient),transparent_280px)]",
+        )}
+      >
         <StickToBottom
           className="flex h-full flex-1 flex-col"
           resize="smooth"

@@ -17,6 +17,7 @@ export interface Message {
   functionCalls?: FunctionCall[];
   isStreaming?: boolean;
   source?: "langflow" | "chat";
+  error?: boolean;
   usage?: TokenUsage;
 }
 
@@ -45,6 +46,7 @@ export interface SelectedFilters {
   data_sources: string[];
   document_types: string[];
   owners: string[];
+  connector_types: string[];
 }
 
 export interface KnowledgeFilterData {
@@ -61,7 +63,12 @@ export interface RequestBody {
   prompt: string;
   stream?: boolean;
   previous_response_id?: string;
-  filters?: SelectedFilters;
+  filters?: {
+    data_sources?: string[];
+    document_types?: string[];
+    owners?: string[];
+    connector_types?: string[];
+  };
   filter_id?: string;
   limit?: number;
   scoreThreshold?: number;

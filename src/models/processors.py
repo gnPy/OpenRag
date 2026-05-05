@@ -1,7 +1,11 @@
-from typing import Any
+from typing import Any, Dict, Optional
 from .tasks import UploadTask, FileTask
 from utils.logging_config import get_logger
-from utils.file_utils import get_file_extension, clean_connector_filename
+from utils.file_utils import (
+    get_file_extension,
+    clean_connector_filename,
+    get_filename_aliases,
+)
 
 logger = get_logger(__name__)
 
@@ -9,8 +13,9 @@ logger = get_logger(__name__)
 class TaskProcessor:
     """Base class for task processors with shared processing logic"""
 
-    def __init__(self, document_service=None):
+    def __init__(self, document_service=None, models_service=None):
         self.document_service = document_service
+        self.models_service = models_service
 
     async def check_document_exists(
         self,
@@ -72,19 +77,37 @@ class TaskProcessor:
         max_retries = 3
         retry_delay = 1.0
 
+        candidate_filenames = get_filename_aliases(filename)
+        if not candidate_filenames:
+            return False
+        # Keep track of aliases that still need checking across retries.
+        # If one alias was already checked successfully with no hits, we avoid
+        # re-querying it when another alias fails transiently.
+        pending_candidates = list(candidate_filenames)
+        # Retry strategy: only retry aliases that have not completed successfully.
+        # This avoids re-querying aliases already checked with no hits when a later
+        # alias fails transiently (e.g., timeout).
+
         for attempt in range(max_retries):
             try:
-                # Search for any document with this exact filename
-                search_body = build_filename_search_body(filename, size=1, source=False)
-
-                response = await opensearch_client.search(
-                    index=get_index_name(),
-                    body=search_body
-                )
-
-                # Check if any hits were found
-                hits = response.get("hits", {}).get("hits", [])
-                return len(hits) > 0
+                i = 0
+                while i < len(pending_candidates):
+                    candidate = pending_candidates[i]
+                    search_body = build_filename_search_body(
+                        candidate, size=1, source=False
+                    )
+                    response = await opensearch_client.search(
+                        index=get_index_name(),
+                        body=search_body
+                    )
+                    hits = response.get("hits", {}).get("hits", [])
+                    if hits:
+                        return True
+                    # Successfully checked this alias with no hits; don't
+                    # re-query it on future retries.
+                    pending_candidates.pop(i)
+                    continue
+                return False
 
             except (asyncio.TimeoutError, Exception) as e:
                 if attempt == max_retries - 1:
@@ -123,15 +146,21 @@ class TaskProcessor:
         from utils.opensearch_queries import build_filename_delete_body
 
         try:
-            # Delete all documents with this filename
-            delete_body = build_filename_delete_body(filename)
-
-            response = await opensearch_client.delete_by_query(
-                index=get_index_name(),
-                body=delete_body
-            )
-
-            deleted_count = response.get("deleted", 0)
+            deleted_count = 0
+            candidate_filenames = get_filename_aliases(filename)
+            if not candidate_filenames:
+                logger.info(
+                    "Skipped delete_by_filename due to empty filename input",
+                    filename=filename,
+                )
+                return
+            for candidate in candidate_filenames:
+                delete_body = build_filename_delete_body(candidate)
+                response = await opensearch_client.delete_by_query(
+                    index=get_index_name(),
+                    body=delete_body
+                )
+                deleted_count += response.get("deleted", 0)
             logger.info(
                 "Deleted existing document chunks",
                 filename=filename,
@@ -158,6 +187,8 @@ class TaskProcessor:
         file_size: int = None,
         connector_type: str = "local",
         embedding_model: str = None,
+        chunk_size: int = None,
+        chunk_overlap: int = None,
         is_sample_data: bool = False,
         acl: "DocumentACL" = None,
     ):
@@ -168,16 +199,34 @@ class TaskProcessor:
         Args:
             embedding_model: Embedding model to use (defaults to the current
                 embedding model from settings)
+            chunk_size: Optional character window size for re-splitting extracted
+                chunks (non-Langflow path, e.g. connector UI ``chunkSize``).
+            chunk_overlap: Overlap between windows; must be less than ``chunk_size``.
             acl: DocumentACL instance with access control information
         """
         import datetime
-        from config.settings import clients, get_embedding_model, get_index_name
+        from config.settings import (
+            clients,
+            get_embedding_model,
+            get_index_name,
+            get_openrag_config,
+        )
         from services.document_service import chunk_texts_for_embeddings
-        from utils.document_processing import extract_relevant
-        from utils.embedding_fields import get_embedding_field_name, ensure_embedding_field_exists
+        from utils.document_processing import (
+            extract_relevant,
+            resplit_chunks_character_windows,
+        )
+        from utils.embedding_fields import ensure_embedding_field_exists
 
-        # Use provided embedding model or fall back to default
-        embedding_model = embedding_model or get_embedding_model()
+        # Use provided embedding model or configured model.
+        # get_embedding_model() returns empty string when Langflow ingest is enabled,
+        # but OpenRAG processors still need a concrete embedding model.
+        configured_embedding_model = get_openrag_config().knowledge.embedding_model
+        embedding_model = (
+            embedding_model
+            or configured_embedding_model
+            or get_embedding_model()
+        )
 
         # Get user's OpenSearch client with JWT for OIDC auth
         opensearch_client = self.document_service.session_manager.get_user_opensearch_client(
@@ -187,16 +236,11 @@ class TaskProcessor:
         # Check if already exists
         if await self.check_document_exists(file_hash, opensearch_client):
             return {"status": "unchanged", "id": file_hash}
-
-        # Ensure the embedding field exists for this model
-        embedding_field_name = await ensure_embedding_field_exists(
-            opensearch_client, embedding_model, get_index_name()
-        )
+            
 
         logger.info(
             "Processing document with embedding model",
             embedding_model=embedding_model,
-            embedding_field=embedding_field_name,
             file_hash=file_hash,
         )
 
@@ -222,17 +266,56 @@ class TaskProcessor:
             full_doc = await convert_file(file_path, httpx_client=clients.docling_http_client)
             slim_doc = extract_relevant(full_doc)
 
+        if chunk_size is not None:
+            try:
+                cs = int(chunk_size)
+            except (TypeError, ValueError):
+                cs = 0
+            if cs > 0:
+                try:
+                    co = (
+                        int(chunk_overlap)
+                        if chunk_overlap is not None
+                        else 0
+                    )
+                except (TypeError, ValueError):
+                    co = 0
+                if co < cs:
+                    slim_doc["chunks"] = resplit_chunks_character_windows(
+                        slim_doc["chunks"], cs, max(0, co)
+                    )
+
         texts = [c["text"] for c in slim_doc["chunks"]]
 
-        # Split into batches to avoid token limits (8191 limit, use 8000 with buffer)
-        text_batches = chunk_texts_for_embeddings(texts, max_tokens=8000)
+        litellm_embedding_model = await self.models_service.get_litellm_model_name(embedding_model) if self.models_service is not None else embedding_model
+
+        # Split into batches to avoid token limits (8191 limit, use 8000 with buffer or 2000 if it's ollama)
+        if "ollama" in litellm_embedding_model:
+            text_batches = chunk_texts_for_embeddings(texts, max_tokens=2000)
+        else:
+            text_batches = chunk_texts_for_embeddings(texts, max_tokens=8000)
         embeddings = []
 
         for batch in text_batches:
             resp = await clients.patched_embedding_client.embeddings.create(
-                model=embedding_model, input=batch
+                model=litellm_embedding_model, input=batch
             )
-            embeddings.extend([d.embedding for d in resp.data])
+            embeddings.extend([d["embedding"] if isinstance(d, dict) else d.embedding for d in resp.data])
+
+        if not embeddings or len(embeddings) == 0:
+            logger.error(
+                "No embeddings generated — document may be empty or unreadable",
+                file_hash=file_hash,
+                embedding_model=embedding_model,
+            )
+            return {"status": "error", "error": "No text content could be extracted from document"}
+
+        dimensions = len(embeddings[0])
+
+        # Ensure the embedding field exists for this model
+        embedding_field_name = await ensure_embedding_field_exists(
+            opensearch_client, embedding_model, get_index_name(), dimensions
+        )
 
         # Index each chunk as a separate document
         for i, (chunk, vect) in enumerate(zip(slim_doc["chunks"], embeddings)):
@@ -262,10 +345,9 @@ class TaskProcessor:
                 chunk_doc["allowed_groups"] = acl.allowed_groups
             else:
                 # Fallback to owner_user_id if no ACL (local uploads)
-                if owner_user_id is not None:
-                    chunk_doc["owner"] = owner_user_id
-                    chunk_doc["allowed_users"] = []
-                    chunk_doc["allowed_groups"] = []
+                chunk_doc["owner"] = owner_user_id
+                chunk_doc["allowed_users"] = []
+                chunk_doc["allowed_groups"] = []
 
             # Set owner metadata fields (for display)
             if owner_name is not None:
@@ -318,18 +400,21 @@ class DocumentFileProcessor(TaskProcessor):
     def __init__(
         self,
         document_service,
+        models_service,
         owner_user_id: str = None,
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
         is_sample_data: bool = False,
+        connector_type: str = "local",
     ):
-        super().__init__(document_service)
+        super().__init__(document_service, models_service)
         self.owner_user_id = owner_user_id
         self.jwt_token = jwt_token
         self.owner_name = owner_name
         self.owner_email = owner_email
         self.is_sample_data = is_sample_data
+        self.connector_type = connector_type
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -363,7 +448,7 @@ class DocumentFileProcessor(TaskProcessor):
                 owner_name=self.owner_name,
                 owner_email=self.owner_email,
                 file_size=file_size,
-                connector_type="local",
+                connector_type=self.connector_type,
                 is_sample_data=self.is_sample_data,
             )
 
@@ -396,8 +481,10 @@ class ConnectorFileProcessor(TaskProcessor):
         owner_name: str = None,
         owner_email: str = None,
         document_service=None,
+        models_service=None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(document_service=document_service)
+        super().__init__(document_service=document_service, models_service=models_service)
         self.connector_service = connector_service
         self.connection_id = connection_id
         self.files_to_process = files_to_process
@@ -405,6 +492,7 @@ class ConnectorFileProcessor(TaskProcessor):
         self.jwt_token = jwt_token
         self.owner_name = owner_name
         self.owner_email = owner_email
+        self.ingest_settings = ingest_settings
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -451,6 +539,23 @@ class ConnectorFileProcessor(TaskProcessor):
                 # Compute hash
                 file_hash = hash_id(tmp_path)
 
+                standard_kwargs: Dict[str, Any] = {}
+                if isinstance(self.ingest_settings, dict):
+                    s = self.ingest_settings
+                    em = s.get("embeddingModel")
+                    if isinstance(em, str) and em.strip():
+                        standard_kwargs["embedding_model"] = em.strip()
+                    for ui_key, param in (
+                        ("chunkSize", "chunk_size"),
+                        ("chunkOverlap", "chunk_overlap"),
+                    ):
+                        raw = s.get(ui_key)
+                        if raw is not None:
+                            try:
+                                standard_kwargs[param] = int(raw)
+                            except (TypeError, ValueError):
+                                pass
+
                 # Use consolidated standard processing
                 result = await self.process_document_standard(
                     file_path=tmp_path,
@@ -463,6 +568,7 @@ class ConnectorFileProcessor(TaskProcessor):
                     file_size=len(document.content),
                     connector_type=connection.connector_type,
                     acl=document.acl,
+                    **standard_kwargs,
                 )
 
                 # Add connector-specific metadata
@@ -496,6 +602,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
         self.langflow_connector_service = langflow_connector_service
@@ -505,6 +612,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
         self.jwt_token = jwt_token
         self.owner_name = owner_name
         self.owner_email = owner_email
+        self.ingest_settings = ingest_settings
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -574,6 +682,7 @@ class LangflowConnectorFileProcessor(TaskProcessor):
                     jwt_token=self.jwt_token,
                     owner_name=self.owner_name,
                     owner_email=self.owner_email,
+                    ingest_settings=self.ingest_settings,
                 )
 
             file_task.status = TaskStatus.COMPLETED
@@ -601,10 +710,11 @@ class S3FileProcessor(TaskProcessor):
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        models_service=None,
     ):
         import boto3
 
-        super().__init__(document_service)
+        super().__init__(document_service, models_service)
         self.bucket = bucket
         self.s3_client = s3_client or boto3.client("s3")
         self.owner_user_id = owner_user_id
@@ -623,7 +733,6 @@ class S3FileProcessor(TaskProcessor):
         import asyncio
         import datetime
         from config.settings import clients, get_embedding_model, get_index_name
-        from services.document_service import chunk_texts_for_embeddings
         file_task.status = TaskStatus.RUNNING
         file_task.updated_at = time.time()
 
@@ -688,6 +797,7 @@ class LangflowFileProcessor(TaskProcessor):
         settings: dict = None,
         delete_after_ingest: bool = True,
         replace_duplicates: bool = False,
+        connector_type: str = "local",
     ):
         super().__init__()
         self.langflow_file_service = langflow_file_service
@@ -701,6 +811,7 @@ class LangflowFileProcessor(TaskProcessor):
         self.settings = settings
         self.delete_after_ingest = delete_after_ingest
         self.replace_duplicates = replace_duplicates
+        self.connector_type = connector_type
 
     async def process_item(
         self, upload_task: UploadTask, item: str, file_task: FileTask
@@ -774,22 +885,6 @@ class LangflowFileProcessor(TaskProcessor):
 
             # Prepare metadata tweaks similar to API endpoint
             final_tweaks = self.tweaks.copy() if self.tweaks else {}
-            
-            metadata_tweaks = []
-            if self.owner_user_id:
-                metadata_tweaks.append({"key": "owner", "value": self.owner_user_id})
-            if self.owner_name:
-                metadata_tweaks.append({"key": "owner_name", "value": self.owner_name})
-            if self.owner_email:
-                metadata_tweaks.append({"key": "owner_email", "value": self.owner_email})
-            # Mark as local upload for connector_type
-            metadata_tweaks.append({"key": "connector_type", "value": "local"})
-
-            if metadata_tweaks:
-                # Initialize the OpenSearch component tweaks if not already present
-                if "OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4" not in final_tweaks:
-                    final_tweaks["OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4"] = {}
-                final_tweaks["OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4"]["docs_metadata"] = metadata_tweaks
 
             # Process file using langflow service
             result = await self.langflow_file_service.upload_and_ingest_file(
@@ -802,8 +897,7 @@ class LangflowFileProcessor(TaskProcessor):
                 owner=self.owner_user_id,
                 owner_name=self.owner_name,
                 owner_email=self.owner_email,
-                connector_type="local",
-
+                connector_type=self.connector_type,
             )
 
             # Update task with success
@@ -819,3 +913,6 @@ class LangflowFileProcessor(TaskProcessor):
             file_task.updated_at = time.time()
             upload_task.failed_files += 1
             raise
+
+
+from .url import LangflowUrlProcessor

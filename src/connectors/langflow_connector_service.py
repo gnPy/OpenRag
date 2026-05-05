@@ -43,6 +43,7 @@ class LangflowConnectorService:
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Process a document from a connector using LangflowFileService pattern"""
 
@@ -107,8 +108,16 @@ class LangflowConnectorService:
                     "Running Langflow ingestion flow", file_path=langflow_file_path
                 )
 
-                # Use the same tweaks pattern as LangflowFileService
-                tweaks = {}  # Let Langflow handle the ingestion with default settings
+                connector_tweak_settings = None
+                if isinstance(ingest_settings, dict):
+                    connector_tweak_settings = dict(ingest_settings)
+                    # Model selection is injected via selected_embedding_model header override.
+                    # Avoid hard-coding provider-specific embedding component tweak IDs here.
+                    connector_tweak_settings.pop("embeddingModel", None)
+
+                tweaks = LangflowFileService.merge_ui_ingest_settings_into_tweaks(
+                    {}, connector_tweak_settings
+                )
 
                 # Extract ACL information from the connector document, if available
                 allowed_users: list[str] = []
@@ -135,6 +144,11 @@ class LangflowConnectorService:
                     source_url=document.source_url,
                     allowed_users=allowed_users,
                     allowed_groups=allowed_groups,
+                    selected_embedding_model=(
+                        ingest_settings.get("embeddingModel")
+                        if isinstance(ingest_settings, dict)
+                        else None
+                    ),
                 )
 
                 logger.debug("Ingestion flow completed", result=ingestion_result)
@@ -279,6 +293,7 @@ class LangflowConnectorService:
         file_ids: List[str],
         jwt_token: str = None,
         file_infos: List[Dict[str, Any]] = None,
+        ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> str:
         """
         Sync specific files by their IDs using Langflow processing.
@@ -331,39 +346,40 @@ class LangflowConnectorService:
             original_folder_ids = getattr(cfg, "folder_ids", None)
 
         expanded_file_ids = file_ids  # Default to original IDs
-        
-        try:
-            # Set the file_ids we want to sync in the connector's config
-            if cfg is not None:
+
+        # Only attempt folder expansion for connectors that use cfg-based filtering
+        # (Google Drive, OneDrive, SharePoint). Connectors without a cfg attribute
+        # (e.g. IBM COS) receive pre-filtered file IDs and must NOT call list_files()
+        # here — doing so would re-list all files from all buckets, overwriting the
+        # carefully selected IDs passed in.
+        if cfg is not None:
+            try:
                 cfg.file_ids = file_ids  # type: ignore
                 cfg.folder_ids = None  # type: ignore
 
-            # Get the expanded list of file IDs (folders will be expanded to their contents)
-            # This uses the connector's list_files() which calls _iter_selected_items()
-            result = await connector.list_files()
-            expanded_file_ids = [f["id"] for f in result.get("files", [])]
+                # Expand file IDs — folders become their individual file contents
+                result = await connector.list_files()
+                expanded_file_ids = [f["id"] for f in result.get("files", [])]
 
-            if not expanded_file_ids:
-                logger.warning(
-                    f"No files found after expanding file_ids. "
-                    f"Original IDs: {file_ids}. This may indicate all IDs were folders "
-                    f"with no contents, or files that were filtered out."
-                )
-                # If we have file_infos with download URLs, use original file_ids
-                # (OneDrive sharing IDs can't be expanded but can be downloaded directly)
-                if file_infos:
-                    logger.info("Using original file IDs with cached download URLs")
-                    expanded_file_ids = file_ids
-                else:
-                    raise ValueError("No files to sync after expanding folders")
+                if not expanded_file_ids:
+                    logger.warning(
+                        f"No files found after expanding file_ids. "
+                        f"Original IDs: {file_ids}. This may indicate all IDs were folders "
+                        f"with no contents, or files that were filtered out."
+                    )
+                    # If we have file_infos with download URLs, use original file_ids
+                    # (OneDrive sharing IDs can't be expanded but can be downloaded directly)
+                    if file_infos:
+                        logger.info("Using original file IDs with cached download URLs")
+                        expanded_file_ids = file_ids
+                    else:
+                        raise ValueError("No files to sync after expanding folders")
 
-        except Exception as e:
-            logger.error(f"Failed to expand file_ids via list_files(): {e}")
-            # Fallback to original file_ids if expansion fails
-            expanded_file_ids = file_ids
-        finally:
-            # Restore original config values
-            if cfg is not None:
+            except Exception as e:
+                logger.error(f"Failed to expand file_ids via list_files(): {e}")
+                # Fallback to original file_ids if expansion fails
+                expanded_file_ids = file_ids
+            finally:
                 cfg.file_ids = original_file_ids  # type: ignore
                 cfg.folder_ids = original_folder_ids  # type: ignore
 
@@ -375,6 +391,7 @@ class LangflowConnectorService:
             jwt_token=jwt_token,
             owner_name=owner_name,
             owner_email=owner_email,
+            ingest_settings=ingest_settings,
         )
 
         # Create custom task using TaskService

@@ -16,7 +16,9 @@ import { ProgressBar } from "@/app/onboarding/_components/progress-bar";
 import { AnimatedConditional } from "@/components/animated-conditional";
 import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useChat } from "@/contexts/chat-context";
+import { page } from "@/lib/analytics";
 import {
   ANIMATION_DURATION,
   HEADER_HEIGHT,
@@ -36,6 +38,7 @@ export function ChatRenderer({
   const router = useRouter();
   const queryClient = useQueryClient(); // Move hook to component level
   const { isAuthenticated, isNoAuthMode } = useAuth();
+  const isCloudBrand = useIsCloudBrand();
   const {
     endpoint,
     refreshTrigger,
@@ -65,6 +68,13 @@ export function ChatRenderer({
       setShowLayout(settings.onboarding.current_step >= TOTAL_ONBOARDING_STEPS);
     }
   }, [settings?.onboarding?.current_step]);
+
+  useEffect(() => {
+    if (!showLayout) {
+      page("OpenRAG - Onboarding Page Viewed");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Only fetch conversations on chat page
   const isOnChatPage = pathname === "/" || pathname === "/chat";
@@ -278,8 +288,8 @@ export function ChatRenderer({
           }}
           animate={{
             width: showLayout ? "100%" : "850px",
-            borderRadius: showLayout ? "0" : "16px",
             border: showLayout ? "0" : "1px solid hsl(var(--border))",
+            borderRadius: showLayout || isCloudBrand ? "0" : "16px",
             height: showLayout ? "100%" : "800px",
             x: x,
             y: y,
@@ -301,7 +311,7 @@ export function ChatRenderer({
             className={cn(
               "h-full bg-background w-full",
               showLayout && !isOnChatPage && "p-6 container",
-              showLayout && isSmallWidthPath && "max-w-[920px] ml-0",
+              showLayout && isSmallWidthPath && "max-w-content mx-auto",
               !showLayout && "p-0 py-2",
             )}
           >
@@ -318,6 +328,7 @@ export function ChatRenderer({
                 delay: ANIMATION_DURATION,
               }}
               className={cn("w-full h-full")}
+              data-testid={showLayout ? "onboarding-completed" : undefined}
             >
               {showLayout && (
                 <div className={cn("w-full h-full", !showLayout && "hidden")}>

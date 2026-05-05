@@ -19,6 +19,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useTask } from "@/contexts/task-context";
 import { formatFilesToDelete } from "@/lib/format-files-to-delete";
 import { DeleteConfirmationDialog } from "./delete-confirmation-dialog";
 import { Button } from "./ui/button";
@@ -39,6 +40,7 @@ export const KnowledgeActionsDropdown = ({
   filename,
   connectorType,
 }: KnowledgeActionsDropdownProps) => {
+  const { refreshTasks } = useTask();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const deleteDocumentMutation = useDeleteDocument();
   const syncConnectorMutation = useSyncConnector();
@@ -57,13 +59,23 @@ export const KnowledgeActionsDropdown = ({
 
   const handleDelete = async () => {
     try {
-      await deleteDocumentMutation.mutateAsync({ filename });
-      toast.success(`Successfully deleted "${filename}"`);
+      const result = await deleteDocumentMutation.mutateAsync({ filename });
+      await refreshTasks();
+      if ((result.deleted_chunks || 0) > 0) {
+        toast.success("Successfully deleted document", {
+          description: formatFilesToDelete([{ filename }], 1),
+        });
+      } else {
+        toast.warning(
+          "No document chunks were deleted. The file may be missing or not deletable in your current context.",
+        );
+      }
       setShowDeleteDialog(false);
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to delete document",
       );
+      setShowDeleteDialog(false);
     }
   };
 

@@ -74,6 +74,9 @@ export interface IngestTaskStatus {
 export interface DeleteDocumentResponse {
   success: boolean;
   deleted_chunks: number;
+  filename?: string | null;
+  message?: string | null;
+  error?: string | null;
 }
 
 // Chat history types
@@ -227,8 +230,12 @@ export interface DeleteKnowledgeFilterResponse {
 
 // Client options
 export interface OpenRAGClientOptions {
-  /** API key for authentication. Falls back to OPENRAG_API_KEY env var. */
+  /** API key for authentication. Falls back to OPENRAG_API_KEY env var.
+   *  Optional when using IBM auth — pass credentials via extraHeaders instead. */
   apiKey?: string;
+  /** Additional headers forwarded on every request. Used in IBM auth mode
+   *  to pass X-Username and X-Api-Key from the user's MCP config. */
+  extraHeaders?: Record<string, string>;
   /** Base URL for the API. Falls back to OPENRAG_URL env var. */
   baseUrl?: string;
   /** Request timeout in milliseconds (default 30000). */
