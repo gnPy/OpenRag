@@ -54,3 +54,5 @@ documents/docling.pdf
 /opensearch-data2
 data/openrag.db
 data/openrag.db
+*.db
+/data
