@@ -88,6 +88,10 @@ def get_flows_service(services: dict = Depends(get_services)):
     return services["flows_service"]
 
 
+def get_docling_service(services: dict = Depends(get_services)):
+    return services["docling_service"]
+
+
 # ─────────────────────────────────────────────
 # IBM AMS authentication helper
 # ─────────────────────────────────────────────
