@@ -10,15 +10,23 @@ import {
   type ValueGetterParams,
 } from "ag-grid-community";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
-import { AlertTriangle, Cloud, FileIcon, Globe, RefreshCw } from "lucide-react";
+import {
+  AlertTriangle,
+  Cloud,
+  FileIcon,
+  Globe,
+  Loader2,
+  RefreshCw,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KnowledgeDropdown } from "@/components/knowledge-dropdown";
 import { ProtectedRoute } from "@/components/protected-route";
 import { Banner, BannerIcon, BannerTitle } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { useKnowledgeFilter } from "@/contexts/knowledge-filter-context";
 import { useTask } from "@/contexts/task-context";
+import type { KnowledgeFilter } from "../api/queries/useGetFiltersSearchQuery";
 import {
   EMPTY_SEARCH_RESULT,
   type File,
@@ -32,6 +40,16 @@ import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdow
 import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
 import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
 import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { StatusBadge } from "@/components/ui/status-badge";
 import {
   Tooltip,
@@ -42,6 +60,7 @@ import { useIsCloudBrand } from "@/contexts/brand-context";
 import {
   buildKnowledgeTableRows,
   getKnowledgeFileIdentity,
+  getRenameCurrentFilename,
 } from "@/lib/knowledge-table-state";
 import { parseTimestampMs } from "@/lib/time-utils";
 import { cn } from "@/lib/utils";
@@ -57,6 +76,10 @@ import OneDriveIcon from "../../components/icons/one-drive-logo";
 import SharePointIcon from "../../components/icons/share-point-logo";
 import { useDeleteDocument } from "../api/mutations/useDeleteDocument";
 import { useRefreshOpenragDocs } from "../api/mutations/useRefreshOpenragDocs";
+import {
+  type RenameDocumentResponse,
+  useRenameDocument,
+} from "../api/mutations/useRenameDocument";
 import { useSyncAllConnectors } from "../api/mutations/useSyncConnector";
 
 // Function to get the appropriate icon for a connector type
@@ -100,7 +123,8 @@ function SearchPage() {
     setRecentTasksExpanded,
     selectTask,
   } = useTask();
-  const { parsedFilterData, queryOverride } = useKnowledgeFilter();
+  const { parsedFilterData, queryOverride, selectedFilter, setSelectedFilter } =
+    useKnowledgeFilter();
   const [selectedRows, setSelectedRows] = useState<File[]>([]);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const lastErrorRef = useRef<string | null>(null);
@@ -108,8 +132,199 @@ function SearchPage() {
   const seenFailedFileKeysRef = useRef<Set<string>>(new Set());
 
   const deleteDocumentMutation = useDeleteDocument();
+  const renameDocumentMutation = useRenameDocument();
   const syncAllConnectorsMutation = useSyncAllConnectors();
   const refreshOpenragDocsMutation = useRefreshOpenragDocs();
+
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameCurrentFilename, setRenameCurrentFilename] = useState("");
+  /** Grid/source column label — may differ from indexed filename (e.g. URL vs stored path). */
+  const [renameDisplayLabel, setRenameDisplayLabel] = useState("");
+  const [renameNewFilename, setRenameNewFilename] = useState("");
+  const [renameDocumentId, setRenameDocumentId] = useState<
+    string | undefined
+  >();
+  const [renamePartialSummary, setRenamePartialSummary] = useState<{
+    updated_chunks: number;
+    remaining_old_chunks: number;
+    matched_chunks: number;
+  } | null>(null);
+  /** True for the whole Save/Retry flow: API call + search refetch (avoids a jarring grid flash). */
+  const [renameInProgress, setRenameInProgress] = useState(false);
+
+  const openRenameDialog = useCallback(
+    (target: {
+      filename: string;
+      renameCurrentFilename?: string;
+      documentId?: string;
+    }) => {
+      const label = target.filename.trim();
+      setRenameDisplayLabel(label);
+      setRenameCurrentFilename(
+        (target.renameCurrentFilename ?? target.filename).trim(),
+      );
+      setRenameDocumentId(target.documentId);
+      setRenameNewFilename(target.filename);
+      setRenamePartialSummary(null);
+      setRenameDialogOpen(true);
+    },
+    [],
+  );
+
+  const renamePrimaryActionLabel = useMemo(() => {
+    if (!renameInProgress) {
+      return renamePartialSummary ? "Continue" : "Save";
+    }
+    if (renameDocumentMutation.isPending) {
+      return renamePartialSummary ? "Renaming chunks…" : "Saving…";
+    }
+    return "Syncing list…";
+  }, [
+    renameInProgress,
+    renameDocumentMutation.isPending,
+    renamePartialSummary,
+  ]);
+
+  const handleRenameSave = useCallback(async () => {
+    const next = renameNewFilename.trim();
+    if (!next) {
+      toast.error("Enter a new file name");
+      return;
+    }
+    const trimIdx = renameCurrentFilename.trim();
+    const trimDisp = renameDisplayLabel.trim();
+    if (next === trimIdx) {
+      toast.error("New name must differ from the current name");
+      return;
+    }
+    if (trimDisp && trimDisp !== trimIdx && next === trimDisp) {
+      toast.error("Enter a different name", {
+        description:
+          "The list label can differ from the stored file name. Type a new name before saving.",
+        id: "knowledge-rename-validation",
+        duration: 7000,
+      });
+      return;
+    }
+    setRenameInProgress(true);
+    try {
+      const hadPartialBefore = renamePartialSummary !== null;
+
+      const result = await renameDocumentMutation.mutateAsync({
+        current_filename: renameCurrentFilename,
+        new_filename: next,
+        document_id: renameDocumentId ?? null,
+      });
+
+      await queryClient.invalidateQueries({ queryKey: ["search"] });
+      if (!result.partial) {
+        await queryClient.refetchQueries({
+          queryKey: ["knowledge-filters", "all"],
+        });
+        const freshFilters = queryClient.getQueryData<KnowledgeFilter[]>([
+          "knowledge-filters",
+          "all",
+        ]);
+        if (selectedFilter && freshFilters?.length) {
+          const nextFilter = freshFilters.find(
+            (f) => f.id === selectedFilter.id,
+          );
+          if (nextFilter) setSelectedFilter(nextFilter);
+        }
+      }
+      await refreshTasks();
+
+      const persistRenameDocumentId = (r: RenameDocumentResponse) => {
+        const raw = r.document_id;
+        if (raw == null) return;
+        const id = String(raw).trim();
+        if (id) setRenameDocumentId(id);
+      };
+
+      if (result.partial) {
+        persistRenameDocumentId(result);
+        const updated = result.updated_chunks ?? 0;
+        const remaining = result.remaining_old_chunks ?? 0;
+        const matched = result.matched_chunks ?? 0;
+        setRenamePartialSummary({
+          updated_chunks: updated,
+          remaining_old_chunks: remaining,
+          matched_chunks: matched,
+        });
+        toast.warning("Rename partially applied", {
+          description: `${updated} chunk(s) updated; ${remaining} still use the old name. Continue to rename the remaining chunks.`,
+        });
+        return;
+      }
+
+      setRenamePartialSummary(null);
+      setRenameDialogOpen(false);
+      setRenameNewFilename("");
+
+      persistRenameDocumentId(result);
+
+      if (result.success && result.idempotent) {
+        toast.success(
+          hadPartialBefore ? "Rename complete" : "Name already in sync",
+          {
+            description: `Every indexed chunk uses "${next}".`,
+          },
+        );
+        return;
+      }
+
+      if (
+        result.success &&
+        result.resumed &&
+        (result.updated_chunks || 0) > 0
+      ) {
+        toast.success("Rename complete", {
+          description: `All remaining chunks now use "${next}".`,
+        });
+        return;
+      }
+
+      if (
+        result.success &&
+        (result.updated_chunks || 0) > 0 &&
+        hadPartialBefore
+      ) {
+        toast.success("Rename complete", {
+          description: `All chunks now use "${next}".`,
+        });
+        return;
+      }
+
+      if (result.success && (result.updated_chunks || 0) > 0) {
+        toast.success("Document renamed", {
+          description: `${renameCurrentFilename} → ${next}`,
+        });
+      } else {
+        toast.warning("Rename finished but no chunks were updated.");
+      }
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to rename document",
+        {
+          id: "knowledge-rename-error",
+          duration: 8000,
+        },
+      );
+    } finally {
+      setRenameInProgress(false);
+    }
+  }, [
+    queryClient,
+    renameCurrentFilename,
+    renameDisplayLabel,
+    renameDocumentId,
+    renameDocumentMutation,
+    renameNewFilename,
+    renamePartialSummary,
+    refreshTasks,
+    selectedFilter,
+    setSelectedFilter,
+  ]);
 
   useEffect(() => {
     refreshTasks();
@@ -311,6 +526,7 @@ function SearchPage() {
       lastErrorRef.current = null;
     }
   }, [isError, error]);
+
   const fileResults = buildKnowledgeTableRows(
     searchFiles,
     taskFiles,
@@ -566,7 +782,10 @@ function SearchPage() {
         return (
           <KnowledgeActionsDropdown
             filename={data?.filename || ""}
+            renameCurrentFilename={data ? getRenameCurrentFilename(data) : ""}
+            documentId={data?.document_id}
             connectorType={data?.connector_type}
+            onOpenRename={openRenameDialog}
           />
         );
       },
@@ -836,7 +1055,11 @@ function SearchPage() {
             className="w-full overflow-auto border"
             columnDefs={columnDefs as ColDef<File>[]}
             defaultColDef={defaultColDef}
-            loading={isSearchLoading || deleteDocumentMutation.isPending}
+            loading={
+              isSearchLoading ||
+              deleteDocumentMutation.isPending ||
+              renameInProgress
+            }
             ref={gridRef}
             theme={themeQuartz.withParams({ browserColorScheme: "inherit" })}
             rowData={gridRows}
@@ -867,7 +1090,11 @@ function SearchPage() {
             className="w-full overflow-auto"
             columnDefs={columnDefs as ColDef<File>[]}
             defaultColDef={defaultColDef}
-            loading={isSearchLoading || deleteDocumentMutation.isPending}
+            loading={
+              isSearchLoading ||
+              deleteDocumentMutation.isPending ||
+              renameInProgress
+            }
             ref={gridRef}
             theme={themeQuartz.withParams({ browserColorScheme: "inherit" })}
             rowData={gridRows}
@@ -895,6 +1122,98 @@ function SearchPage() {
           />
         )}
       </div>
+
+      <Dialog
+        open={renameDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && renameInProgress) {
+            return;
+          }
+          setRenameDialogOpen(open);
+          if (!open) {
+            setRenameNewFilename("");
+            setRenamePartialSummary(null);
+          }
+        }}
+      >
+        <DialogContent
+          className="flex h-[min(28rem,85vh)] max-h-[85vh] flex-col gap-0 overflow-hidden p-0 sm:max-w-md"
+          onPointerDownOutside={(e) =>
+            renameInProgress ? e.preventDefault() : undefined
+          }
+          onEscapeKeyDown={(e) =>
+            renameInProgress ? e.preventDefault() : undefined
+          }
+        >
+          <div className="shrink-0 px-6 pt-6 pr-12">
+            <DialogHeader className="space-y-1.5 p-0 text-left">
+              <DialogTitle>Rename document</DialogTitle>
+              <DialogDescription>
+                Updates the display name for this file in search and knowledge.
+                Document content and internal id are unchanged.
+              </DialogDescription>
+            </DialogHeader>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6">
+            <div className="grid gap-2 py-2">
+              <Label htmlFor="knowledge-rename-filename-input">New name</Label>
+              <Input
+                id="knowledge-rename-filename-input"
+                value={renameNewFilename}
+                onChange={(e) => setRenameNewFilename(e.target.value)}
+                disabled={renameInProgress}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    void handleRenameSave();
+                  }
+                }}
+                autoFocus
+              />
+              <div aria-live="polite">
+                {renamePartialSummary ? (
+                  <div className="rounded-md border border-amber-500/25 bg-amber-500/5 px-3 py-2.5">
+                    <p className="text-pretty text-sm text-amber-800 line-clamp-4 dark:text-amber-200">
+                      Partial rename: {renamePartialSummary.updated_chunks} of{" "}
+                      {renamePartialSummary.matched_chunks} matching chunk(s)
+                      now use &quot;{renameNewFilename.trim()}&quot;.{" "}
+                      {renamePartialSummary.remaining_old_chunks} still use the
+                      old name. Continue to rename the remaining chunks or
+                      Cancel to stop.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+          <div className="shrink-0 border-t bg-background px-6 py-4">
+            <DialogFooter className="flex flex-row items-center justify-end gap-2 p-0 sm:space-x-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenameDialogOpen(false)}
+                disabled={renameInProgress}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={() => void handleRenameSave()}
+                disabled={renameInProgress}
+                className="min-w-[7.5rem]"
+              >
+                {renameInProgress ? (
+                  <Loader2
+                    className="mr-2 h-4 w-4 shrink-0 animate-spin"
+                    aria-hidden
+                  />
+                ) : null}
+                {renamePrimaryActionLabel}
+              </Button>
+            </DialogFooter>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bulk Delete Confirmation Dialog */}
       <DeleteConfirmationDialog

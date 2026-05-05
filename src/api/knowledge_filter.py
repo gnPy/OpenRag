@@ -29,6 +29,7 @@ def normalize_query_data(query_data: str | dict) -> str:
     filters = data.get("filters") or {}
     normalized_filters = {
         "data_sources": filters.get("data_sources", ["*"]),
+        "data_source_refs": filters.get("data_source_refs", []),
         "document_types": filters.get("document_types", ["*"]),
         "owners": filters.get("owners", ["*"]),
         "connector_types": filters.get("connector_types", ["*"]),
@@ -91,6 +92,12 @@ async def create_knowledge_filter(
         return JSONResponse({"error": f"Invalid queryData format: {str(e)}"}, status_code=400)
 
     jwt_token = user.jwt_token
+
+    normalized_query_data = await knowledge_filter_service.enrich_data_source_refs_in_query_data(
+        normalized_query_data,
+        user_id=user.user_id,
+        jwt_token=jwt_token,
+    )
 
     filter_id = str(uuid.uuid4())
     filter_doc = {
@@ -195,6 +202,12 @@ async def update_knowledge_filter(
     except Exception as e:
         logger.error(f"Failed to normalize query_data: {e}")
         return JSONResponse({"error": f"Invalid queryData format: {str(e)}"}, status_code=400)
+
+    normalized_query_data = await knowledge_filter_service.enrich_data_source_refs_in_query_data(
+        normalized_query_data,
+        user_id=user.user_id,
+        jwt_token=jwt_token,
+    )
 
     updated_filter = {
         "id": filter_id,
