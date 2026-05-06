@@ -364,6 +364,10 @@ class AppClients:
             )
         )
 
+        # Eagerly initialize DoclingService to ensure thread-safety
+        from services.docling_service import DoclingService
+        self._docling_service = DoclingService(httpx_client=self.docling_http_client)
+
         # Initialize Langflow HTTP client with extended timeouts for large documents
         # Must be created before wait_for_langflow / get_langflow_api_key
         # Use explicit timeout configuration to handle large PDF ingestion (300+ pages)
@@ -607,12 +611,19 @@ class AppClients:
     @property
     def docling_service(self):
         """Property that ensures DoclingService is initialized."""
+        # Quick check without lock
         if self._docling_service is not None:
             return self._docling_service
 
-        from services.docling_service import DoclingService
-        self._docling_service = DoclingService(httpx_client=self.docling_http_client)
-        return self._docling_service
+        # Use lock to ensure only one thread initializes
+        with self._client_init_lock:
+            # Double-check after acquiring lock
+            if self._docling_service is not None:
+                return self._docling_service
+
+            from services.docling_service import DoclingService
+            self._docling_service = DoclingService(httpx_client=self.docling_http_client)
+            return self._docling_service
 
     async def cleanup(self):
         """Cleanup resources - should be called on application shutdown"""
