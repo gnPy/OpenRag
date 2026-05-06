@@ -1,12 +1,11 @@
 from typing import List
 import tiktoken
 from utils.logging_config import get_logger
+from config.settings import get_embedding_model, get_index_name
+from utils.document_processing import extract_relevant
 
 logger = get_logger(__name__)
 
-from config.settings import clients, get_embedding_model, get_index_name
-from utils.document_processing import extract_relevant
-from utils.telemetry import TelemetryClient, Category, MessageId
 
 
 def get_token_count(text: str, model: str = None) -> int:
@@ -160,7 +159,7 @@ class DocumentService:
             )
             return result
 
-    async def process_upload_context(self, upload_file, filename: str = None):
+    async def process_upload_context(self, upload_file, filename: str = None, user_id: str = None, jwt_token: str = None):
         """Process uploaded file and return content for context"""
         import io
         import os
@@ -192,7 +191,7 @@ class DocumentService:
                 "content_length": len(text_content),
             }
         else:
-            full_doc = await self.docling_service.convert_bytes(content.read(), filename)
+            full_doc = await self.docling_service.convert_bytes(content.read(), filename, user_id=user_id, auth_header=jwt_token)
             slim_doc = extract_relevant(full_doc)
 
             # Extract all text content

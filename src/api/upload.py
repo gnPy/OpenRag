@@ -123,7 +123,9 @@ async def upload_context(
 
     jwt_token = user.jwt_token
 
-    doc_result = await document_service.process_upload_context(file, filename)
+    doc_result = await document_service.process_upload_context(
+        file, filename, user_id=user_id, jwt_token=jwt_token
+    )
 
     from config.settings import is_no_auth_mode
     is_no_auth = is_no_auth_mode()
