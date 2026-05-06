@@ -1078,7 +1078,7 @@ class LangflowFileProcessor(TaskProcessor):
             # Some Langflow flows may still index chunks with empty document_id.
             # Normalize it here so content-based duplicate checks remain reliable.
             await self.ensure_document_id_for_filename(
-                original_filename,
+                langflow_filename,
                 file_hash,
                 opensearch_client,
                 owner_user_id=self.owner_user_id,

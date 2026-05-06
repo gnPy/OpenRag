@@ -112,11 +112,14 @@ def build_rename_source_url_match_query(
     Match chunks by exact source_url (when the UI grouped the row by URL but filename in index differs).
     JWT on the OpenSearch client scopes hits to the current user.
     """
-    must: List[dict] = []
     su = (source_url or "").strip()
+    did = (document_id or "").strip()
+    if not su and not did:
+        raise ValueError("source_url or document_id must be provided")
+
+    must: List[dict] = []
     if su:
         must.append({"term": {"source_url": su}})
-    did = (document_id or "").strip()
     if did:
         must.append({"term": {"document_id": did}})
     return {"bool": {"must": must}}

@@ -4,6 +4,7 @@ searches still hit documents after rename (label ≠ indexed filename, missing i
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Dict, List, Optional, Tuple
 
 from config.settings import get_index_name
@@ -134,20 +135,32 @@ async def enrich_search_filters_source_dimension(
         logger.warning("enrich_search_filters: no opensearch client", error=str(e))
         return out
 
+    async def _lookup_token(token: str) -> Tuple[Optional[str], Optional[str]]:
+        if not token:
+            return None, None
+        return await _sample_chunk_for_source_value(opensearch_client, index_name, token)
+
     if has_refs:
-        new_refs: List[Any] = []
+        prepared_refs: List[Any] = []
+        lookups = []
         for ref in refs_in:
+            if not isinstance(ref, dict):
+                prepared_refs.append(ref)
+                continue
+            r = dict(ref)
+            token = (r.get("document_id") or r.get("filename") or "").strip()
+            prepared_refs.append(r)
+            lookups.append(_lookup_token(token))
+        lookup_results = await asyncio.gather(*lookups)
+        new_refs: List[Any] = []
+        lookup_idx = 0
+        for ref in prepared_refs:
             if not isinstance(ref, dict):
                 new_refs.append(ref)
                 continue
             r = dict(ref)
-            token = (r.get("document_id") or r.get("filename") or "").strip()
-            if not token:
-                new_refs.append(r)
-                continue
-            cf, did = await _sample_chunk_for_source_value(
-                opensearch_client, index_name, token
-            )
+            cf, did = lookup_results[lookup_idx]
+            lookup_idx += 1
             if did:
                 r["document_id"] = did
             if cf:
@@ -157,16 +170,17 @@ async def enrich_search_filters_source_dimension(
         return out
 
     # Legacy: only data_sources tokens — build refs from index lookups
-    new_refs = []
+    source_values: List[str] = []
     for val in ds:
         if not isinstance(val, str):
             continue
         vs = val.strip()
         if not vs or vs == "*":
             continue
-        cf, did = await _sample_chunk_for_source_value(
-            opensearch_client, index_name, vs
-        )
+        source_values.append(vs)
+    lookup_results = await asyncio.gather(*[_lookup_token(vs) for vs in source_values])
+    new_refs = []
+    for vs, (cf, did) in zip(source_values, lookup_results):
         new_refs.append(
             {
                 "filename": cf or vs,

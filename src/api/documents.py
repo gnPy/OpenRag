@@ -18,22 +18,20 @@ async def _sync_knowledge_filters_after_rename(
     document_id: str | None,
 ) -> None:
     """Patch saved knowledge filters (refs + selection keys) after a successful rename."""
-    try:
-        from services.knowledge_filter_service import KnowledgeFilterService
+    from services.knowledge_filter_service import KnowledgeFilterService
 
-        svc = KnowledgeFilterService(session_manager)
-        await svc.sync_filters_after_document_rename(
-            old_filename=old_filename,
-            new_filename=new_filename,
-            document_id=document_id,
-            user_id=user_id,
-            jwt_token=jwt_token,
-        )
-    except Exception as e:
-        logger.warning(
-            "Could not sync knowledge filters after document rename",
-            error=str(e),
-            old_filename=old_filename,
+    svc = KnowledgeFilterService(session_manager)
+    sync_result = await svc.sync_filters_after_document_rename(
+        old_filename=old_filename,
+        new_filename=new_filename,
+        document_id=document_id,
+        user_id=user_id,
+        jwt_token=jwt_token,
+    )
+    if not sync_result.get("success", False):
+        raise RuntimeError(
+            "Could not sync knowledge filters after document rename: "
+            f"{sync_result.get('error', 'unknown error')}"
         )
 
 
@@ -538,6 +536,21 @@ async def rename_document_chunks_core(
                 },
                 400,
             )
+        if doc_id_opt is None and _saw_empty_doc_id:
+            return (
+                {
+                    "success": False,
+                    "updated_chunks": 0,
+                    "old_filename": current,
+                    "new_filename": new_name,
+                    "error": (
+                        "Some chunks for this file do not have document_id; "
+                        "re-index so all chunks are identifiable before renaming"
+                    ),
+                    "document_id": effective_doc_id,
+                },
+                400,
+            )
         if doc_id_opt and effective_doc_id and doc_id_opt != effective_doc_id:
             return (
                 {
@@ -552,6 +565,7 @@ async def rename_document_chunks_core(
             )
 
         query_apply = query_all
+        matched_total = total
         if effective_doc_id:
             query_strict = build_rename_match_query(user_id, aliases, effective_doc_id)
             strict_total = await _count_chunks_for_query(
@@ -600,6 +614,7 @@ async def rename_document_chunks_core(
                     400,
                 )
             query_apply = query_strict
+            matched_total = strict_total
 
         collision_exclude = effective_doc_id if effective_doc_id else None
         if await _rename_target_filename_taken(
@@ -646,7 +661,7 @@ async def rename_document_chunks_core(
             batch_updated = int(result.get("updated", 0) or 0)
             total_updated += batch_updated
 
-            if attempt == 0 and batch_updated == 0 and total > 0:
+            if attempt == 0 and batch_updated == 0 and matched_total > 0:
                 return (
                     {
                         "success": False,
@@ -660,7 +675,7 @@ async def rename_document_chunks_core(
                 )
 
             remaining_old = await _count_chunks_for_query(
-                opensearch_client, index_name, query_all
+                opensearch_client, index_name, query_apply
             )
             if remaining_old == 0:
                 logger.info(
@@ -704,7 +719,7 @@ async def rename_document_chunks_core(
         report_doc_id = effective_doc_id
         if report_doc_id is None:
             report_doc_id = await _sample_document_id_from_query(
-                opensearch_client, index_name, query_all
+                opensearch_client, index_name, query_apply
             )
         return (
             {
@@ -712,7 +727,7 @@ async def rename_document_chunks_core(
                 "partial": True,
                 "updated_chunks": total_updated,
                 "remaining_old_chunks": remaining_old,
-                "matched_chunks": total,
+                "matched_chunks": matched_total,
                 "old_filename": current,
                 "new_filename": new_name,
                 "error": (

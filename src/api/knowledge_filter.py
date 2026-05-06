@@ -190,12 +190,6 @@ async def update_knowledge_filter(
 
     existing_filter = existing_result["filter"]
 
-    delete_result = await knowledge_filter_service.delete_knowledge_filter(
-        filter_id, user_id=user.user_id, jwt_token=jwt_token
-    )
-    if not delete_result.get("success"):
-        return JSONResponse({"error": "Failed to delete existing knowledge filter"}, status_code=500)
-
     query_data = body.queryData if body.queryData is not None else existing_filter["query_data"]
     try:
         normalized_query_data = normalize_query_data(query_data)
@@ -208,6 +202,12 @@ async def update_knowledge_filter(
         user_id=user.user_id,
         jwt_token=jwt_token,
     )
+
+    delete_result = await knowledge_filter_service.delete_knowledge_filter(
+        filter_id, user_id=user.user_id, jwt_token=jwt_token
+    )
+    if not delete_result.get("success"):
+        return JSONResponse({"error": "Failed to delete existing knowledge filter"}, status_code=500)
 
     updated_filter = {
         "id": filter_id,
