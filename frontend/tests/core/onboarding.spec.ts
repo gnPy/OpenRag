@@ -24,13 +24,15 @@ test("can configure OpenAI provider", async ({ page }) => {
 
   await page
     .getByTestId("chat-input")
-    .fill("What is the ID of verification of the document?");
+    .fill(
+      "From the uploaded test document, return only the exact value after 'ID:'",
+    );
 
   await page.getByTestId("send-button").click();
 
   await expect(page.getByText("Thinking")).toBeVisible();
 
-  await expect(page.getByText("OPENRAG-GENERIC-ASSET-001")).toBeVisible({
+  await expect(page.getByText(/OPENRAG-GENERIC-ASSET-001/i)).toBeVisible({
     timeout: 60000,
   });
 
