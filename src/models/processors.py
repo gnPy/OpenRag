@@ -262,7 +262,9 @@ class TaskProcessor:
             if original_filename:
                 slim_doc["filename"] = original_filename
         else:
-            full_doc = await self.docling_service.convert_file(file_path)
+            full_doc = await self.docling_service.convert_file(
+                file_path, user_id=owner_user_id, auth_header=jwt_token
+            )
             slim_doc = extract_relevant(full_doc)
 
         if chunk_size is not None:

@@ -575,7 +575,7 @@ class LangflowFileService:
         # Step 1: Upload the file to Docling
         try:
             task_id = await self.docling_service.upload_to_docling_direct_async(
-                filename, content
+                filename, content, user_id=owner, auth_header=jwt_token
             )
             logger.debug(
                 "[LF] Docling upload completed successfully",
