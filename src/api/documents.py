@@ -38,11 +38,13 @@ async def _sync_knowledge_filters_after_rename(
             return False, error_msg
         return True, None
     except Exception as sync_err:
-        error_msg = (
-            "Could not sync knowledge filters after document rename: "
-            f"{str(sync_err)}"
+        logger.exception(
+            "Could not sync knowledge filters after document rename",
+            user_id=user_id,
+            document_id=document_id,
+            error=str(sync_err),
         )
-        logger.warning(error_msg, user_id=user_id, document_id=document_id)
+        error_msg = "Could not sync knowledge filters after document rename"
         return False, error_msg
 
 

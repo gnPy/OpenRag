@@ -87,7 +87,8 @@ class KnowledgeFilterService:
                 return {"success": False, "error": "Failed to create knowledge filter"}
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.exception("create_knowledge_filter failed", error=str(e))
+            return {"success": False, "error": "Failed to create knowledge filter"}
 
     async def upsert_knowledge_filter(
         self, filter_doc: Dict[str, Any], user_id: str = None, jwt_token: str = None
@@ -185,7 +186,12 @@ class KnowledgeFilterService:
             return {"success": True, "filters": filters}
 
         except Exception as e:
-            return {"success": False, "error": str(e), "filters": []}
+            logger.exception("search_knowledge_filters failed", error=str(e))
+            return {
+                "success": False,
+                "error": "Failed to search knowledge filters",
+                "filters": [],
+            }
 
     async def get_knowledge_filter(
         self, filter_id: str, user_id: str = None, jwt_token: str = None
@@ -208,7 +214,8 @@ class KnowledgeFilterService:
                 return {"success": False, "error": "Knowledge filter not found"}
 
         except Exception as e:
-            return {"success": False, "error": str(e)}
+            logger.exception("get_knowledge_filter failed", error=str(e))
+            return {"success": False, "error": "Failed to get knowledge filter"}
 
     async def update_knowledge_filter(
         self,
@@ -450,13 +457,17 @@ class KnowledgeFilterService:
                 )
             return {"success": True, "updated_filters": updated_count}
         except Exception as e:
-            logger.warning(
+            logger.exception(
                 "sync_filters_after_document_rename failed",
                 error=str(e),
                 old_filename=old,
                 user_id=user_id,
             )
-            return {"success": False, "error": str(e), "updated_filters": 0}
+            return {
+                "success": False,
+                "error": "Failed to sync knowledge filters after document rename",
+                "updated_filters": 0,
+            }
 
     async def delete_knowledge_filter(
         self, filter_id: str, user_id: str = None, jwt_token: str = None
