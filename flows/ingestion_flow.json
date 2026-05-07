@@ -828,7 +828,7 @@
             ],
             "frozen": false,
             "icon": "braces",
-            "last_updated": "2026-05-05T13:33:37.431Z",
+            "last_updated": "2026-05-07T20:10:20.028Z",
             "legacy": false,
             "lf_version": "1.7.0.dev21",
             "metadata": {},
@@ -878,7 +878,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "48713154-dcea-4b42-b772-268029c455d7"
+                "value": "99a6cf1d-17a4-46d3-8849-a39f0dde4334"
               },
               "_type": "Component",
               "code": {
@@ -1745,14 +1745,14 @@
         "dragging": false,
         "id": "DoclingRemote-Dp3PX",
         "measured": {
-          "height": 397,
-          "width": 320
+          "height": 52,
+          "width": 192
         },
         "position": {
           "x": -158.35302959149863,
           "y": 1766.5193585649456
         },
-        "selected": true,
+        "selected": false,
         "type": "genericNode"
       },
       {
@@ -4641,7 +4641,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "48713154-dcea-4b42-b772-268029c455d7"
+                "value": "99a6cf1d-17a4-46d3-8849-a39f0dde4334"
               },
               "_type": "Component",
               "api_base": {
@@ -6483,7 +6483,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "48713154-dcea-4b42-b772-268029c455d7"
+                "value": "99a6cf1d-17a4-46d3-8849-a39f0dde4334"
               },
               "_type": "Component",
               "api_base": {
@@ -7101,7 +7101,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "48713154-dcea-4b42-b772-268029c455d7"
+                "value": "99a6cf1d-17a4-46d3-8849-a39f0dde4334"
               },
               "_type": "Component",
               "api_base": {
@@ -7643,9 +7643,9 @@
       }
     ],
     "viewport": {
-      "x": 267.6557208461858,
-      "y": -373.3174538705754,
-      "zoom": 0.475706358533402
+      "x": 542.1216949582183,
+      "y": -2094.606713684799,
+      "zoom": 1.4380792818999626
     }
   },
   "description": "Load your data for chat context with Retrieval Augmented Generation.",

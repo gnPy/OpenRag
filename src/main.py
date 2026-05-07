@@ -163,6 +163,11 @@ async def wait_for_opensearch(opensearch_client=None):
 
 async def configure_alerting_security():
     """Configure OpenSearch alerting plugin security settings"""
+    from config.settings import IBM_AUTH_DEV_MODE, IBM_AUTH_ENABLED
+    if IBM_AUTH_ENABLED and IBM_AUTH_DEV_MODE:
+        logger.info("Skipping alerting security configuration in IBM dev mode.")
+        return
+
     try:
         # For testing, disable backend role filtering to allow all authenticated users
         # In production, you'd want to configure proper roles instead
@@ -250,22 +255,29 @@ async def init_index(opensearch_client=None, admin_username: str = None):
             )
         else:
             logger.info(
-                "Index already exists, skipping creation and changing number of replicas",
+                "Index already exists, skipping creation",
                 index_name=index_name,
                 embedding_model=embedding_model,
             )
-            # Set number of replicas to 0 to not create unused nodes in OpenSearch, in case it was created with more replicas
-            current = await os_client.indices.get_settings(index=index_name)
-            current_replicas = int(
-                current[index_name]["settings"]["index"].get("number_of_replicas", 1)
-            )
-            if current_replicas != 0:
-                await os_client.indices.put_settings(
-                    index=index_name,
-                    body={"index": {"number_of_replicas": 0}},
-                )
-                logger.info(
-                    "Updated documents index settings",
+            from config.settings import IBM_AUTH_DEV_MODE, IBM_AUTH_ENABLED
+            if not (IBM_AUTH_ENABLED and IBM_AUTH_DEV_MODE):
+                # Set number of replicas to 0 to not create unused nodes in OpenSearch, in case it was created with more replicas
+                try:
+                    current = await os_client.indices.get_settings(index=index_name)
+                    current_replicas = int(
+                        current[index_name]["settings"]["index"].get("number_of_replicas", 1)
+                    )
+                    if current_replicas != 0:
+                        await os_client.indices.put_settings(
+                            index=index_name,
+                            body={"index": {"number_of_replicas": 0}},
+                        )
+                        logger.info("Updated documents index settings")
+                except Exception as e:
+                    logger.warning(
+                        "Failed to check or update index replicas",
+                        index_name=index_name,
+                        error=str(e),
                     )
             await TelemetryClient.send_event(
                 Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_EXISTS
@@ -310,17 +322,24 @@ async def init_index(opensearch_client=None, admin_username: str = None):
                 index_name=knowledge_filter_index_name,
             )
 
-            current = await os_client.indices.get_settings(index=knowledge_filter_index_name)
-            current_replicas = int(
-                current[knowledge_filter_index_name]["settings"]["index"].get("number_of_replicas", 1)
-            )
-            if current_replicas != 0:
-                await os_client.indices.put_settings(
-                    index=knowledge_filter_index_name,
-                    body={"index": {"number_of_replicas": 0}},
-                )
-                logger.info(
-                    "Updated knowledge filters index settings",
+            from config.settings import IBM_AUTH_DEV_MODE, IBM_AUTH_ENABLED
+            if not (IBM_AUTH_ENABLED and IBM_AUTH_DEV_MODE):
+                try:
+                    current = await os_client.indices.get_settings(index=knowledge_filter_index_name)
+                    current_replicas = int(
+                        current[knowledge_filter_index_name]["settings"]["index"].get("number_of_replicas", 1)
+                    )
+                    if current_replicas != 0:
+                        await os_client.indices.put_settings(
+                            index=knowledge_filter_index_name,
+                            body={"index": {"number_of_replicas": 0}},
+                        )
+                        logger.info("Updated knowledge filters index settings")
+                except Exception as e:
+                    logger.warning(
+                        "Failed to check or update knowledge filters index replicas",
+                        index_name=knowledge_filter_index_name,
+                        error=str(e),
                     )
 
         # Create API keys index for public API authentication

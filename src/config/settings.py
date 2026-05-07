@@ -369,6 +369,7 @@ class AppClients:
 
         # Initialize docling-serve HTTP client for document conversion
         self.docling_http_client = httpx.AsyncClient(
+            verify=DOCLING_SERVE_VERIFY_SSL,
             timeout=httpx.Timeout(
                 timeout=INGESTION_TIMEOUT,
                 connect=30.0,
