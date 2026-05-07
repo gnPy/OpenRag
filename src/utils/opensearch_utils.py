@@ -184,7 +184,11 @@ async def setup_opensearch_security(
 
     This should be called during initial setup after OpenSearch is ready.
     """
-    from config.settings import IBM_AUTH_ENABLED
+    from config.settings import IBM_AUTH_ENABLED, IBM_AUTH_DEV_MODE
+    
+    if IBM_AUTH_ENABLED and IBM_AUTH_DEV_MODE:
+        logger.info("Skipping OpenSearch security configuration in IBM dev mode.")
+        return
 
     logger.info("Initializing OpenSearch security configuration...", ibm_auth=IBM_AUTH_ENABLED)
 

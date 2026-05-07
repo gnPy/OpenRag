@@ -112,7 +112,33 @@ async def _get_ibm_user(request: Request, required: bool) -> Optional["User"]:
     """
     import auth.ibm_auth as ibm_auth
     from auth.ibm_auth import extract_ibm_credentials
-    from config.settings import IBM_SESSION_COOKIE_NAME, IBM_CREDENTIALS_HEADER
+    from config.settings import (
+        IBM_SESSION_COOKIE_NAME,
+        IBM_CREDENTIALS_HEADER,
+        IBM_USERNAME,
+        IBM_PASSWORD,
+    )
+
+    # ── Option -1: Environment variable override (local dev/calls) ───────
+
+    if IBM_USERNAME and IBM_PASSWORD:
+        import base64
+
+        logger.debug("[AUTH] Using IBM_USERNAME and IBM_PASSWORD from environment")
+        creds = f"{IBM_USERNAME}:{IBM_PASSWORD}"
+        lh_credentials = base64.b64encode(creds.encode()).decode()
+        user = User(
+            user_id=IBM_USERNAME,
+            email=IBM_USERNAME,
+            name=IBM_USERNAME,
+            picture=None,
+            provider="ibm_ams_env",
+            jwt_token=f"Basic {lh_credentials}",
+            opensearch_username=IBM_USERNAME,
+            opensearch_credentials=lh_credentials,
+        )
+        request.state.user = user
+        return user
 
     # ── Option 0: Configurable credentials header (Traefik production) ───
 

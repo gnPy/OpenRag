@@ -506,7 +506,7 @@ class AuthService:
         # IBM auth mode: user is set by get_optional_user from IBM cookie
         if IBM_AUTH_ENABLED:
             user = getattr(request.state, "user", None)
-            if user and user.provider in ("ibm_ams", "ibm_ams_basic"):
+            if user and user.provider in ("ibm_ams", "ibm_ams_basic", "ibm_ams_env"):
                 return {
                     "authenticated": True,
                     "ibm_auth_mode": True,

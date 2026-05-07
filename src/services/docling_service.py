@@ -6,7 +6,7 @@ from typing import Any, Optional, Dict
 import httpx
 from pydantic import BaseModel
 
-from config.settings import get_openrag_config, DOCLING_SERVE_URL, IBM_AUTH_ENABLED
+from config.settings import get_openrag_config, DOCLING_SERVE_URL, IBM_AUTH_ENABLED, DOCLING_SERVE_VERIFY_SSL
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -65,7 +65,8 @@ class DoclingService:
             return self.httpx_client
         if DoclingService._default_client is None or DoclingService._default_client.is_closed:
             DoclingService._default_client = httpx.AsyncClient(
-                timeout=httpx.Timeout(300.0, connect=10.0)
+                timeout=httpx.Timeout(300.0, connect=10.0),
+                verify=DOCLING_SERVE_VERIFY_SSL
             )
         return DoclingService._default_client
 
