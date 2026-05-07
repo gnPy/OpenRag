@@ -95,7 +95,7 @@ class DoclingService:
                 headers["Authorization"] = auth_header
             
             if user_id:
-                headers["TENANT_ID"] = user_id
+                headers["X-Tenant-Id"] = user_id
         return headers
 
     async def upload_to_docling_direct_async(
