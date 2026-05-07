@@ -451,13 +451,15 @@ class ConnectionManager:
                 "name": IBMCOSConnector.CONNECTOR_NAME,
                 "description": IBMCOSConnector.CONNECTOR_DESCRIPTION,
                 "icon": IBMCOSConnector.CONNECTOR_ICON,
-                "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes"),
+                "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes")
+                or os.environ.get("NEXT_PUBLIC_IBM_THEME_DEV", "").lower() in ("1", "true", "yes"),
             },
             "aws_s3": {
                 "name": S3Connector.CONNECTOR_NAME,
                 "description": S3Connector.CONNECTOR_DESCRIPTION,
                 "icon": S3Connector.CONNECTOR_ICON,
-                "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes"),
+                "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes")
+                or os.environ.get("NEXT_PUBLIC_IBM_THEME_DEV", "").lower() in ("1", "true", "yes"),
             },
         }
 

@@ -656,7 +656,7 @@ export function KnowledgeDropdown() {
       icon: FolderIconWithColor,
       onClick: () => folderInputRef.current?.click(),
     },
-    ...(isIbmAuthMode && s3Configured
+    ...((isIbmAuthMode || isCloudBrand) && s3Configured
       ? [
           {
             label: "Amazon S3",
@@ -665,7 +665,7 @@ export function KnowledgeDropdown() {
           },
         ]
       : []),
-    ...(isIbmAuthMode && ibmCosConfigured
+    ...((isIbmAuthMode || isCloudBrand) && ibmCosConfigured
       ? [
           {
             label: "IBM Cloud Object Storage",
