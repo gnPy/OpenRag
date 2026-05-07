@@ -1077,12 +1077,20 @@ class LangflowFileProcessor(TaskProcessor):
 
             # Some Langflow flows may still index chunks with empty document_id.
             # Normalize it here so content-based duplicate checks remain reliable.
-            await self.ensure_document_id_for_filename(
-                langflow_filename,
-                file_hash,
-                opensearch_client,
-                owner_user_id=self.owner_user_id,
-            )
+            try:
+                await self.ensure_document_id_for_filename(
+                    langflow_filename,
+                    file_hash,
+                    opensearch_client,
+                    owner_user_id=self.owner_user_id,
+                )
+            except Exception as backfill_err:
+                logger.warning(
+                    "Non-fatal document_id backfill failure after Langflow ingest",
+                    langflow_filename=langflow_filename,
+                    file_hash=file_hash,
+                    error=str(backfill_err),
+                )
 
             # Update task with success
             file_task.status = TaskStatus.COMPLETED

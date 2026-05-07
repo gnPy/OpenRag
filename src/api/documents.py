@@ -16,23 +16,34 @@ async def _sync_knowledge_filters_after_rename(
     old_filename: str,
     new_filename: str,
     document_id: str | None,
-) -> None:
+) -> tuple[bool, str | None]:
     """Patch saved knowledge filters (refs + selection keys) after a successful rename."""
     from services.knowledge_filter_service import KnowledgeFilterService
 
-    svc = KnowledgeFilterService(session_manager)
-    sync_result = await svc.sync_filters_after_document_rename(
-        old_filename=old_filename,
-        new_filename=new_filename,
-        document_id=document_id,
-        user_id=user_id,
-        jwt_token=jwt_token,
-    )
-    if not sync_result.get("success", False):
-        raise RuntimeError(
-            "Could not sync knowledge filters after document rename: "
-            f"{sync_result.get('error', 'unknown error')}"
+    try:
+        svc = KnowledgeFilterService(session_manager)
+        sync_result = await svc.sync_filters_after_document_rename(
+            old_filename=old_filename,
+            new_filename=new_filename,
+            document_id=document_id,
+            user_id=user_id,
+            jwt_token=jwt_token,
         )
+        if not sync_result.get("success", False):
+            error_msg = (
+                "Could not sync knowledge filters after document rename: "
+                f"{sync_result.get('error', 'unknown error')}"
+            )
+            logger.warning(error_msg, user_id=user_id, document_id=document_id)
+            return False, error_msg
+        return True, None
+    except Exception as sync_err:
+        error_msg = (
+            "Could not sync knowledge filters after document rename: "
+            f"{str(sync_err)}"
+        )
+        logger.warning(error_msg, user_id=user_id, document_id=document_id)
+        return False, error_msg
 
 
 class DeleteDocumentBody(BaseModel):
@@ -205,7 +216,7 @@ async def _distinct_document_ids_in_chunks(
     index_name: str,
     base_query: dict,
     sample_size: int = 2000,
-) -> tuple[set[str], set[str]]:
+) -> tuple[set[str], bool]:
     """
     From chunks matching base_query, return (non_empty_ids, empty_id_chunk_present).
     Uses a bounded sample; enough to detect 0 / 1 / many distinct ids for validation.
@@ -378,7 +389,7 @@ async def rename_document_chunks_core(
                     document_id=doc_id_opt,
                     new_filename=new_name,
                 )
-                await _sync_knowledge_filters_after_rename(
+                sync_ok, sync_error = await _sync_knowledge_filters_after_rename(
                     session_manager,
                     user_id,
                     jwt_token,
@@ -395,6 +406,7 @@ async def rename_document_chunks_core(
                         "old_filename": current,
                         "new_filename": new_name,
                         "error": None,
+                        "warning": None if sync_ok else sync_error,
                         "document_id": doc_id_opt,
                     },
                     200,
@@ -465,7 +477,7 @@ async def rename_document_chunks_core(
                         document_id=doc_id_opt,
                         new_filename=new_name,
                     )
-                    await _sync_knowledge_filters_after_rename(
+                    sync_ok, sync_error = await _sync_knowledge_filters_after_rename(
                         session_manager,
                         user_id,
                         jwt_token,
@@ -483,6 +495,7 @@ async def rename_document_chunks_core(
                             "old_filename": current,
                             "new_filename": new_name,
                             "error": None,
+                            "warning": None if sync_ok else sync_error,
                             "document_id": effective_doc_id,
                         },
                         200,
@@ -686,7 +699,7 @@ async def rename_document_chunks_core(
                     old_filename=current,
                     new_filename=new_name,
                 )
-                await _sync_knowledge_filters_after_rename(
+                sync_ok, sync_error = await _sync_knowledge_filters_after_rename(
                     session_manager,
                     user_id,
                     jwt_token,
@@ -702,6 +715,7 @@ async def rename_document_chunks_core(
                         "old_filename": current,
                         "new_filename": new_name,
                         "error": None,
+                        "warning": None if sync_ok else sync_error,
                         "document_id": effective_doc_id,
                     },
                     200,

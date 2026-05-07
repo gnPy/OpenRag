@@ -93,12 +93,6 @@ async def create_knowledge_filter(
 
     jwt_token = user.jwt_token
 
-    normalized_query_data = await knowledge_filter_service.enrich_data_source_refs_in_query_data(
-        normalized_query_data,
-        user_id=user.user_id,
-        jwt_token=jwt_token,
-    )
-
     filter_id = str(uuid.uuid4())
     filter_doc = {
         "id": filter_id,
@@ -197,18 +191,6 @@ async def update_knowledge_filter(
         logger.error(f"Failed to normalize query_data: {e}")
         return JSONResponse({"error": f"Invalid queryData format: {str(e)}"}, status_code=400)
 
-    normalized_query_data = await knowledge_filter_service.enrich_data_source_refs_in_query_data(
-        normalized_query_data,
-        user_id=user.user_id,
-        jwt_token=jwt_token,
-    )
-
-    delete_result = await knowledge_filter_service.delete_knowledge_filter(
-        filter_id, user_id=user.user_id, jwt_token=jwt_token
-    )
-    if not delete_result.get("success"):
-        return JSONResponse({"error": "Failed to delete existing knowledge filter"}, status_code=500)
-
     updated_filter = {
         "id": filter_id,
         "name": body.name if body.name is not None else existing_filter["name"],
@@ -221,7 +203,7 @@ async def update_knowledge_filter(
         "updated_at": datetime.utcnow().isoformat(),
     }
 
-    result = await knowledge_filter_service.create_knowledge_filter(
+    result = await knowledge_filter_service.upsert_knowledge_filter(
         updated_filter, user_id=user.user_id, jwt_token=jwt_token
     )
 

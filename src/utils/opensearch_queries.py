@@ -70,6 +70,8 @@ def build_document_id_match_query(
 ) -> dict:
     """All chunks for a logical document (document_id), JWT-scoped by the client."""
     did = (document_id or "").strip()
+    if not did:
+        raise ValueError("document_id must be provided")
     must: List[dict] = [{"term": {"document_id": did}}]
     return {"bool": {"must": must}}
 
@@ -84,6 +86,8 @@ def build_document_id_not_matching_filenames_query(
     Used to finish a rename when the UI 'current' name no longer matches indexed filenames.
     """
     did = (document_id or "").strip()
+    if not did:
+        raise ValueError("document_id must be provided")
     must: List[dict] = [{"term": {"document_id": did}}]
     terms = [t for t in filenames_to_match if t]
     if not terms:

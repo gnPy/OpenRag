@@ -148,7 +148,10 @@ async def enrich_search_filters_source_dimension(
                 prepared_refs.append(ref)
                 continue
             r = dict(ref)
-            token = (r.get("document_id") or r.get("filename") or "").strip()
+            token_raw = r.get("document_id")
+            if token_raw is None:
+                token_raw = r.get("filename")
+            token = str(token_raw).strip() if token_raw is not None else ""
             prepared_refs.append(r)
             lookups.append(_lookup_token(token))
         lookup_results = await asyncio.gather(*lookups)

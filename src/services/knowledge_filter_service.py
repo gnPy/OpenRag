@@ -34,11 +34,35 @@ class KnowledgeFilterService:
     def __init__(self, session_manager=None):
         self.session_manager = session_manager
 
+    async def _enrich_filter_doc_query_data(
+        self,
+        filter_doc: Dict[str, Any],
+        user_id: str | None = None,
+        jwt_token: str | None = None,
+    ) -> Dict[str, Any]:
+        """Enrich ``query_data.filters.data_source_refs`` before persistence."""
+        query_data = filter_doc.get("query_data")
+        if not query_data:
+            return filter_doc
+        if not isinstance(query_data, str):
+            query_data = _serialize_normalized_query_data(query_data)
+        enriched_query_data = await self.enrich_data_source_refs_in_query_data(
+            query_data,
+            user_id=user_id,
+            jwt_token=jwt_token,
+        )
+        enriched_filter_doc = dict(filter_doc)
+        enriched_filter_doc["query_data"] = enriched_query_data
+        return enriched_filter_doc
+
     async def create_knowledge_filter(
         self, filter_doc: Dict[str, Any], user_id: str = None, jwt_token: str = None
     ) -> Dict[str, Any]:
         """Create a new knowledge filter"""
         try:
+            filter_doc = await self._enrich_filter_doc_query_data(
+                filter_doc, user_id=user_id, jwt_token=jwt_token
+            )
             # Get user's OpenSearch client with JWT for OIDC auth
             opensearch_client = self.session_manager.get_user_opensearch_client(
                 user_id, jwt_token
@@ -62,6 +86,35 @@ class KnowledgeFilterService:
             else:
                 return {"success": False, "error": "Failed to create knowledge filter"}
 
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def upsert_knowledge_filter(
+        self, filter_doc: Dict[str, Any], user_id: str = None, jwt_token: str = None
+    ) -> Dict[str, Any]:
+        """Create or replace a knowledge filter atomically by id."""
+        try:
+            filter_doc = await self._enrich_filter_doc_query_data(
+                filter_doc, user_id=user_id, jwt_token=jwt_token
+            )
+            opensearch_client = self.session_manager.get_user_opensearch_client(
+                user_id, jwt_token
+            )
+            result = await opensearch_client.index(
+                index=KNOWLEDGE_FILTERS_INDEX_NAME,
+                id=filter_doc["id"],
+                body=filter_doc,
+                refresh="wait_for",
+            )
+            if result.get("result") in ["created", "updated"]:
+                try:
+                    await opensearch_client.indices.refresh(
+                        index=KNOWLEDGE_FILTERS_INDEX_NAME
+                    )
+                except Exception:
+                    pass
+                return {"success": True, "id": filter_doc["id"], "filter": filter_doc}
+            return {"success": False, "error": "Failed to upsert knowledge filter"}
         except Exception as e:
             return {"success": False, "error": str(e)}
 
@@ -166,6 +219,17 @@ class KnowledgeFilterService:
     ) -> Dict[str, Any]:
         """Update an existing knowledge filter"""
         try:
+            if "query_data" in updates:
+                query_data = updates.get("query_data")
+                if query_data:
+                    if not isinstance(query_data, str):
+                        query_data = _serialize_normalized_query_data(query_data)
+                    updates = dict(updates)
+                    updates["query_data"] = await self.enrich_data_source_refs_in_query_data(
+                        query_data,
+                        user_id=user_id,
+                        jwt_token=jwt_token,
+                    )
             # Get user's OpenSearch client with JWT for OIDC auth
             opensearch_client = self.session_manager.get_user_opensearch_client(
                 user_id, jwt_token
