@@ -12,6 +12,7 @@ from api.v1 import (
 
 
 def register_public_v1_routes(app: FastAPI):
+
     # Chat endpoints
     app.add_api_route(
         "/v1/chat", v1_chat.chat_create_endpoint, methods=["POST"], tags=["public"]
