@@ -1,6 +1,6 @@
 """Route registration entry point.
 
-The factory calls `register_all_routes(app, services)`. Each sub-module
+The factory calls `register_all_routes(app)`. Each sub-module
 owns one cohesive group of endpoints.
 """
 
