@@ -11,7 +11,7 @@ from app.routes.mcp import mount_mcp
 from app.routes.public_v1 import register_public_v1_routes
 
 
-def register_all_routes(app: FastAPI, services: dict):
+def register_all_routes(app: FastAPI):
     """Wire every HTTP/MCP route onto the FastAPI app.
 
     Returns the MCP http_app's lifespan context manager (or None) so the
