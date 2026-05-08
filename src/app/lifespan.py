@@ -204,6 +204,20 @@ async def run_shutdown(app: FastAPI):
 
     await TelemetryClient.send_event(Category.APPLICATION_SHUTDOWN, MessageId.ORB_APP_SHUTDOWN)
 
+    # Cancel and await our long-lived background tasks (startup_tasks,
+    # _periodic_backup) before tearing down the resources they touch
+    # (clients, task_service, db engine). Without this, a periodic
+    # backup can wake up mid-shutdown and crash on a closed connection
+    # or, worse, write partial state to a half-disposed engine.
+    background_tasks = list(getattr(app.state, "background_tasks", set()))
+    for task in background_tasks:
+        task.cancel()
+    if background_tasks:
+        await asyncio.gather(*background_tasks, return_exceptions=True)
+        logger.info(
+            "Background tasks cancelled at shutdown", count=len(background_tasks)
+        )
+
     # Drain any pending workspace_config DB-mirror tasks before we
     # tear down the engine. Without this, a save_config triggered
     # right before shutdown can be cancelled mid-write, leaving
