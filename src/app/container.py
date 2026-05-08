@@ -3,11 +3,10 @@
 Returns a dict consumed by routes (via FastAPI Depends) and the lifespan hook.
 """
 
-import os
-
 from api.connector_router import ConnectorRouter
 from config.settings import (
     INGESTION_TIMEOUT,
+    JWT_SIGNING_KEY,
     SESSION_SECRET,
     clients,
     config_manager,
@@ -47,7 +46,7 @@ async def initialize_services():
 
     # Generate JWT keys if they don't exist, a JWT signing key isn't specified,
     # and IBM auth is not enabled (IBM mode delegates all auth to Traefik)
-    if not os.getenv("JWT_SIGNING_KEY") and not IBM_AUTH_ENABLED:
+    if not JWT_SIGNING_KEY and not IBM_AUTH_ENABLED:
         generate_jwt_keys()
 
     # Initialize clients (now async to generate Langflow API key)
