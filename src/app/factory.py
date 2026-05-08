@@ -3,6 +3,7 @@
 Wires the service container, middleware, routes, and lifespan together
 into a ready-to-serve FastAPI app.
 """
+
 from fastapi import FastAPI
 from prometheus_fastapi_instrumentator import Instrumentator
 

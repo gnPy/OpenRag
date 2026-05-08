@@ -10,6 +10,7 @@ Public entry points used outside this module:
 - refresh_default_openrag_docs         (api/settings.py)
 - _get_remote_docs_signature           (test_main_docs_signature.py)
 """
+
 import hashlib
 import os
 
@@ -27,7 +28,7 @@ from config.settings import (
     get_openrag_config,
 )
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 from utils.url_content_fetcher import materialize_url_as_text_file
 from utils.version_utils import OPENRAG_VERSION
 
@@ -127,9 +128,7 @@ async def ingest_default_documents_when_ready(
 
         base_dir = _get_documents_dir()
         if not os.path.isdir(base_dir):
-            raise FileNotFoundError(
-                f"Default documents directory not found: {base_dir}"
-            )
+            raise FileNotFoundError(f"Default documents directory not found: {base_dir}")
 
         excluded_files = set(EXCLUDED_INGESTION_FILES)
         if _should_use_url_default_docs_ingest():
@@ -204,9 +203,7 @@ async def _ingest_default_documents_langflow(
     effective_jwt = jwt_token
 
     if not effective_jwt and session_manager:
-        session_manager.get_user_opensearch_client(
-            anonymous_user.user_id, effective_jwt
-        )
+        session_manager.get_user_opensearch_client(anonymous_user.user_id, effective_jwt)
         if hasattr(session_manager, "_anonymous_jwt"):
             effective_jwt = session_manager._anonymous_jwt
 
@@ -270,9 +267,7 @@ async def _ingest_default_documents_url_langflow(
     effective_jwt = jwt_token
 
     if not effective_jwt and session_manager:
-        session_manager.get_user_opensearch_client(
-            anonymous_user.user_id, effective_jwt
-        )
+        session_manager.get_user_opensearch_client(anonymous_user.user_id, effective_jwt)
         if hasattr(session_manager, "_anonymous_jwt"):
             effective_jwt = session_manager._anonymous_jwt
 
@@ -331,9 +326,8 @@ async def _ingest_default_documents_url(
     )
     try:
         from models.processors import DocumentFileProcessor
-        from utils.hash_utils import hash_id
-
         from session_manager import AnonymousUser
+        from utils.hash_utils import hash_id
 
         anonymous_user = AnonymousUser()
 
@@ -385,9 +379,7 @@ async def _delete_existing_default_docs(session_manager, connector_type: str):
     anonymous_user = AnonymousUser()
     effective_jwt = None
     if session_manager:
-        session_manager.get_user_opensearch_client(
-            anonymous_user.user_id, effective_jwt
-        )
+        session_manager.get_user_opensearch_client(anonymous_user.user_id, effective_jwt)
         if hasattr(session_manager, "_anonymous_jwt"):
             effective_jwt = session_manager._anonymous_jwt
 
@@ -464,8 +456,8 @@ async def _reingest_default_docs_on_upgrade_if_needed(
     if _should_use_url_default_docs_ingest():
         # Refresh signature metadata after upgrade reingestion so startup
         # signature checks don't trigger an immediate duplicate ingest.
-        config.onboarding.openrag_docs_remote_signature = (
-            await _get_remote_docs_signature(DEFAULT_DOCS_URL)
+        config.onboarding.openrag_docs_remote_signature = await _get_remote_docs_signature(
+            DEFAULT_DOCS_URL
         )
     else:
         config.onboarding.openrag_docs_remote_signature = None
@@ -586,9 +578,7 @@ async def refresh_default_openrag_docs(
             return False
 
         previous_signature = config.onboarding.openrag_docs_remote_signature
-        should_refresh = force or (
-            signature is not None and signature != previous_signature
-        )
+        should_refresh = force or (signature is not None and signature != previous_signature)
         if not should_refresh:
             logger.info(
                 "OpenRAG docs refresh skipped: remote signature unchanged",
@@ -612,9 +602,7 @@ async def refresh_default_openrag_docs(
             previous_signature=previous_signature,
             new_signature=signature,
         )
-        await _delete_existing_default_docs(
-            session_manager, connector_type="openrag_docs"
-        )
+        await _delete_existing_default_docs(session_manager, connector_type="openrag_docs")
         await ingest_openrag_docs_when_ready(
             document_service,
             models_service,
@@ -668,8 +656,8 @@ async def _ingest_default_documents_openrag(
     )
 
     from models.processors import DocumentFileProcessor
-
     from session_manager import AnonymousUser
+
     anonymous_user = AnonymousUser()
 
     processor = DocumentFileProcessor(

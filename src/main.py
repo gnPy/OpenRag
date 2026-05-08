@@ -17,7 +17,7 @@ This module is intentionally thin: import bootstrap, run Alembic, build
 the app, run uvicorn. The re-exports below preserve the
 `from main import …` contract used by tests and api/settings.py.
 """
-import bootstrap  # noqa: F401  — must be first; loads .env + structured logging
+
 import asyncio
 import atexit
 import os
@@ -27,6 +27,7 @@ import os
 # to services/default_docs_service.py which calls httpx.AsyncClient directly.
 import httpx  # noqa: F401
 
+import bootstrap  # noqa: F401  — must be first; loads .env + structured logging
 from app.factory import create_app
 from services.default_docs_service import (
     _get_remote_docs_signature,
@@ -77,6 +78,7 @@ if __name__ == "__main__":
     #      live uvicorn loop.
     try:
         from db.migrations_runtime import run_alembic_upgrade
+
         run_alembic_upgrade("head")
     except Exception as _e:
         logger.error("Alembic upgrade failed at startup", error=str(_e))

@@ -4,6 +4,7 @@ Returns the MCP http_app's lifespan context manager so the application
 lifespan can enter/exit it inline (FastAPI does not propagate lifespan
 to mounted sub-apps automatically).
 """
+
 from fastapi import FastAPI
 
 from mcp_http.server import create_mcp_server

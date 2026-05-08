@@ -1,4 +1,5 @@
 """ASGI middleware for request correlation IDs and structured access logs."""
+
 import time
 import uuid
 
@@ -31,9 +32,7 @@ class RequestLoggingMiddleware:
         _structlog.contextvars.clear_contextvars()
 
         headers_dict = dict(scope.get("headers", []))
-        request_id = (
-            headers_dict.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
-        )
+        request_id = headers_dict.get(b"x-request-id", b"").decode() or str(uuid.uuid4())
         path = scope.get("path", "")
         method = scope.get("method", "")
 

@@ -11,9 +11,17 @@ def dump_docker_logs(container_name_pattern: str = "langflow", tail: int = 100):
     """Dump Docker container logs for debugging."""
     try:
         # Find container ID by name pattern
-        find_cmd = ["docker", "ps", "-a", "--filter", f"name={container_name_pattern}", "--format", "{{.ID}}"]
+        find_cmd = [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            f"name={container_name_pattern}",
+            "--format",
+            "{{.ID}}",
+        ]
         result = subprocess.run(find_cmd, capture_output=True, text=True, timeout=5)
-        container_ids = result.stdout.strip().split('\n')
+        container_ids = result.stdout.strip().split("\n")
 
         if not container_ids or not container_ids[0]:
             print(f"[DEBUG] No Docker containers found matching pattern: {container_name_pattern}")
@@ -22,16 +30,16 @@ def dump_docker_logs(container_name_pattern: str = "langflow", tail: int = 100):
         for container_id in container_ids:
             if not container_id:
                 continue
-            print(f"\n{'='*80}")
+            print(f"\n{'=' * 80}")
             print(f"[DEBUG] Docker logs for container {container_id} (last {tail} lines):")
-            print(f"{'='*80}")
+            print(f"{'=' * 80}")
 
             logs_cmd = ["docker", "logs", "--tail", str(tail), container_id]
             logs_result = subprocess.run(logs_cmd, capture_output=True, text=True, timeout=10)
             print(logs_result.stdout)
             if logs_result.stderr:
                 print("[STDERR]:", logs_result.stderr)
-            print(f"{'='*80}\n")
+            print(f"{'=' * 80}\n")
     except subprocess.TimeoutExpired:
         print(f"[DEBUG] Timeout while fetching docker logs for {container_name_pattern}")
     except Exception as e:
@@ -46,21 +54,26 @@ async def wait_for_service_ready(client: httpx.AsyncClient, timeout_s: float = 3
     - POST /search with query "*" avoids embeddings and checks OpenSearch/index readiness.
     """
     # First test OpenSearch JWT directly
-    from session_manager import SessionManager, AnonymousUser
-    import os
     import hashlib
+    import os
+
     import jwt as jwt_lib
+
+    from session_manager import AnonymousUser, SessionManager
+
     sm = SessionManager("test")
     test_token = sm.create_jwt_token(AnonymousUser())
     raw_token = test_token.removeprefix("Bearer ")
     token_hash = hashlib.sha256(test_token.encode()).hexdigest()[:16]
     print(f"[DEBUG] Generated test JWT token hash: {token_hash}")
     print(f"[DEBUG] Using key paths: private={sm.private_key_path}, public={sm.public_key_path}")
-    with open(sm.public_key_path, 'rb') as f:
+    with open(sm.public_key_path, "rb") as f:
         pub_key_hash = hashlib.sha256(f.read()).hexdigest()[:16]
     print(f"[DEBUG] Public key hash: {pub_key_hash}")
     decoded = jwt_lib.decode(raw_token, options={"verify_signature": False})
-    print(f"[DEBUG] JWT claims: iss={decoded.get('iss')}, sub={decoded.get('sub')}, aud={decoded.get('aud')}, roles={decoded.get('roles')}")
+    print(
+        f"[DEBUG] JWT claims: iss={decoded.get('iss')}, sub={decoded.get('sub')}, aud={decoded.get('aud')}, roles={decoded.get('roles')}"
+    )
 
     # Test OpenSearch JWT auth directly
     opensearch_url = f"https://{os.getenv('OPENSEARCH_HOST', 'localhost')}:{os.getenv('OPENSEARCH_PORT', '9200')}"
@@ -69,13 +82,15 @@ async def wait_for_service_ready(client: httpx.AsyncClient, timeout_s: float = 3
         r_os = await os_client.post(
             f"{opensearch_url}/documents/_search",
             headers={"Authorization": f"Bearer {raw_token}"},
-            json={"query": {"match_all": {}}, "size": 0}
+            json={"query": {"match_all": {}}, "size": 0},
         )
-        print(f"[DEBUG] Direct OpenSearch JWT test: status={r_os.status_code}, body={r_os.text[:500]}")
+        print(
+            f"[DEBUG] Direct OpenSearch JWT test: status={r_os.status_code}, body={r_os.text[:500]}"
+        )
         if r_os.status_code == 401:
-            print(f"[DEBUG] ❌ OpenSearch rejected JWT! OIDC config not working.")
+            print("[DEBUG] ❌ OpenSearch rejected JWT! OIDC config not working.")
         else:
-            print(f"[DEBUG] ✓ OpenSearch accepted JWT!")
+            print("[DEBUG] ✓ OpenSearch accepted JWT!")
 
     deadline = asyncio.get_event_loop().time() + timeout_s
     last_err = None
@@ -122,6 +137,7 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
 
     # Import after env vars to ensure settings pick them up. Clear cached modules
     import sys
+
     # Clear cached modules so settings pick up env and router sees new flag
     for mod in [
         "api.router",
@@ -139,9 +155,8 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
         "app.factory",
     ]:
         sys.modules.pop(mod, None)
+    from config.settings import clients, get_index_name
     from main import create_app, startup_tasks
-    import api.router as upload_router
-    from config.settings import clients, get_index_name, DISABLE_INGEST_WITH_LANGFLOW
 
     # Ensure a clean index before startup
     await clients.initialize()
@@ -158,14 +173,17 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
 
     # Ensure index exists for tests (startup_tasks only creates it if DISABLE_INGEST_WITH_LANGFLOW=True)
     from main import _ensure_opensearch_index
+
     await _ensure_opensearch_index()
 
     # Verify index is truly empty after startup
     try:
         count_response = await clients.opensearch.count(index=get_index_name())
-        doc_count = count_response.get('count', 0)
-        assert doc_count == 0, f"Index should be empty after startup but contains {doc_count} documents"
-    except Exception as e:
+        doc_count = count_response.get("count", 0)
+        assert doc_count == 0, (
+            f"Index should be empty after startup but contains {doc_count} documents"
+        )
+    except Exception:
         # If count fails, the index might not exist yet, which is fine
         pass
 
@@ -241,6 +259,7 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
     finally:
         # Explicitly close global clients to avoid aiohttp warnings
         from config.settings import clients
+
         try:
             await clients.close()
         except Exception:
@@ -269,9 +288,11 @@ async def _wait_for_langflow_chat(
         await asyncio.sleep(1.0)
 
     # Dump Langflow logs before raising error
-    print(f"\n[DEBUG] /langflow timed out. Dumping Langflow container logs...")
+    print("\n[DEBUG] /langflow timed out. Dumping Langflow container logs...")
     dump_docker_logs(container_name_pattern="langflow", tail=200)
-    raise AssertionError(f"/langflow never returned a usable response. Last payload: {last_payload}")
+    raise AssertionError(
+        f"/langflow never returned a usable response. Last payload: {last_payload}"
+    )
 
 
 async def _wait_for_nudges(
@@ -299,7 +320,9 @@ async def _wait_for_nudges(
     # Dump Langflow logs before raising error
     print(f"\n[DEBUG] {endpoint} timed out. Dumping Langflow container logs...")
     dump_docker_logs(container_name_pattern="langflow", tail=200)
-    raise AssertionError(f"{endpoint} never returned a usable response. Last payload: {last_payload}")
+    raise AssertionError(
+        f"{endpoint} never returned a usable response. Last payload: {last_payload}"
+    )
 
 
 async def _wait_for_task_completion(
@@ -326,9 +349,7 @@ async def _wait_for_task_completion(
         else:
             last_payload = resp.text
         await asyncio.sleep(1.0)
-    raise AssertionError(
-        f"Task {task_id} did not complete in time. Last payload: {last_payload}"
-    )
+    raise AssertionError(f"Task {task_id} did not complete in time. Last payload: {last_payload}")
 
 
 @pytest.mark.asyncio
@@ -366,8 +387,8 @@ async def test_langflow_chat_and_nudges_endpoints():
     ]:
         sys.modules.pop(mod, None)
 
+    from config.settings import LANGFLOW_CHAT_FLOW_ID, NUDGES_FLOW_ID, clients
     from main import create_app, startup_tasks
-    from config.settings import clients, LANGFLOW_CHAT_FLOW_ID, NUDGES_FLOW_ID
 
     assert LANGFLOW_CHAT_FLOW_ID, "LANGFLOW_CHAT_FLOW_ID must be configured for integration test"
     assert NUDGES_FLOW_ID, "NUDGES_FLOW_ID must be configured for integration test"
@@ -383,7 +404,9 @@ async def test_langflow_chat_and_nudges_endpoints():
         if langflow_client is not None:
             break
         await asyncio.sleep(1.0)
-    assert langflow_client is not None, "Langflow client not initialized. Provide LANGFLOW_KEY or enable superuser auto-login."
+    assert langflow_client is not None, (
+        "Langflow client not initialized. Provide LANGFLOW_KEY or enable superuser auto-login."
+    )
 
     transport = httpx.ASGITransport(app=app)
     try:
@@ -446,9 +469,7 @@ async def test_langflow_chat_and_nudges_endpoints():
 
 @pytest.mark.skip
 @pytest.mark.asyncio
-async def test_search_multi_embedding_models(
-    tmp_path: Path
-):
+async def test_search_multi_embedding_models(tmp_path: Path):
     """Ensure /search fans out across multiple embedding models when present."""
     os.environ["DISABLE_INGEST_WITH_LANGFLOW"] = "true"
     os.environ["DISABLE_STARTUP_INGEST"] = "true"
@@ -472,8 +493,8 @@ async def test_search_multi_embedding_models(
     ]:
         sys.modules.pop(mod, None)
 
-    from main import create_app, startup_tasks
     from config.settings import clients, get_index_name
+    from main import create_app, startup_tasks
 
     await clients.initialize()
     try:
@@ -535,9 +556,7 @@ async def test_search_multi_embedding_models(
                         return payload
                     last_payload = payload
                     await asyncio.sleep(0.5)
-                raise AssertionError(
-                    f"Embedding models not detected. Last payload: {last_payload}"
-                )
+                raise AssertionError(f"Embedding models not detected. Last payload: {last_payload}")
 
             # Start with explicit small embedding model
             resp = await client.post(
@@ -599,6 +618,7 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
     os.environ["GOOGLE_OAUTH_CLIENT_SECRET"] = ""
 
     import sys
+
     for mod in [
         "api.router",
         "api.connector_router",
@@ -615,9 +635,8 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
         "app.factory",
     ]:
         sys.modules.pop(mod, None)
+    from config.settings import clients, get_index_name
     from main import create_app, startup_tasks
-    import api.router as upload_router
-    from config.settings import clients, get_index_name, DISABLE_INGEST_WITH_LANGFLOW
 
     # Ensure a clean index before startup
     await clients.initialize()
@@ -633,14 +652,17 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
 
     # Ensure index exists for tests (startup_tasks only creates it if DISABLE_INGEST_WITH_LANGFLOW=True)
     from main import _ensure_opensearch_index
+
     await _ensure_opensearch_index()
 
     # Verify index is truly empty after startup
     try:
         count_response = await clients.opensearch.count(index=get_index_name())
-        doc_count = count_response.get('count', 0)
-        assert doc_count == 0, f"Index should be empty after startup but contains {doc_count} documents"
-    except Exception as e:
+        doc_count = count_response.get("count", 0)
+        assert doc_count == 0, (
+            f"Index should be empty after startup but contains {doc_count} documents"
+        )
+    except Exception:
         # If count fails, the index might not exist yet, which is fine
         pass
     transport = httpx.ASGITransport(app=app)
@@ -673,6 +695,7 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
                 assert data.get("file_count") == 1
     finally:
         from config.settings import clients
+
         try:
             await clients.close()
         except Exception:

@@ -1,10 +1,11 @@
 """RSA keypair generation for JWT signing."""
+
 import os
 import subprocess
 
 from config.paths import get_keys_path
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 

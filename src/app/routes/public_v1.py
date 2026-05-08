@@ -1,12 +1,23 @@
 """Public /v1/* route registrations (API-key auth)."""
+
 from fastapi import FastAPI
 
 from api.v1 import (
     chat as v1_chat,
+)
+from api.v1 import (
     documents as v1_documents,
+)
+from api.v1 import (
     knowledge_filters as v1_knowledge_filters,
+)
+from api.v1 import (
     models as v1_models,
+)
+from api.v1 import (
     search as v1_search,
+)
+from api.v1 import (
     settings as v1_settings,
 )
 
@@ -14,12 +25,8 @@ from api.v1 import (
 def register_public_v1_routes(app: FastAPI):
 
     # Chat endpoints
-    app.add_api_route(
-        "/v1/chat", v1_chat.chat_create_endpoint, methods=["POST"], tags=["public"]
-    )
-    app.add_api_route(
-        "/v1/chat", v1_chat.chat_list_endpoint, methods=["GET"], tags=["public"]
-    )
+    app.add_api_route("/v1/chat", v1_chat.chat_create_endpoint, methods=["POST"], tags=["public"])
+    app.add_api_route("/v1/chat", v1_chat.chat_list_endpoint, methods=["GET"], tags=["public"])
     app.add_api_route(
         "/v1/chat/{chat_id}",
         v1_chat.chat_get_endpoint,
@@ -34,9 +41,7 @@ def register_public_v1_routes(app: FastAPI):
     )
 
     # Search endpoint
-    app.add_api_route(
-        "/v1/search", v1_search.search_endpoint, methods=["POST"], tags=["public"]
-    )
+    app.add_api_route("/v1/search", v1_search.search_endpoint, methods=["POST"], tags=["public"])
 
     # Documents endpoints
     app.add_api_route(

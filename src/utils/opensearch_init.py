@@ -4,6 +4,7 @@ Pure functions that create or update OpenSearch indices and apply security
 configuration. Imported by app startup orchestration and by api/* modules
 that need to (re)create the documents index after onboarding completes.
 """
+
 from config.settings import (
     API_KEYS_INDEX_BODY,
     API_KEYS_INDEX_NAME,
@@ -14,7 +15,7 @@ from config.settings import (
 )
 from utils.embeddings import create_index_body
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 
@@ -22,8 +23,10 @@ logger = get_logger(__name__)
 async def wait_for_opensearch(opensearch_client=None):
     """Wait for OpenSearch to be ready, delegating to the shared utility."""
     from utils.opensearch_utils import (
-        wait_for_opensearch as _wait_for_opensearch,
         OpenSearchNotReadyError,
+    )
+    from utils.opensearch_utils import (
+        wait_for_opensearch as _wait_for_opensearch,
     )
 
     try:
@@ -32,9 +35,7 @@ async def wait_for_opensearch(opensearch_client=None):
             Category.OPENSEARCH_SETUP, MessageId.ORB_OS_CONN_ESTABLISHED
         )
     except OpenSearchNotReadyError:
-        await TelemetryClient.send_event(
-            Category.OPENSEARCH_SETUP, MessageId.ORB_OS_TIMEOUT
-        )
+        await TelemetryClient.send_event(Category.OPENSEARCH_SETUP, MessageId.ORB_OS_TIMEOUT)
         raise
 
 
@@ -50,9 +51,7 @@ async def configure_alerting_security():
         }
 
         response = await clients.opensearch.cluster.put_settings(body=alerting_settings)
-        logger.info(
-            "Alerting security settings configured successfully", response=response
-        )
+        logger.info("Alerting security settings configured successfully", response=response)
     except Exception as e:
         logger.error("Failed to configure alerting security settings", error=str(e))
 
@@ -69,13 +68,9 @@ async def _ensure_opensearch_index():
         logger.info(
             "Created OpenSearch index for traditional connector service",
             index_name=index_name,
-            vector_dimensions=INDEX_BODY["mappings"]["properties"]["chunk_embedding"][
-                "dimension"
-            ],
+            vector_dimensions=INDEX_BODY["mappings"]["properties"]["chunk_embedding"]["dimension"],
         )
-        await TelemetryClient.send_event(
-            Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED
-        )
+        await TelemetryClient.send_event(Category.OPENSEARCH_INDEX, MessageId.ORB_OS_INDEX_CREATED)
 
     except Exception as e:
         logger.error(
@@ -95,6 +90,7 @@ async def init_index(opensearch_client=None, admin_username: str = None):
         await wait_for_opensearch(opensearch_client)
 
         from utils.opensearch_utils import setup_opensearch_security
+
         await setup_opensearch_security(os_client, admin_username=admin_username)
 
         config = get_openrag_config()
@@ -175,7 +171,9 @@ async def init_index(opensearch_client=None, admin_username: str = None):
 
             current = await os_client.indices.get_settings(index=knowledge_filter_index_name)
             current_replicas = int(
-                current[knowledge_filter_index_name]["settings"]["index"].get("number_of_replicas", 1)
+                current[knowledge_filter_index_name]["settings"]["index"].get(
+                    "number_of_replicas", 1
+                )
             )
             if current_replicas != 0:
                 await os_client.indices.put_settings(
@@ -187,9 +185,7 @@ async def init_index(opensearch_client=None, admin_username: str = None):
                 )
 
         if not await os_client.indices.exists(index=API_KEYS_INDEX_NAME):
-            await os_client.indices.create(
-                index=API_KEYS_INDEX_NAME, body=API_KEYS_INDEX_BODY
-            )
+            await os_client.indices.create(index=API_KEYS_INDEX_NAME, body=API_KEYS_INDEX_BODY)
             logger.info("Created API keys index", index_name=API_KEYS_INDEX_NAME)
         else:
             logger.info(

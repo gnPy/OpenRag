@@ -5,6 +5,7 @@ Bootstraps OpenSearch (when not in IBM auth mode), reingests bundled docs
 on upgrade, refreshes them if remote content changed, syncs Langflow MCP
 server URLs, and reapplies user settings if Langflow flows were reset.
 """
+
 from config.settings import (
     DISABLE_INGEST_WITH_LANGFLOW,
     FETCH_OPENRAG_DOCS_AT_STARTUP,
@@ -22,7 +23,7 @@ from utils.opensearch_init import (
     init_index,
     wait_for_opensearch,
 )
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 
@@ -41,9 +42,7 @@ async def startup_tasks(services):
     from config.settings import IBM_AUTH_ENABLED
 
     logger.info("Starting startup tasks")
-    await TelemetryClient.send_event(
-        Category.APPLICATION_STARTUP, MessageId.ORB_APP_START_INIT
-    )
+    await TelemetryClient.send_event(Category.APPLICATION_STARTUP, MessageId.ORB_APP_START_INIT)
 
     # Update model registry to allow further search calls to be instant
     try:
@@ -69,12 +68,13 @@ async def startup_tasks(services):
         # Setup OpenSearch security (roles and mappings) after connection is established
         try:
             from utils.opensearch_utils import setup_opensearch_security
+
             await setup_opensearch_security(clients.opensearch)
             logger.info("OpenSearch security configuration completed successfully")
         except Exception as e:
             logger.warning(
                 "Failed to setup OpenSearch security configuration - continuing anyway",
-                error=str(e)
+                error=str(e),
             )
 
         if DISABLE_INGEST_WITH_LANGFLOW:
@@ -174,16 +174,12 @@ async def startup_tasks(services):
                 from api.settings import reapply_all_settings
 
                 await reapply_all_settings(session_manager=services["session_manager"])
-                logger.info(
-                    "Successfully reapplied settings after detecting flow resets"
-                )
+                logger.info("Successfully reapplied settings after detecting flow resets")
                 await TelemetryClient.send_event(
                     Category.FLOW_OPERATIONS, MessageId.ORB_FLOW_SETTINGS_REAPPLIED
                 )
             else:
-                logger.info(
-                    "No flows detected as reset, skipping settings reapplication"
-                )
+                logger.info("No flows detected as reset, skipping settings reapplication")
         else:
             logger.debug("Configuration not yet edited, skipping flow reset check")
     except Exception as e:

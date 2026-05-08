@@ -5,6 +5,7 @@ All endpoints not under /v1/* and not the MCP mount.
 Auth and service injection are handled inside each handler via FastAPI
 Depends, not here. This module only wires URL → handler.
 """
+
 from fastapi import FastAPI
 
 from api import (
@@ -70,23 +71,13 @@ def register_internal_routes(app: FastAPI):
     )
 
     # Upload endpoints
-    app.add_api_route(
-        "/upload_context", upload.upload_context, methods=["POST"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/upload_path", upload.upload_path, methods=["POST"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/upload_options", upload.upload_options, methods=["GET"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/upload_bucket", upload.upload_bucket, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/upload_context", upload.upload_context, methods=["POST"], tags=["internal"])
+    app.add_api_route("/upload_path", upload.upload_path, methods=["POST"], tags=["internal"])
+    app.add_api_route("/upload_options", upload.upload_options, methods=["GET"], tags=["internal"])
+    app.add_api_route("/upload_bucket", upload.upload_bucket, methods=["POST"], tags=["internal"])
 
     # Task endpoints
-    app.add_api_route(
-        "/tasks/{task_id}", tasks.task_status, methods=["GET"], tags=["internal"]
-    )
+    app.add_api_route("/tasks/{task_id}", tasks.task_status, methods=["GET"], tags=["internal"])
     app.add_api_route("/tasks", tasks.all_tasks, methods=["GET"], tags=["internal"])
     app.add_api_route(
         "/tasks/{task_id}/cancel",
@@ -160,9 +151,7 @@ def register_internal_routes(app: FastAPI):
 
     # Chat endpoints
     app.add_api_route("/chat", chat.chat_endpoint, methods=["POST"], tags=["internal"])
-    app.add_api_route(
-        "/langflow", chat.langflow_endpoint, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/langflow", chat.langflow_endpoint, methods=["POST"], tags=["internal"])
 
     # Chat history endpoints
     app.add_api_route(
@@ -185,21 +174,13 @@ def register_internal_routes(app: FastAPI):
 
     # Authentication endpoints
     app.add_api_route("/auth/init", auth.auth_init, methods=["POST"], tags=["internal"])
-    app.add_api_route(
-        "/auth/callback", auth.auth_callback, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/auth/callback", auth.auth_callback, methods=["POST"], tags=["internal"])
     app.add_api_route("/auth/me", auth.auth_me, methods=["GET"], tags=["internal"])
-    app.add_api_route(
-        "/auth/logout", auth.auth_logout, methods=["POST"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/auth/ibm/login", auth.ibm_login, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/auth/logout", auth.auth_logout, methods=["POST"], tags=["internal"])
+    app.add_api_route("/auth/ibm/login", auth.ibm_login, methods=["POST"], tags=["internal"])
 
     # Connector endpoints
-    app.add_api_route(
-        "/connectors", connectors.list_connectors, methods=["GET"], tags=["internal"]
-    )
+    app.add_api_route("/connectors", connectors.list_connectors, methods=["GET"], tags=["internal"])
     # IBM COS-specific routes (registered before generic /{connector_type}/... to avoid shadowing)
     app.add_api_route(
         "/connectors/ibm_cos/defaults",
@@ -305,9 +286,7 @@ def register_internal_routes(app: FastAPI):
         methods=["GET"],
         tags=["internal"],
     )
-    app.add_api_route(
-        "/auth/jwks", oidc.jwks_endpoint, methods=["GET"], tags=["internal"]
-    )
+    app.add_api_route("/auth/jwks", oidc.jwks_endpoint, methods=["GET"], tags=["internal"])
     app.add_api_route(
         "/auth/introspect",
         oidc.token_introspection,
@@ -316,12 +295,8 @@ def register_internal_routes(app: FastAPI):
     )
 
     # Settings endpoints
-    app.add_api_route(
-        "/settings", settings.get_settings, methods=["GET"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/settings", settings.update_settings, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/settings", settings.get_settings, methods=["GET"], tags=["internal"])
+    app.add_api_route("/settings", settings.update_settings, methods=["POST"], tags=["internal"])
     app.add_api_route(
         "/onboarding/state",
         settings.update_onboarding_state,
@@ -345,9 +320,7 @@ def register_internal_routes(app: FastAPI):
 
     # Health check endpoints
     app.add_api_route("/health", health_check, methods=["GET"], tags=["internal"])
-    app.add_api_route(
-        "/search/health", opensearch_health_ready, methods=["GET"], tags=["internal"]
-    )
+    app.add_api_route("/search/health", opensearch_health_ready, methods=["GET"], tags=["internal"])
 
     # Models endpoints
     app.add_api_route(
@@ -362,14 +335,10 @@ def register_internal_routes(app: FastAPI):
     app.add_api_route(
         "/models/ollama", models.get_ollama_models, methods=["GET"], tags=["internal"]
     )
-    app.add_api_route(
-        "/models/ibm", models.get_ibm_models, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/models/ibm", models.get_ibm_models, methods=["POST"], tags=["internal"])
 
     # Onboarding endpoints
-    app.add_api_route(
-        "/onboarding", settings.onboarding, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/onboarding", settings.onboarding, methods=["POST"], tags=["internal"])
     app.add_api_route(
         "/onboarding/rollback",
         settings.rollback_onboarding,
@@ -413,26 +382,21 @@ def register_internal_routes(app: FastAPI):
     )
 
     # Docling service proxy
-    app.add_api_route(
-        "/docling/health", docling.health, methods=["GET"], tags=["internal"]
-    )
+    app.add_api_route("/docling/health", docling.health, methods=["GET"], tags=["internal"])
 
     # ===== Users / RBAC Endpoints (JWT auth) =====
+    from api import config as config_api
     from api import users as users_api
     from api.admin import rbac as admin_rbac
-    from api import config as config_api
+
     app.include_router(users_api.router)
     app.include_router(admin_rbac.router)
     # Public — must work pre-auth so the onboarding wizard can render.
     app.include_router(config_api.router)
 
     # ===== API Key Management Endpoints (JWT auth for UI) =====
-    app.add_api_route(
-        "/keys", api_keys.list_keys_endpoint, methods=["GET"], tags=["internal"]
-    )
-    app.add_api_route(
-        "/keys", api_keys.create_key_endpoint, methods=["POST"], tags=["internal"]
-    )
+    app.add_api_route("/keys", api_keys.list_keys_endpoint, methods=["GET"], tags=["internal"])
+    app.add_api_route("/keys", api_keys.create_key_endpoint, methods=["POST"], tags=["internal"])
     app.add_api_route(
         "/keys/{key_id}",
         api_keys.revoke_key_endpoint,

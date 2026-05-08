@@ -8,6 +8,7 @@ handlers so they fire under both Starlette's lifespan-from-on_event flow
 Order matches the original behavior exactly — see plan
 main-py-is-too-long-wiggly-knuth.md.
 """
+
 import asyncio
 import os
 
@@ -16,7 +17,7 @@ from fastapi import FastAPI
 from config.settings import clients, get_openrag_config
 from services.startup_orchestrator import startup_tasks
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 
@@ -31,9 +32,7 @@ async def cleanup_subscriptions_proper(services):
 
         all_connections = await connector_service.connection_manager.list_connections()
         active_connections = [
-            c
-            for c in all_connections
-            if c.is_active and c.config.get("webhook_channel_id")
+            c for c in all_connections if c.is_active and c.config.get("webhook_channel_id")
         ]
 
         for connection in active_connections:
@@ -42,15 +41,11 @@ async def cleanup_subscriptions_proper(services):
                     "Cancelling subscription for connection",
                     connection_id=connection.connection_id,
                 )
-                connector = await connector_service.get_connector(
-                    connection.connection_id
-                )
+                connector = await connector_service.get_connector(connection.connection_id)
                 if connector:
                     subscription_id = connection.config.get("webhook_channel_id")
                     await connector.cleanup_subscription(subscription_id)
-                    logger.info(
-                        "Cancelled subscription", subscription_id=subscription_id
-                    )
+                    logger.info("Cancelled subscription", subscription_id=subscription_id)
             except Exception as e:
                 logger.error(
                     "Failed to cancel subscription",
@@ -75,17 +70,13 @@ async def _periodic_backup(services):
 
             config = get_openrag_config()
             if not config.edited:
-                logger.debug(
-                    "Onboarding not completed yet, skipping periodic backup"
-                )
+                logger.debug("Onboarding not completed yet, skipping periodic backup")
                 continue
 
             flows_service = services.get("flows_service")
             if flows_service:
                 logger.info("Running periodic flow backup")
-                backup_results = await flows_service.backup_all_flows(
-                    only_if_changed=True
-                )
+                backup_results = await flows_service.backup_all_flows(only_if_changed=True)
                 if backup_results["backed_up"]:
                     logger.info(
                         "Periodic backup completed",
@@ -147,6 +138,7 @@ async def run_startup(app: FastAPI):
     # the operator owns the trade-off.
     from services.rbac_service import is_rbac_enforced
     from utils.run_mode_utils import get_run_mode
+
     if is_rbac_enforced():
         logger.info("RBAC enforcement is ON", run_mode=get_run_mode())
     else:
@@ -163,6 +155,7 @@ async def run_startup(app: FastAPI):
     # at call time, so it will pick up the binding we set here.
     try:
         from db.engine import init_engine
+
         init_engine()
     except Exception as e:
         logger.error("DB engine init failed at startup", error=str(e))
@@ -173,6 +166,7 @@ async def run_startup(app: FastAPI):
     try:
         from db.engine import SessionLocal as _SL
         from db.migrations_runtime import run as run_runtime_migration
+
         if _SL is not None:
             async with _SL() as _session:
                 await run_runtime_migration(_session)
@@ -181,9 +175,7 @@ async def run_startup(app: FastAPI):
         logger.error("Runtime DB migration failed", error=str(e))
         raise
 
-    await TelemetryClient.send_event(
-        Category.APPLICATION_STARTUP, MessageId.ORB_APP_STARTED
-    )
+    await TelemetryClient.send_event(Category.APPLICATION_STARTUP, MessageId.ORB_APP_STARTED)
 
     # FastMCP requires its own lifespan to be entered before requests
     # arrive so the StreamableHTTPSessionManager task group exists.
@@ -212,9 +204,7 @@ async def run_shutdown(app: FastAPI):
 
     logger.info("Application shutdown initiated")
 
-    await TelemetryClient.send_event(
-        Category.APPLICATION_SHUTDOWN, MessageId.ORB_APP_SHUTDOWN
-    )
+    await TelemetryClient.send_event(Category.APPLICATION_SHUTDOWN, MessageId.ORB_APP_SHUTDOWN)
 
     # Drain any pending workspace_config DB-mirror tasks before we
     # tear down the engine. Without this, a save_config triggered
@@ -238,6 +228,7 @@ async def run_shutdown(app: FastAPI):
     # Gracefully shutdown OpenSearch connection
     try:
         from utils.opensearch_utils import graceful_opensearch_shutdown
+
         await graceful_opensearch_shutdown(clients.opensearch)
     except Exception as e:
         logger.error("Error during graceful OpenSearch shutdown", error=str(e))
@@ -252,11 +243,13 @@ async def run_shutdown(app: FastAPI):
     # path did this; the live shutdown_event leaked the engine.
     try:
         from db.engine import dispose_engine
+
         await dispose_engine()
     except Exception as e:
         logger.error("Error disposing DB engine", error=str(e))
 
     # Cleanup telemetry client
     from utils.telemetry.client import cleanup_telemetry_client
+
     await cleanup_telemetry_client()
     logger.info("Application shutdown completed")

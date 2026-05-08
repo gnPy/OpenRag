@@ -3,6 +3,7 @@
 The factory calls `register_all_routes(app, services)`. Each sub-module
 owns one cohesive group of endpoints.
 """
+
 from fastapi import FastAPI
 
 from app.routes.internal import register_internal_routes

@@ -2,6 +2,7 @@
 
 Returns a dict consumed by routes (via FastAPI Depends) and the lifespan hook.
 """
+
 import os
 
 from api.connector_router import ConnectorRouter
@@ -31,16 +32,14 @@ from services.task_service import TaskService
 from session_manager import SessionManager
 from utils.jwt_keygen import generate_jwt_keys
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 
 
 async def initialize_services():
     """Initialize all services and their dependencies"""
-    await TelemetryClient.send_event(
-        Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_START
-    )
+    await TelemetryClient.send_event(Category.SERVICE_INITIALIZATION, MessageId.ORB_SVC_INIT_START)
     from config.settings import IBM_AUTH_ENABLED
 
     if IBM_AUTH_ENABLED:
@@ -128,9 +127,7 @@ async def initialize_services():
                 loaded_count=loaded_count,
             )
         except Exception as e:
-            logger.error(
-                "Failed to load persisted connections on startup", error=str(e)
-            )
+            logger.error("Failed to load persisted connections on startup", error=str(e))
             await TelemetryClient.send_event(
                 Category.CONNECTOR_OPERATIONS, MessageId.ORB_CONN_LOAD_FAILED
             )
@@ -179,8 +176,9 @@ async def initialize_services():
     # (session_ownership + conversation_persistence). They lazy-resolve
     # `db.engine.SessionLocal` as a fallback, but setting it here makes
     # the wiring explicit and avoids the import path on the hot loop.
-    from services.session_ownership_service import session_ownership_service
     from services.conversation_persistence_service import conversation_persistence
+    from services.session_ownership_service import session_ownership_service
+
     session_ownership_service._session_factory = _lazy_session_factory
     conversation_persistence._session_factory = _lazy_session_factory
 

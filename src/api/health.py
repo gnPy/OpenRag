@@ -1,4 +1,5 @@
 """Liveness and readiness probes."""
+
 import asyncio
 
 import httpx
@@ -21,9 +22,7 @@ async def opensearch_health_ready(request):
     from config.settings import IBM_AUTH_ENABLED, OPENSEARCH_URL
 
     if IBM_AUTH_ENABLED:
-        logger.debug(
-            "[OPENSEARCH] OpenSearch auth mode enabled, health check per-request"
-        )
+        logger.debug("[OPENSEARCH] OpenSearch auth mode enabled, health check per-request")
         # In IBM auth mode we cannot rely on the global OpenSearch client
         # (auth is established per-request), so perform a lightweight,
         # unauthenticated connectivity check against the OpenSearch endpoint.
@@ -53,9 +52,7 @@ async def opensearch_health_ready(request):
                     status_code=503,
                 )
         except Exception as e:
-            logger.error(
-                "[OPENSEARCH] OpenSearch health check failed", error=str(e)
-            )
+            logger.error("[OPENSEARCH] OpenSearch health check failed", error=str(e))
             return JSONResponse(
                 {
                     "status": "not_ready",
@@ -72,9 +69,7 @@ async def opensearch_health_ready(request):
             status_code=200,
         )
     except Exception as e:
-        logger.error(
-            "[OPENSEARCH] OpenSearch health check failed", error=str(e)
-        )
+        logger.error("[OPENSEARCH] OpenSearch health check failed", error=str(e))
         return JSONResponse(
             {
                 "status": "not_ready",
