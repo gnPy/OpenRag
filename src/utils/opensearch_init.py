@@ -205,4 +205,4 @@ async def init_index(opensearch_client=None, admin_username: str = None):
                 "OpenSearch disk space is full (flood-stage watermark exceeded). "
                 "Please free up disk space on your Docker volume or host machine to continue."
             ) from e
-        raise e
+        raise
