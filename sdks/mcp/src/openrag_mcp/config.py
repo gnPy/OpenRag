@@ -44,13 +44,13 @@ class Config:
         self.openrag_url = os.environ.get("OPENRAG_URL", "http://localhost:3000")
         self.api_key = os.environ.get("OPENRAG_API_KEY")
 
-        # IBM auth mode: user provides IBM_USERNAME + IBM_API_KEY instead of OPENRAG_API_KEY.
+        # Platform auth mode: user provides PLATFORM_USERNAME + IBM_API_KEY instead of OPENRAG_API_KEY.
         # The MCP forwards these as headers on every SDK request to OpenRAG.
-        ibm_username = os.environ.get("IBM_USERNAME")
+        platform_username = os.environ.get("PLATFORM_USERNAME")
         ibm_api_key = os.environ.get("IBM_API_KEY")
         self.ibm_extra_headers: dict[str, str] = {}
-        if ibm_username:
-            self.ibm_extra_headers["X-Username"] = ibm_username
+        if platform_username:
+            self.ibm_extra_headers["X-Username"] = platform_username
         if ibm_api_key:
             self.ibm_extra_headers["X-Api-Key"] = ibm_api_key
 

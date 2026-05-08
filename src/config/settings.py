@@ -56,15 +56,15 @@ GOOGLE_OAUTH_CLIENT_SECRET = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
 # IBM AMS authentication (Watsonx Data embedded mode)
 IBM_AUTH_ENABLED = os.getenv("IBM_AUTH_ENABLED", "false").lower() in ("true", "1", "yes")
-IBM_USERNAME = os.getenv("IBM_USERNAME")
-IBM_PASSWORD = os.getenv("IBM_PASSWORD")
+PLATFORM_USERNAME = os.getenv("PLATFORM_USERNAME")
+PLATFORM_PASSWORD = os.getenv("PLATFORM_PASSWORD")
 IBM_JWT_PUBLIC_KEY_URL = os.getenv("IBM_JWT_PUBLIC_KEY_URL", "")
 IBM_SESSION_COOKIE_NAME = os.getenv("IBM_SESSION_COOKIE_NAME", "ibm-openrag-session")
 IBM_CREDENTIALS_HEADER = os.getenv("IBM_CREDENTIALS_HEADER", "X-IBM-LH-Credentials")
 DOCLING_OCR_ENGINE = os.getenv("DOCLING_OCR_ENGINE")
 SEGMENT_WRITE_KEY = os.getenv("SEGMENT_WRITE_KEY", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "")
-IBM_AUTH_DEV_MODE = os.getenv("IBM_AUTH_DEV_MODE", "false").lower() in ("true", "1", "yes")
+PLATFORM_AUTH_DEV_MODE = os.getenv("PLATFORM_AUTH_DEV_MODE", "false").lower() in ("true", "1", "yes")
 DOCLING_SERVE_VERIFY_SSL = os.getenv("DOCLING_SERVE_VERIFY_SSL", "true").lower() in ("true", "1", "yes")
 
 # Docling service URL configuration
@@ -128,7 +128,7 @@ INGESTION_TIMEOUT = get_env_int("INGESTION_TIMEOUT", 3600)
 def is_no_auth_mode():
     """Check if we're running in no-auth mode (OAuth credentials missing)"""
     if IBM_AUTH_ENABLED:
-        return False  # IBM cookie auth is a valid auth mode
+        return False  # IBM cookie auth is a valid auth mode (variable name kept for now as per instructions)
     result = not (GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
     return result
 
