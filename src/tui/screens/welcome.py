@@ -69,14 +69,14 @@ class WelcomeScreen(Screen):
         yield Footer()
 
     def _check_flow_backups(self) -> bool:
-        """Check if there are any flow backups in flows/backup directory."""
+        """Check if there are any flow backups in the host backup directory."""
         from ..managers.env_manager import EnvManager
 
-        # Get flows path from env config
         env_manager = EnvManager()
         env_manager.load_existing_env()
-        flows_path = Path(env_manager.config.openrag_flows_path.replace("$HOME", str(Path.home()))).expanduser()
-        backup_dir = flows_path / "backup"
+        backup_dir = Path(
+            env_manager.config.openrag_flows_backup_path.replace("$HOME", str(Path.home()))
+        ).expanduser()
         if not backup_dir.exists():
             return False
 

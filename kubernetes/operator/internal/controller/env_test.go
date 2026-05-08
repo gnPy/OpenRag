@@ -202,7 +202,6 @@ func TestEnvVarManager_NewEnvVarManagerDefaults(t *testing.T) {
 	assert.NotNil(t, manager.DefaultLangflowEnvVars)
 	assert.Equal(t, "sqlite:////app/data/langflow.db", manager.DefaultLangflowEnvVars["LANGFLOW_DATABASE_URL"])
 	assert.Equal(t, "true", manager.DefaultLangflowEnvVars["LANGFLOW_AUTO_LOGIN"])
-	assert.Equal(t, "/app/flows", manager.DefaultLangflowEnvVars["LANGFLOW_LOAD_FLOWS_PATH"])
 	assert.Equal(t, "4", manager.DefaultLangflowEnvVars["LANGFLOW_WORKERS"])
 
 	// Verify Backend defaults

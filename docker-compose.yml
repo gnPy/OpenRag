@@ -116,8 +116,10 @@ services:
     volumes:
       - ${OPENRAG_DOCUMENTS_PATH:-./openrag-documents}:/app/openrag-documents:U,z
       - ${OPENRAG_KEYS_PATH:-./keys}:/app/keys:U,z
-      - ${OPENRAG_FLOWS_PATH:-./flows}:/app/flows:U,z
-      - ${OPENRAG_FLOWS_BACKUP_PATH:-./flows/backup}:/app/flows/backup:U,z
+      # /app/flows itself is shipped inside the backend image (see Dockerfile.backend).
+      # Sub-mount only the backup subdir so user backups persist on the host while the
+      # baked-in flow JSONs remain visible.
+      - ${OPENRAG_FLOWS_BACKUP_PATH:-./flows-backup}:/app/flows/backup:U,z
       - ${OPENRAG_CONFIG_PATH:-./config}:/app/config:U,z
       - ${OPENRAG_DATA_PATH:-./data}:/app/data:U,z
     # Linux: Docker Engine does not auto-inject host.docker.internal; map it to the host gateway
@@ -146,7 +148,6 @@ services:
     ports:
       - "${LANGFLOW_PORT:-7860}:7860"
     volumes:
-      - ${OPENRAG_FLOWS_PATH:-./flows}:/app/flows:U,z
       - ${LANGFLOW_DATA_PATH:-./langflow-data}:/app/langflow-data:U,z
     # Linux: Docker Engine does not auto-inject host.docker.internal; map it to the host gateway
     extra_hosts:

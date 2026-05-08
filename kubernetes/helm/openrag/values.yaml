@@ -88,26 +88,14 @@ langflow:
     dbSubPath: langflow.db
 
   # Flow configuration (UUIDs for Langflow workflows)
+  # The default flow JSONs are baked into the backend image at /app/flows;
+  # the backend creates them in Langflow via the API on startup
+  # (FlowsService.ensure_flows_exist).
   flows:
-    loadDefaults: true                        # Load default OpenRAG flows on first deployment
-    git:
-      enabled: true
-      owner: langflow-ai
-      repo: openrag
-      branch: main
-      # Optional: specific git commit hash (overrides branch if set)
-      #hash: ""
-      path: flows
-      files:
-        - ingestion_flow.json
-        - openrag_agent.json
-        - openrag_nudges.json
-        - openrag_url_mcp.json
     chatFlowId: "1098eea1-6649-4e1d-aed1-b77249fb8dd0"
     ingestFlowId: "5488df7c-b93f-4f87-a446-b67028bc0813"
     urlIngestFlowId: "72c3d17c-2dac-4a73-b48a-6518473d7830"
     nudgesFlowId: "ebc01d31-1976-46ce-a385-b0240327226c"
-    loadPath: /app/flows
 
   # Authentication settings
   auth:
@@ -259,7 +247,6 @@ backend:
       accessMode: ReadWriteMany  # Often beneficial for shared content between backend/langflow
       size: 50Gi
       mountPath: /shared
-      flowsPath: "/shared/flows"
     documents:
       mountPath: "/shared/openrag-documents"
       loadDefaults: true

@@ -94,7 +94,9 @@ class EnvConfig:
     # Volume mount paths - use centralized location by default
     openrag_documents_path: str = "$HOME/.openrag/documents"  # Primary documents path for compose
     openrag_keys_path: str = "$HOME/.openrag/keys"
-    openrag_flows_path: str = "$HOME/.openrag/flows"
+    # Default flows ship inside the backend image at /app/flows; the host only
+    # needs a place for backups (sub-mounted at /app/flows/backup in compose).
+    openrag_flows_backup_path: str = "$HOME/.openrag/flows-backup"
     openrag_config_path: str = "$HOME/.openrag/config"
     openrag_data_path: str = "$HOME/.openrag/data"  # Backend data (conversations, tokens, etc.)
     langflow_data_path: str = "$HOME/.openrag/data/langflow-data"
@@ -219,7 +221,7 @@ class EnvManager:
             "OPENRAG_DOCUMENTS_PATHS": "openrag_documents_paths",
             "OPENRAG_DOCUMENTS_PATH": "openrag_documents_path",
             "OPENRAG_KEYS_PATH": "openrag_keys_path",
-            "OPENRAG_FLOWS_PATH": "openrag_flows_path",
+            "OPENRAG_FLOWS_BACKUP_PATH": "openrag_flows_backup_path",
             "OPENRAG_CONFIG_PATH": "openrag_config_path",
             "OPENRAG_DATA_PATH": "openrag_data_path",
             "LANGFLOW_DATA_PATH": "langflow_data_path",
@@ -496,7 +498,7 @@ class EnvManager:
                     f"OPENRAG_KEYS_PATH={self._quote_env_value(expand_path(self.config.openrag_keys_path))}\n"
                 )
                 f.write(
-                    f"OPENRAG_FLOWS_PATH={self._quote_env_value(expand_path(self.config.openrag_flows_path))}\n"
+                    f"OPENRAG_FLOWS_BACKUP_PATH={self._quote_env_value(expand_path(self.config.openrag_flows_backup_path))}\n"
                 )
                 f.write(
                     f"OPENRAG_CONFIG_PATH={self._quote_env_value(expand_path(self.config.openrag_config_path))}\n"
