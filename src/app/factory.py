@@ -36,7 +36,7 @@ async def create_app():
     # Register all route handlers and mount the MCP server. The MCP
     # http_app's lifespan context manager is stored on app.state so the
     # application lifespan can enter/exit it at the right time.
-    mcp_lifespan_ctx = register_all_routes(app, services)
+    mcp_lifespan_ctx = register_all_routes(app)
     app.state.mcp_lifespan_ctx = mcp_lifespan_ctx
 
     # Wire startup/shutdown via on_event handlers (not lifespan=) so that
