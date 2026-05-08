@@ -190,6 +190,15 @@ type LangflowSpec struct {
 	// Storage configures a PVC mounted at /app/data (Langflow SQLite + flows).
 	// +optional
 	Storage *PersistenceSpec `json:"storage,omitempty"`
+
+	// AllowCustomComponents enables creation of custom components in Langflow (LANGFLOW_ALLOW_CUSTOM_COMPONENTS).
+	// +optional
+	// +kubebuilder:default=false
+	AllowCustomComponents *bool `json:"allowCustomComponents,omitempty"`
+
+	// ComponentsIndexPath is the path to the component index JSON file (LANGFLOW_COMPONENTS_INDEX_PATH).
+	// +optional
+	ComponentsIndexPath string `json:"componentsIndexPath,omitempty"`
 }
 
 // LLMSpec configures the LLM provider used by backend and Langflow.

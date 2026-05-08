@@ -412,6 +412,16 @@ func (r *OpenRAGReconciler) buildBackendEnv(ctx context.Context, o *openragv1alp
 		envVars["DOCLING_SERVE_URL"] = fmt.Sprintf("%s://%s:%d", scheme, d.Host, port)
 	}
 
+	// Langflow custom components
+	if o.Spec.Langflow.ComponentsIndexPath != "" {
+		envVars["LANGFLOW_COMPONENTS_INDEX_PATH"] = o.Spec.Langflow.ComponentsIndexPath
+	}
+
+	// Langflow custom components
+	if o.Spec.Langflow.AllowCustomComponents != nil {
+		envVars["LANGFLOW_ALLOW_CUSTOM_COMPONENTS"] = fmt.Sprintf("%t", *o.Spec.Langflow.AllowCustomComponents)
+	}
+
 	// Convert map to .env file format
 	return r.EnvVarManager.BuildEnvFileContent(envVars), nil
 }
@@ -491,6 +501,16 @@ func (r *OpenRAGReconciler) buildLangflowEnv(ctx context.Context, o *openragv1al
 			port = 5001
 		}
 		envVars["DOCLING_SERVE_URL"] = fmt.Sprintf("%s://%s:%d", scheme, d.Host, port)
+	}
+
+	// Langflow custom components
+	if o.Spec.Langflow.ComponentsIndexPath != "" {
+		envVars["LANGFLOW_COMPONENTS_INDEX_PATH"] = o.Spec.Langflow.ComponentsIndexPath
+	}
+
+	// Langflow custom components
+	if o.Spec.Langflow.AllowCustomComponents != nil {
+		envVars["LANGFLOW_ALLOW_CUSTOM_COMPONENTS"] = fmt.Sprintf("%t", *o.Spec.Langflow.AllowCustomComponents)
 	}
 
 	// Convert map to .env file format
