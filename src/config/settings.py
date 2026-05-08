@@ -68,10 +68,21 @@ DOCLING_OCR_ENGINE = os.getenv("DOCLING_OCR_ENGINE")
 SEGMENT_WRITE_KEY = os.getenv("SEGMENT_WRITE_KEY", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "")
 
-# Enable FastAPI's `debug` mode (verbose error responses on the FastAPI app
-# instance). Named explicitly so it isn't confused with logging-level "debug"
-# or other unrelated debug flags. Defaults to False; flip via FASTAPI_DEBUG=true.
-FASTAPI_DEBUG = os.getenv("FASTAPI_DEBUG", "false").lower() in ("true", "1", "yes")
+# Enable FastAPI's `debug` mode (verbose tracebacks in HTTP error responses
+# on the FastAPI app instance). Named explicitly so it isn't confused with
+# logging-level "debug" or other unrelated debug flags.
+#
+# Default behavior:
+#   * If FASTAPI_DEBUG is set explicitly (true/false), that wins.
+#   * Otherwise, defaults to True when LOG_LEVEL=DEBUG (developer is already
+#     opting into verbose output), False otherwise. This gives `LOG_LEVEL=DEBUG`
+#     in .env a single-knob "dev mode" effect without forcing it on in prod.
+_fastapi_debug_default = "true" if os.getenv("LOG_LEVEL", "INFO").upper() == "DEBUG" else "false"
+FASTAPI_DEBUG = os.getenv("FASTAPI_DEBUG", _fastapi_debug_default).lower() in (
+    "true",
+    "1",
+    "yes",
+)
 
 # Number of uvicorn worker processes to allow. Multi-worker is currently
 # unsupported because the RBAC permission cache and the OAuth-subject→DB-id
