@@ -68,6 +68,25 @@ DOCLING_OCR_ENGINE = os.getenv("DOCLING_OCR_ENGINE")
 SEGMENT_WRITE_KEY = os.getenv("SEGMENT_WRITE_KEY", "")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "")
 
+# Enable FastAPI's `debug` mode (verbose error responses on the FastAPI app
+# instance). Named explicitly so it isn't confused with logging-level "debug"
+# or other unrelated debug flags. Defaults to False; flip via FASTAPI_DEBUG=true.
+FASTAPI_DEBUG = os.getenv("FASTAPI_DEBUG", "false").lower() in ("true", "1", "yes")
+
+# Number of uvicorn worker processes to allow. Multi-worker is currently
+# unsupported because the RBAC permission cache and the OAuth-subject→DB-id
+# cache are per-process; the lifespan startup hook hard-fails if this is >1
+# until the cache moves to a shared backend (Redis).
+UVICORN_WORKER_COUNT = get_env_int("UVICORN_WORKERS", 1)
+
+# Backend for the in-process RBAC permission cache. Only "memory" is wired
+# today; the lifespan hook rejects anything else.
+RBAC_CACHE_BACKEND = os.getenv("CACHE_BACKEND", "memory").lower()
+
+# TTL (seconds) for cached RBAC permission lookups. Stale permissions can
+# linger for up to this many seconds after a role mutation.
+RBAC_PERMISSION_CACHE_TTL_SECONDS = get_env_int("OPENRAG_PERM_CACHE_TTL", 60)
+
 # Docling service URL configuration
 # Priority:
 # 1. DOCLING_SERVE_URL environment variable
@@ -592,7 +611,7 @@ class AppClients:
                 logger.info("Successfully initialized OpenAI client")
             except Exception as e:
                 logger.error(f"Failed to initialize OpenAI client: {e.__class__.__name__}: {str(e)}")
-                raise ValueError(f"Failed to initialize OpenAI client: {str(e)}. Please complete onboarding or set OPENAI_API_KEY environment variable.")
+                raise ValueError(f"Failed to initialize OpenAI client: {str(e)}. Please complete onboarding or set OPENAI_API_KEY environment variable.") from e
 
             return self._patched_async_client
 

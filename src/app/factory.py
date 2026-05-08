@@ -11,6 +11,7 @@ from app.container import initialize_services
 from app.lifespan import run_shutdown, run_startup
 from app.middleware import RequestLoggingMiddleware
 from app.routes import register_all_routes
+from config.settings import FASTAPI_DEBUG
 from utils.logging_config import get_logger
 from utils.version_utils import OPENRAG_VERSION
 
@@ -21,7 +22,7 @@ async def create_app():
     """Create and configure the FastAPI application"""
     services = await initialize_services()
 
-    app = FastAPI(title="OpenRAG API", version=OPENRAG_VERSION, debug=True)
+    app = FastAPI(title="OpenRAG API", version=OPENRAG_VERSION, debug=FASTAPI_DEBUG)
     app.state.services = services
     app.state.background_tasks = set()
 

@@ -8,11 +8,16 @@ handlers so they fire under both Starlette's lifespan-from-on_event flow
 """
 
 import asyncio
-import os
 
 from fastapi import FastAPI
 
-from config.settings import clients, get_openrag_config
+from config.settings import (
+    RBAC_CACHE_BACKEND,
+    RBAC_PERMISSION_CACHE_TTL_SECONDS,
+    UVICORN_WORKER_COUNT,
+    clients,
+    get_openrag_config,
+)
 from services.startup_orchestrator import startup_tasks
 from utils.logging_config import get_logger
 from utils.telemetry import Category, MessageId, TelemetryClient
@@ -108,26 +113,24 @@ async def run_startup(app: FastAPI):
     # permissions for up to OPENRAG_PERM_CACHE_TTL seconds after
     # role mutations. Until the cache moves to a shared backend
     # (Redis), this constraint is real and must be enforced.
-    _workers = int(os.getenv("UVICORN_WORKERS", "1") or "1")
-    if _workers > 1:
+    if UVICORN_WORKER_COUNT > 1:
         logger.error(
             "Multi-worker deployment unsupported until cache is "
             "shared across processes. Set UVICORN_WORKERS=1.",
-            requested_workers=_workers,
+            requested_workers=UVICORN_WORKER_COUNT,
         )
         raise RuntimeError("UVICORN_WORKERS>1 is not supported")
-    cache_backend = os.getenv("CACHE_BACKEND", "memory").lower()
-    if cache_backend not in ("memory",):
+    if RBAC_CACHE_BACKEND not in ("memory",):
         logger.error(
             "Unsupported CACHE_BACKEND. Only 'memory' is wired.",
-            requested=cache_backend,
+            requested=RBAC_CACHE_BACKEND,
         )
-        raise RuntimeError(f"unsupported CACHE_BACKEND={cache_backend!r}")
+        raise RuntimeError(f"unsupported CACHE_BACKEND={RBAC_CACHE_BACKEND!r}")
     logger.info(
         "Permission cache configured",
-        backend=cache_backend,
-        workers=_workers,
-        perm_cache_ttl_s=int(os.getenv("OPENRAG_PERM_CACHE_TTL", "60") or "60"),
+        backend=RBAC_CACHE_BACKEND,
+        workers=UVICORN_WORKER_COUNT,
+        perm_cache_ttl_s=RBAC_PERMISSION_CACHE_TTL_SECONDS,
     )
 
     # RBAC kill-switch visibility. OPENRAG_RBAC_ENFORCE=false makes
