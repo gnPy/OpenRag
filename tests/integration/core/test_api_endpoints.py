@@ -134,15 +134,9 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
         "services.search_service",
         "services.default_docs_service",
         "services.startup_orchestrator",
-        "app",
-        "app.factory",
-        "app.container",
-        "app.lifespan",
-        "app.middleware",
-        "app.routes",
         "app.routes.internal",
-        "app.routes.public_v1",
-        "app.routes.mcp",
+        "app.routes",
+        "app.factory",
     ]:
         sys.modules.pop(mod, None)
     from main import create_app, startup_tasks
@@ -365,15 +359,9 @@ async def test_langflow_chat_and_nudges_endpoints():
         "services.search_service",
         "services.default_docs_service",
         "services.startup_orchestrator",
-        "app",
-        "app.factory",
-        "app.container",
-        "app.lifespan",
-        "app.middleware",
-        "app.routes",
         "app.routes.internal",
-        "app.routes.public_v1",
-        "app.routes.mcp",
+        "app.routes",
+        "app.factory",
         "services.chat_service",
     ]:
         sys.modules.pop(mod, None)
@@ -478,15 +466,9 @@ async def test_search_multi_embedding_models(
         "services.search_service",
         "services.default_docs_service",
         "services.startup_orchestrator",
-        "app",
-        "app.factory",
-        "app.container",
-        "app.lifespan",
-        "app.middleware",
-        "app.routes",
         "app.routes.internal",
-        "app.routes.public_v1",
-        "app.routes.mcp",
+        "app.routes",
+        "app.factory",
     ]:
         sys.modules.pop(mod, None)
 
@@ -628,15 +610,9 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
         "services.search_service",
         "services.default_docs_service",
         "services.startup_orchestrator",
-        "app",
-        "app.factory",
-        "app.container",
-        "app.lifespan",
-        "app.middleware",
-        "app.routes",
         "app.routes.internal",
-        "app.routes.public_v1",
-        "app.routes.mcp",
+        "app.routes",
+        "app.factory",
     ]:
         sys.modules.pop(mod, None)
     from main import create_app, startup_tasks

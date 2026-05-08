@@ -30,6 +30,7 @@ import httpx  # noqa: F401
 from app.factory import create_app
 from services.default_docs_service import (
     _get_remote_docs_signature,
+    _should_use_url_default_docs_ingest,
     ingest_default_documents_when_ready,
     refresh_default_openrag_docs,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "ingest_default_documents_when_ready",
     "refresh_default_openrag_docs",
     "_get_remote_docs_signature",
+    "_should_use_url_default_docs_ingest",
 ]
 
 
