@@ -22,7 +22,6 @@ import bootstrap  # noqa: F401  — must be first; loads .env + structured loggi
 
 import asyncio
 import atexit
-import os
 
 # Re-exported so tests that monkeypatch "main.httpx.AsyncClient" keep working.
 # Module attributes in Python are shared singletons, so the patch propagates
@@ -30,6 +29,7 @@ import os
 import httpx  # noqa: F401
 
 from app.factory import create_app
+from config.settings import ACCESS_LOG_ENABLED
 from services.default_docs_service import (
     _get_remote_docs_signature,
     _should_use_url_default_docs_ingest,
@@ -87,14 +87,12 @@ if __name__ == "__main__":
 
     app = asyncio.run(create_app())
 
-    access_log = os.getenv("ACCESS_LOG", "true").lower() == "true"
-
     uvicorn.run(
         app,
         workers=1,
         host="0.0.0.0",
         port=8000,
         reload=False,
-        access_log=access_log,
+        access_log=ACCESS_LOG_ENABLED,
         log_config=None,
     )

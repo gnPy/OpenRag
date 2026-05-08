@@ -84,6 +84,11 @@ FASTAPI_DEBUG = os.getenv("FASTAPI_DEBUG", _fastapi_debug_default).lower() in (
     "yes",
 )
 
+# Whether uvicorn emits an access log line per HTTP request. On by
+# default; flip via ACCESS_LOG=false (e.g. when fronted by a load balancer
+# that already logs requests, or to reduce log noise in CI).
+ACCESS_LOG_ENABLED = os.getenv("ACCESS_LOG", "true").lower() in ("true", "1", "yes")
+
 # Number of uvicorn worker processes to allow. Multi-worker is currently
 # unsupported because the RBAC permission cache and the OAuth-subject→DB-id
 # cache are per-process; the lifespan startup hook hard-fails if this is >1
