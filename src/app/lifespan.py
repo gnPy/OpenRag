@@ -5,8 +5,6 @@ as three @app.on_event("startup") handlers and three @app.on_event("shutdown")
 handlers into one helper each. The factory registers these as on_event
 handlers so they fire under both Starlette's lifespan-from-on_event flow
 (production) and `app.router.startup()` / `app.router.shutdown()` (tests).
-Order matches the original behavior exactly — see plan
-main-py-is-too-long-wiggly-knuth.md.
 """
 
 import asyncio

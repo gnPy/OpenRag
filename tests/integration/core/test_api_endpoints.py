@@ -138,7 +138,20 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
     # Import after env vars to ensure settings pick them up. Clear cached modules
     import sys
 
-    # Clear cached modules so settings pick up env and router sees new flag
+    # Pop these from sys.modules so the next `from main import ...`
+    # forces a fresh import chain after we mutate os.environ above.
+    # The list covers two cases:
+    #   1. Modules that read env-driven constants from config.settings
+    #      at module top (e.g. DISABLE_INGEST_WITH_LANGFLOW). Without
+    #      popping, the bound value is stale.
+    #   2. Modules that cache function/class refs from (1) at module
+    #      top (e.g. app.routes.internal -> api.router, or
+    #      app.lifespan -> services.startup_orchestrator). Without
+    #      popping, callers see the old reference even though the
+    #      underlying module was reloaded fresh.
+    # Future maintainers: when adding an app.* or services.* module
+    # that does either of the above, add it to ALL four pop lists in
+    # this file.
     for mod in [
         "api.router",
         "api.connector_router",
@@ -153,6 +166,7 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
         "app.routes.internal",
         "app.routes",
         "app.factory",
+        "app.lifespan",
     ]:
         sys.modules.pop(mod, None)
     from config.settings import clients, get_index_name
@@ -490,6 +504,7 @@ async def test_search_multi_embedding_models(tmp_path: Path):
         "app.routes.internal",
         "app.routes",
         "app.factory",
+        "app.lifespan",
     ]:
         sys.modules.pop(mod, None)
 
@@ -633,6 +648,7 @@ async def test_router_upload_ingest_traditional(tmp_path: Path, disable_langflow
         "app.routes.internal",
         "app.routes",
         "app.factory",
+        "app.lifespan",
     ]:
         sys.modules.pop(mod, None)
     from config.settings import clients, get_index_name

@@ -18,6 +18,8 @@ the app, run uvicorn. The re-exports below preserve the
 `from main import …` contract used by tests and api/settings.py.
 """
 
+import bootstrap  # noqa: F401  — must be first; loads .env + structured logging
+
 import asyncio
 import atexit
 import os
@@ -27,7 +29,6 @@ import os
 # to services/default_docs_service.py which calls httpx.AsyncClient directly.
 import httpx  # noqa: F401
 
-import bootstrap  # noqa: F401  — must be first; loads .env + structured logging
 from app.factory import create_app
 from services.default_docs_service import (
     _get_remote_docs_signature,

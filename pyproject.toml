@@ -96,6 +96,24 @@ target-version = "py313"
 select = ["E", "F", "I", "B", "UP"]
 ignore = ["E501"]  # line-length handled by formatter
 
+# `bootstrap` must be the first import in any module that uses it
+# (it loads .env and configures structlog before anything else can
+# read env vars or emit logs). Define it as its own isort section
+# placed above standard-library so the formatter never re-sorts it
+# below other imports.
+[tool.ruff.lint.isort]
+section-order = [
+    "future",
+    "bootstrap",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+bootstrap = ["bootstrap"]
+
 [tool.mypy]
 python_version = "3.13"
 ignore_missing_imports = true
