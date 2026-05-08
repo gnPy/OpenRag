@@ -1,13 +1,16 @@
 # Environment file location (can be overridden via command line)
 ENV_FILE ?= .env
 
-# Load variables from $(ENV_FILE) if present so `make` commands pick them up
-# Strip quotes from values to avoid issues with tools that don't handle them like python-dotenv does
+# Load variables from $(ENV_FILE) if present so `make` commands pick them up.
+# Strip matched leading+trailing single or double quotes from values BEFORE export
+# so subshells (docker compose, uv run, …) receive the unquoted value, just like
+# python-dotenv does. Uses $(patsubst …) instead of $(shell echo … | sed) so values
+# containing shell-special chars (!, $, glob chars) survive without a fork per var.
 ifneq (,$(wildcard $(ENV_FILE)))
   include $(ENV_FILE)
-  export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
-  # Strip single and double quotes from all exported variables
-  $(foreach var,$(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE)),$(eval $(var):=$(shell echo $($(var)) | sed "s/^['\"]//;s/['\"]$$//")))
+  ENV_FILE_KEYS := $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' $(ENV_FILE))
+  $(foreach var,$(ENV_FILE_KEYS),$(eval $(var):=$(patsubst "%",%,$(patsubst '%',%,$($(var))))))
+  export $(ENV_FILE_KEYS)
 endif
 
 hostname ?= 0.0.0.0
