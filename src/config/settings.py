@@ -1,9 +1,7 @@
-from config.paths import get_flows_path
 import asyncio
+import concurrent.futures
 import os
 import threading
-import concurrent.futures
-from utils.env_utils import get_env_int, get_env_float
 
 import httpx
 from agentd.patch import patch_openai_with_mcp
@@ -11,11 +9,14 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 from opensearchpy import AsyncOpenSearch
 from opensearchpy._async.http_aiohttp import AIOHttpConnection
-from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL
 
-from utils.container_utils import get_container_host, determine_docling_host
+from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL
+from config.paths import get_flows_path
+from utils.container_utils import determine_docling_host, get_container_host
 from utils.embedding_fields import build_knn_vector_field
+from utils.env_utils import get_env_float, get_env_int
 from utils.logging_config import get_logger
+
 # Import configuration manager
 from .config_manager import config_manager
 
@@ -541,7 +542,7 @@ class AppClients:
                     )
                     logger.info(f"HTTP/2 probe successful with {model_name}")
                     return True
-                except (asyncio.TimeoutError, Exception) as probe_error:
+                except (TimeoutError, Exception) as probe_error:
                     logger.warning(f"HTTP/2 probe failed with {model_name}, falling back to HTTP/1.1", error=str(probe_error))
                     return False
                 finally:
