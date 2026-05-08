@@ -196,13 +196,14 @@ async def init_index(opensearch_client=None, admin_username: str = None):
         await configure_alerting_security()
 
     except Exception as e:
-        error_msg = str(e).lower()
-        if "disk usage exceeded" in error_msg or "flood-stage watermark" in error_msg:
+        from utils.opensearch_utils import OpenSearchDiskSpaceError, is_disk_space_error
+
+        if is_disk_space_error(e):
             logger.error(
-                "OpenSearch disk usage exceeded flood-stage watermark. Index creation failed."
+                "OpenSearch disk space exceeded watermark. Index creation failed."
             )
-            raise Exception(
-                "OpenSearch disk space is full (flood-stage watermark exceeded). "
+            raise OpenSearchDiskSpaceError(
+                "OpenSearch disk space is full (watermark exceeded). "
                 "Please free up disk space on your Docker volume or host machine to continue."
             ) from e
         raise
