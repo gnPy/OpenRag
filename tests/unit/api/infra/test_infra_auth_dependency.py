@@ -345,3 +345,84 @@ async def test_saas_jwt_nested_dict_claim(monkeypatch):
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.get("/echo", headers={"Authorization": "Bearer x"})
     assert r.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_on_prem_falls_back_to_ibm_session_cookie(monkeypatch):
+    """When no native JWT is present, the dependency decodes the IBM session
+    cookie (without signature verification — Traefik validates upstream).
+    Triggered purely by OPENRAG_RUN_MODE, no need for IBM_AUTH_ENABLED.
+    """
+    monkeypatch.setenv("OPENRAG_RUN_MODE", "on_prem")
+    monkeypatch.setattr(
+        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
+    )
+    monkeypatch.setattr(
+        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
+    )
+    monkeypatch.setattr(
+        "config.settings.IBM_SESSION_COOKIE_NAME",
+        "ibm-openrag-session",
+        raising=False,
+    )
+    # Stub the IBM JWT decoder; we don't care about real signatures here.
+    import auth.ibm_auth as ibm_auth_mod
+
+    monkeypatch.setattr(
+        ibm_auth_mod,
+        "decode_ibm_jwt",
+        lambda token: {"sub": "ibm-user-1", "roles": ["Manager"]},
+    )
+
+    # No native JWT path => session_manager.verify_token would be called with
+    # no token. The stub returns None for whatever we hand it.
+    app = _build_app(payload=None)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        c.cookies.set("ibm-openrag-session", "fake.ibm.jwt")
+        r = await c.get("/echo")
+
+    assert r.status_code == 200, r.text
+    assert r.json() == {"subject": "ibm-user-1", "source": "jwt"}
+
+
+@pytest.mark.asyncio
+async def test_on_prem_ibm_cookie_with_non_matching_role(monkeypatch):
+    monkeypatch.setenv("OPENRAG_RUN_MODE", "on_prem")
+    monkeypatch.setattr(
+        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
+    )
+    monkeypatch.setattr(
+        "config.settings.IBM_SESSION_COOKIE_NAME",
+        "ibm-openrag-session",
+        raising=False,
+    )
+    import auth.ibm_auth as ibm_auth_mod
+
+    monkeypatch.setattr(
+        ibm_auth_mod,
+        "decode_ibm_jwt",
+        lambda token: {"sub": "ibm-user-2", "roles": ["User"]},
+    )
+
+    app = _build_app(payload=None)
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        c.cookies.set("ibm-openrag-session", "fake.ibm.jwt")
+        r = await c.get("/echo")
+
+    assert r.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_saas_503_when_claim_values_unset(monkeypatch):
+    monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
+    monkeypatch.setattr(
+        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "", raising=False
+    )
+
+    app = _build_app(payload={"sub": "uid-x", "roles": ["Manager"]})
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
+        r = await c.get("/echo", headers={"Authorization": "Bearer x"})
+    assert r.status_code == 503

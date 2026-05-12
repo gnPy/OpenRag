@@ -1,34 +1,56 @@
 """Auth dependency for the /api/infra/* plane.
 
-Pure JWT-claim (SaaS / on_prem) or HTTP Basic (OSS). No DB lookup, no
-RBAC. Returns an `InfraAdmin` dataclass identifying the principal so
-handlers can attribute audit_log rows.
+Dispatch is purely on OPENRAG_RUN_MODE:
+
+  * oss     -> HTTP Basic against OPENRAG_INFRA_ADMIN_USER /
+               OPENRAG_INFRA_ADMIN_PASSWORD (fallback to OPENSEARCH_USERNAME /
+               OPENSEARCH_PASSWORD). Uses FastAPI's HTTPBasic security.
+  * saas /
+    on_prem -> JWT mode. Reads the token from:
+                 - Authorization: Bearer <jwt>, OR
+                 - auth_token cookie (native OpenRAG JWT), OR
+                 - IBM session cookie (decoded without signature verification
+                   because Traefik / the upstream proxy validates it).
+               Then checks that OPENRAG_INFRA_ADMIN_CLAIM contains a value
+               from OPENRAG_INFRA_ADMIN_CLAIM_VALUES.
+
+No DB lookup, no RBAC. Returns an InfraAdmin dataclass so handlers can
+attribute audit_log rows.
 """
 
 from __future__ import annotations
 
-import base64
-import binascii
 import secrets
 from dataclasses import dataclass
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Optional
 
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 
 from config import settings as app_settings
 from dependencies import get_session_manager
 from utils.logging_config import get_logger
-from utils.run_mode_utils import get_run_mode, is_run_mode_oss
+from utils.run_mode_utils import is_run_mode_oss
 
 logger = get_logger(__name__)
+
+
+# auto_error=False so we can raise a custom 401 detail body rather than
+# FastAPI's default "Not authenticated" string.
+_basic = HTTPBasic(realm="infra", auto_error=False)
 
 
 @dataclass(frozen=True)
 class InfraAdmin:
     """A principal authorized to call the infra plane."""
 
-    subject: str  # JWT `sub` (or `user_id`) or basic-auth username
+    subject: str  # JWT `sub` (or `user_id` / `username`) or basic-auth username
     source: Literal["jwt", "basic"]
+
+
+# ---------------------------------------------------------------------------
+# Claim flattening
+# ---------------------------------------------------------------------------
 
 
 def _flatten_claim(claim: Any) -> set[str]:
@@ -69,22 +91,71 @@ def _accepted_claim_values() -> set[str]:
     return {v.strip() for v in raw.split(",") if v.strip()}
 
 
-def _bearer_token(request: Request) -> str | None:
+# ---------------------------------------------------------------------------
+# JWT path (saas / on_prem)
+# ---------------------------------------------------------------------------
+
+
+def _bearer_token(request: Request) -> Optional[str]:
     header = request.headers.get("Authorization", "")
     if header.startswith("Bearer "):
         return header[len("Bearer ") :]
     return None
 
 
-def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
-    token = request.cookies.get("auth_token") or _bearer_token(request)
-    if not token:
-        raise HTTPException(status_code=401, detail={"error": "infra_auth_required"})
-    payload = session_manager.verify_token(token)
-    if not payload:
-        raise HTTPException(status_code=401, detail={"error": "invalid_token"})
+def _ibm_session_cookie(request: Request) -> Optional[str]:
+    """Return the IBM session cookie value, if present.
 
-    claim_name = app_settings.OPENRAG_INFRA_ADMIN_CLAIM
+    The cookie name is configurable via IBM_SESSION_COOKIE_NAME. We read it
+    regardless of IBM_AUTH_ENABLED — the dispatch is on run-mode, and if a
+    CPD/IBM-fronted deployment sets the cookie we honour it. Decoding is
+    performed without signature verification because Traefik / the upstream
+    proxy validates the JWT before the backend ever sees it.
+    """
+    cookie_name = getattr(app_settings, "IBM_SESSION_COOKIE_NAME", None)
+    if not cookie_name:
+        return None
+    return request.cookies.get(cookie_name)
+
+
+def _decode_jwt(request: Request, session_manager) -> Optional[dict]:
+    """Try every supported JWT decoding strategy. Returns the payload or None.
+
+    Order:
+      1. Native OpenRAG JWT (Authorization: Bearer or auth_token cookie)
+         via session_manager.verify_token — fully signature-verified.
+      2. IBM session cookie via auth.ibm_auth.decode_ibm_jwt — UNVERIFIED;
+         trusts the upstream proxy. Only consulted when the native path
+         returns nothing.
+    """
+    native_token = _bearer_token(request) or request.cookies.get("auth_token")
+    if native_token:
+        try:
+            payload = session_manager.verify_token(native_token)
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Native JWT verify raised", error=str(exc))
+            payload = None
+        if payload:
+            return payload
+
+    ibm_token = _ibm_session_cookie(request)
+    if ibm_token:
+        # Imported lazily so the auth module has no hard dependency on the
+        # ibm_auth submodule for non-IBM deployments.
+        from auth.ibm_auth import decode_ibm_jwt
+
+        return decode_ibm_jwt(ibm_token)
+
+    return None
+
+
+def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
+    payload = _decode_jwt(request, session_manager)
+    if not payload:
+        raise HTTPException(
+            status_code=401, detail={"error": "infra_auth_required"}
+        )
+
     accepted = _accepted_claim_values()
     if not accepted:
         # Misconfiguration: claim values list is empty. Fail closed so
@@ -94,22 +165,33 @@ def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
             detail={"error": "infra_admin_claim_values_unset"},
         )
 
+    claim_name = app_settings.OPENRAG_INFRA_ADMIN_CLAIM
     have = _flatten_claim(payload.get(claim_name))
     if not (have & accepted):
-        raise HTTPException(status_code=403, detail={"error": "infra_role_required"})
+        raise HTTPException(
+            status_code=403, detail={"error": "infra_role_required"}
+        )
 
     subject = (
         payload.get("sub")
         or payload.get("user_id")
+        or payload.get("username")
         or payload.get("preferred_username")
         or "unknown"
     )
     return InfraAdmin(subject=str(subject), source="jwt")
 
 
+# ---------------------------------------------------------------------------
+# Basic-auth path (oss)
+# ---------------------------------------------------------------------------
+
+
 def _scheme_from_request(request: Request) -> str:
     """Effective scheme, honoring X-Forwarded-Proto from a TLS-terminating proxy."""
-    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    forwarded = (
+        request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    )
     if forwarded:
         return forwarded
     return (request.url.scheme or "").lower()
@@ -132,48 +214,33 @@ def _enforce_https_or_local(request: Request) -> None:
         detail={
             "error": "https_required",
             "message": (
-                "Infra basic auth requires HTTPS. Set OPENRAG_INFRA_ALLOW_INSECURE=true "
-                "to permit plain HTTP (only behind a trusted proxy)."
+                "Infra basic auth requires HTTPS. Set "
+                "OPENRAG_INFRA_ALLOW_INSECURE=true to permit plain HTTP "
+                "(only behind a trusted proxy)."
             ),
         },
     )
 
 
-def _verify_basic(request: Request) -> InfraAdmin:
+def _verify_basic(
+    request: Request, credentials: Optional[HTTPBasicCredentials]
+) -> InfraAdmin:
     _enforce_https_or_local(request)
 
-    header = request.headers.get("Authorization", "")
-    if not header.startswith("Basic "):
+    if credentials is None:
         raise HTTPException(
             status_code=401,
             detail={"error": "basic_auth_required"},
             headers={"WWW-Authenticate": 'Basic realm="infra"'},
         )
 
-    encoded = header[len("Basic ") :].strip()
-    try:
-        decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
-    except (binascii.Error, UnicodeDecodeError):
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "invalid_basic_auth"},
-            headers={"WWW-Authenticate": 'Basic realm="infra"'},
-        )
-
-    if ":" not in decoded:
-        raise HTTPException(
-            status_code=401,
-            detail={"error": "invalid_basic_auth"},
-            headers={"WWW-Authenticate": 'Basic realm="infra"'},
-        )
-
-    username, password = decoded.split(":", 1)
-
     expected_user = (
         app_settings.OPENRAG_INFRA_ADMIN_USER or app_settings.OPENSEARCH_USERNAME or ""
     )
     expected_pw = (
-        app_settings.OPENRAG_INFRA_ADMIN_PASSWORD or app_settings.OPENSEARCH_PASSWORD or ""
+        app_settings.OPENRAG_INFRA_ADMIN_PASSWORD
+        or app_settings.OPENSEARCH_PASSWORD
+        or ""
     )
     if not expected_user or not expected_pw:
         raise HTTPException(
@@ -182,8 +249,8 @@ def _verify_basic(request: Request) -> InfraAdmin:
         )
 
     if not (
-        secrets.compare_digest(username, expected_user)
-        and secrets.compare_digest(password, expected_pw)
+        secrets.compare_digest(credentials.username, expected_user)
+        and secrets.compare_digest(credentials.password, expected_pw)
     ):
         raise HTTPException(
             status_code=401,
@@ -191,7 +258,12 @@ def _verify_basic(request: Request) -> InfraAdmin:
             headers={"WWW-Authenticate": 'Basic realm="infra"'},
         )
 
-    return InfraAdmin(subject=username, source="basic")
+    return InfraAdmin(subject=credentials.username, source="basic")
+
+
+# ---------------------------------------------------------------------------
+# Public dependency factory
+# ---------------------------------------------------------------------------
 
 
 def require_infra_admin() -> Callable[..., Any]:
@@ -200,18 +272,20 @@ def require_infra_admin() -> Callable[..., Any]:
     Dispatches on run-mode at request time so that mode changes (e.g. an
     operator flipping OPENRAG_RUN_MODE for a smoke test) take effect on the
     next request rather than requiring a restart.
+
+      * oss  -> HTTP Basic (FastAPI HTTPBasic).
+      * non-oss (saas / on_prem / anything else) -> JWT with role-claim check.
+        IBM_AUTH_ENABLED is NOT consulted; the JWT decoder transparently
+        falls back to the IBM session cookie when present.
     """
 
     async def _dep(
         request: Request,
+        credentials: Optional[HTTPBasicCredentials] = Depends(_basic),
         session_manager=Depends(get_session_manager),
     ) -> InfraAdmin:
         if is_run_mode_oss():
-            return _verify_basic(request)
-        # saas / on_prem (and anything unrecognized, which run_mode_utils
-        # defaults to "oss" — so this branch is genuinely just JWT modes).
-        if get_run_mode() == "oss":
-            return _verify_basic(request)
+            return _verify_basic(request, credentials)
         return _verify_jwt(request, session_manager)
 
     return _dep
