@@ -240,35 +240,6 @@
         "className": "",
         "data": {
           "sourceHandle": {
-            "dataType": "AdvancedDynamicFormBuilder",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
-            "name": "form_data",
-            "output_types": [
-              "JSON"
-            ]
-          },
-          "targetHandle": {
-            "fieldName": "docs_metadata",
-            "id": "OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4",
-            "inputTypes": [
-              "Data",
-              "JSON"
-            ],
-            "type": "table"
-          }
-        },
-        "id": "xy-edge__AdvancedDynamicFormBuilder-81Exw{œdataTypeœ:œAdvancedDynamicFormBuilderœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œnameœ:œform_dataœ,œoutput_typesœ:[œJSONœ]}-OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4{œfieldNameœ:œdocs_metadataœ,œidœ:œOpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4œ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œtableœ}",
-        "selected": false,
-        "source": "AdvancedDynamicFormBuilder-81Exw",
-        "sourceHandle": "{œdataTypeœ:œAdvancedDynamicFormBuilderœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œnameœ:œform_dataœ,œoutput_typesœ:[œJSONœ]}",
-        "target": "OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4",
-        "targetHandle": "{œfieldNameœ:œdocs_metadataœ,œidœ:œOpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4œ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œtableœ}"
-      },
-      {
-        "animated": false,
-        "className": "",
-        "data": {
-          "sourceHandle": {
             "dataType": "SplitText",
             "id": "SplitText-QIKhg",
             "name": "dataframe",
@@ -295,6 +266,7 @@
         "targetHandle": "{œfieldNameœ:œingest_dataœ,œidœ:œOpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4œ,œinputTypesœ:[œDataœ,œDataFrameœ,œTableœ],œtypeœ:œotherœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -306,7 +278,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_allowed_groups",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -314,13 +286,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-CTKlr{œdataTypeœ:œTextInputœ,œidœ:œTextInput-CTKlrœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_allowed_groupsœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-CTKlr{œdataTypeœ:œTextInputœ,œidœ:œTextInput-CTKlrœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_allowed_groupsœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-CTKlr",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-CTKlrœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_allowed_groupsœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_allowed_groupsœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -332,7 +306,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_allowed_users",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -340,13 +314,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-hlgVv{œdataTypeœ:œTextInputœ,œidœ:œTextInput-hlgVvœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_allowed_usersœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-hlgVv{œdataTypeœ:œTextInputœ,œidœ:œTextInput-hlgVvœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_allowed_usersœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-hlgVv",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-hlgVvœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_allowed_usersœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_allowed_usersœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -358,7 +334,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_connector_type",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -366,13 +342,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-OGCeZ{œdataTypeœ:œTextInputœ,œidœ:œTextInput-OGCeZœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_connector_typeœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-OGCeZ{œdataTypeœ:œTextInputœ,œidœ:œTextInput-OGCeZœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_connector_typeœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-OGCeZ",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-OGCeZœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_connector_typeœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_connector_typeœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -384,7 +362,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_document_id",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -392,13 +370,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-PI6at{œdataTypeœ:œTextInputœ,œidœ:œTextInput-PI6atœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_document_idœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-PI6at{œdataTypeœ:œTextInputœ,œidœ:œTextInput-PI6atœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_document_idœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-PI6at",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-PI6atœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_document_idœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_document_idœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -410,7 +390,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_owner",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -418,13 +398,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-gRPNR{œdataTypeœ:œTextInputœ,œidœ:œTextInput-gRPNRœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_ownerœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-gRPNR{œdataTypeœ:œTextInputœ,œidœ:œTextInput-gRPNRœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_ownerœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-gRPNR",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-gRPNRœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_ownerœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_ownerœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -436,7 +418,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_owner_email",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -444,13 +426,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-lTHSx{œdataTypeœ:œTextInputœ,œidœ:œTextInput-lTHSxœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_owner_emailœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-lTHSx{œdataTypeœ:œTextInputœ,œidœ:œTextInput-lTHSxœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_owner_emailœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-lTHSx",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-lTHSxœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_owner_emailœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_owner_emailœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -462,7 +446,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_owner_name",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -470,13 +454,15 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-68n9L{œdataTypeœ:œTextInputœ,œidœ:œTextInput-68n9Lœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_owner_nameœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-68n9L{œdataTypeœ:œTextInputœ,œidœ:œTextInput-68n9Lœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_owner_nameœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-68n9L",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-68n9Lœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_owner_nameœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_owner_nameœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
       },
       {
+        "animated": false,
         "data": {
           "sourceHandle": {
             "dataType": "TextInput",
@@ -488,7 +474,7 @@
           },
           "targetHandle": {
             "fieldName": "dynamic_source_url",
-            "id": "AdvancedDynamicFormBuilder-81Exw",
+            "id": "DynamicCreateData-Ntnbe",
             "inputTypes": [
               "Text",
               "Message"
@@ -496,11 +482,38 @@
             "type": "str"
           }
         },
-        "id": "xy-edge__TextInput-UZQ8v{œdataTypeœ:œTextInputœ,œidœ:œTextInput-UZQ8vœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-AdvancedDynamicFormBuilder-81Exw{œfieldNameœ:œdynamic_source_urlœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "id": "xy-edge__TextInput-UZQ8v{œdataTypeœ:œTextInputœ,œidœ:œTextInput-UZQ8vœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}-DynamicCreateData-Ntnbe{œfieldNameœ:œdynamic_source_urlœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}",
+        "selected": false,
         "source": "TextInput-UZQ8v",
         "sourceHandle": "{œdataTypeœ:œTextInputœ,œidœ:œTextInput-UZQ8vœ,œnameœ:œtextœ,œoutput_typesœ:[œMessageœ]}",
-        "target": "AdvancedDynamicFormBuilder-81Exw",
-        "targetHandle": "{œfieldNameœ:œdynamic_source_urlœ,œidœ:œAdvancedDynamicFormBuilder-81Exwœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+        "target": "DynamicCreateData-Ntnbe",
+        "targetHandle": "{œfieldNameœ:œdynamic_source_urlœ,œidœ:œDynamicCreateData-Ntnbeœ,œinputTypesœ:[œTextœ,œMessageœ],œtypeœ:œstrœ}"
+      },
+      {
+        "data": {
+          "sourceHandle": {
+            "dataType": "DynamicCreateData",
+            "id": "DynamicCreateData-Ntnbe",
+            "name": "form_data",
+            "output_types": [
+              "JSON"
+            ]
+          },
+          "targetHandle": {
+            "fieldName": "docs_metadata",
+            "id": "OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4",
+            "inputTypes": [
+              "Data",
+              "JSON"
+            ],
+            "type": "table"
+          }
+        },
+        "id": "xy-edge__DynamicCreateData-Ntnbe{œdataTypeœ:œDynamicCreateDataœ,œidœ:œDynamicCreateData-Ntnbeœ,œnameœ:œform_dataœ,œoutput_typesœ:[œJSONœ]}-OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4{œfieldNameœ:œdocs_metadataœ,œidœ:œOpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4œ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œtableœ}",
+        "source": "DynamicCreateData-Ntnbe",
+        "sourceHandle": "{œdataTypeœ:œDynamicCreateDataœ,œidœ:œDynamicCreateData-Ntnbeœ,œnameœ:œform_dataœ,œoutput_typesœ:[œJSONœ]}",
+        "target": "OpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4",
+        "targetHandle": "{œfieldNameœ:œdocs_metadataœ,œidœ:œOpenSearchVectorStoreComponentMultimodalMultiEmbedding-By9U4œ,œinputTypesœ:[œDataœ,œJSONœ],œtypeœ:œtableœ}"
       }
     ],
     "nodes": [
@@ -785,510 +798,6 @@
       },
       {
         "data": {
-          "description": "Creates dynamic input fields that can receive data from other components or manual input.",
-          "display_name": "Create Data",
-          "id": "AdvancedDynamicFormBuilder-81Exw",
-          "node": {
-            "base_classes": [
-              "JSON",
-              "Message"
-            ],
-            "beta": false,
-            "conditional_paths": [],
-            "custom_fields": {},
-            "description": "Creates dynamic input fields that can receive data from other components or manual input.",
-            "display_name": "Create Data",
-            "documentation": "",
-            "edited": false,
-            "field_order": [
-              "form_fields",
-              "include_metadata"
-            ],
-            "frozen": false,
-            "icon": "braces",
-            "last_updated": "2026-05-08T19:20:38.334Z",
-            "legacy": false,
-            "metadata": {
-              "code_hash": "917d235554d1",
-              "dependencies": {
-                "dependencies": [
-                  {
-                    "name": "langflow",
-                    "version": "1.9.0"
-                  }
-                ],
-                "total_dependencies": 1
-              },
-              "module": "custom_components.create_data"
-            },
-            "minimized": false,
-            "output_types": [],
-            "outputs": [
-              {
-                "allows_loop": false,
-                "cache": true,
-                "display_name": "Data",
-                "group_outputs": false,
-                "hidden": null,
-                "loop_types": null,
-                "method": "process_form",
-                "name": "form_data",
-                "options": null,
-                "required_inputs": null,
-                "selected": "JSON",
-                "tool_mode": true,
-                "types": [
-                  "JSON"
-                ],
-                "value": "__UNDEFINED__"
-              },
-              {
-                "allows_loop": false,
-                "cache": true,
-                "display_name": "Message",
-                "group_outputs": false,
-                "hidden": null,
-                "loop_types": null,
-                "method": "get_message",
-                "name": "message",
-                "options": null,
-                "required_inputs": null,
-                "selected": "Message",
-                "tool_mode": true,
-                "types": [
-                  "Message"
-                ],
-                "value": "__UNDEFINED__"
-              }
-            ],
-            "pinned": false,
-            "template": {
-              "_frontend_node_flow_id": {
-                "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
-              },
-              "_frontend_node_folder_id": {
-                "value": "a451a847-ad7a-442f-ab14-569b43d392bd"
-              },
-              "_type": "Component",
-              "code": {
-                "advanced": true,
-                "dynamic": true,
-                "fileTypes": [],
-                "file_path": "",
-                "info": "",
-                "list": false,
-                "load_from_db": false,
-                "multiline": true,
-                "name": "code",
-                "password": false,
-                "placeholder": "",
-                "required": true,
-                "show": true,
-                "title_case": false,
-                "type": "code",
-                "value": "from typing import Any\n\nfrom langflow.custom import Component\nfrom langflow.io import (\n    BoolInput,\n    FloatInput,\n    HandleInput,\n    IntInput,\n    MultilineInput,\n    Output,\n    StrInput,\n    TableInput,\n)\nfrom langflow.schema.data import Data\nfrom langflow.schema.message import Message\n\n\nclass CreateData(Component):\n    \"\"\"Dynamic Form Component\n\n    This component creates dynamic inputs that can receive data from other components\n    or be filled manually. It demonstrates advanced dynamic input functionality with\n    component connectivity.\n\n    ## Features\n    - **Dynamic Input Generation**: Create inputs based on table configuration\n    - **Component Connectivity**: Inputs can receive data from other components\n    - **Multiple Input Types**: Support for text, number, boolean, and handle inputs\n    - **Flexible Data Sources**: Manual input OR component connections\n    - **Real-time Updates**: Form fields update immediately when table changes\n         - **Multiple Output Formats**: Data and formatted Message outputs\n    - **JSON Output**: Collects all dynamic inputs into a structured JSON response\n\n    ## Use Cases\n    - Dynamic API parameter collection from multiple sources\n    - Variable data aggregation from different components\n    - Flexible pipeline configuration\n    - Multi-source data processing\n\n    ## Field Types Available\n    - **text**: Single-line text input (can connect to Text/String outputs)\n    - **multiline**: Multi-line text input (can connect to Text outputs)\n    - **number**: Integer input (can connect to Number outputs)\n    - **float**: Decimal number input (can connect to Number outputs)\n    - **boolean**: True/false checkbox (can connect to Boolean outputs)\n    - **handle**: Generic data input (can connect to any component output)\n    - **data**: Structured data input (can connect to Data outputs)\n\n    ## Input Types for Connections\n    - **Text**: Text/String data from components\n    - **Data**: Structured data objects\n    - **Message**: Message objects with text content\n    - **Number**: Numeric values\n    - **Boolean**: True/false values\n    - **Any**: Accepts any type of connection\n    - **Combinations**: Text,Message | Data,Text | Text,Data,Message | etc.\n    \"\"\"\n\n    display_name = \"Create Data\"\n    description = \"Creates dynamic input fields that can receive data from other components or manual input.\"\n    icon = \"braces\"\n    name = \"AdvancedDynamicFormBuilder\"\n\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n        self._dynamic_inputs = {}\n\n    inputs = [\n        TableInput(\n            name=\"form_fields\",\n            display_name=\"Input Configuration\",\n            info=\"Define the dynamic form fields. Each row creates a new input field that can connect to other components.\",\n            table_schema=[\n                {\n                    \"name\": \"field_name\",\n                    \"display_name\": \"Field Name\",\n                    \"type\": \"str\",\n                    \"description\": \"Name for the field (used as both internal name and display label)\",\n                },\n                {\n                    \"name\": \"field_type\",\n                    \"display_name\": \"Field Type\",\n                    \"type\": \"str\",\n                    \"description\": \"Type of input field to create\",\n                    \"options\": [\"Text\", \"Data\", \"Number\", \"Handle\", \"Boolean\"],\n                    \"value\": \"Text\",\n                },\n            ],\n            value=[{\"field_name\": \"field_name\", \"field_type\": \"Text\"}],\n            real_time_refresh=True,\n        ),\n        BoolInput(\n            name=\"include_metadata\",\n            display_name=\"Include Metadata\",\n            info=\"Include form configuration metadata in the output.\",\n            value=False,\n            advanced=True,\n        ),\n    ]\n\n    outputs = [\n        Output(display_name=\"Data\", name=\"form_data\", method=\"process_form\"),\n        Output(display_name=\"Message\", name=\"message\", method=\"get_message\"),\n    ]\n\n    def update_build_config(self, build_config: dict, field_value: Any, field_name: str = None) -> dict:\n        \"\"\"Update build configuration to add dynamic inputs that can connect to other components.\"\"\"\n        if field_name == \"form_fields\":\n            # Store current values before clearing dynamic inputs\n            current_values = {}\n            keys_to_remove = [key for key in build_config if key.startswith(\"dynamic_\")]\n            for key in keys_to_remove:\n                # Preserve the current value before deletion\n                if hasattr(self, key):\n                    current_values[key] = getattr(self, key)\n                del build_config[key]\n\n            # Add dynamic inputs based on table configuration\n            # Safety check to ensure field_value is not None and is iterable\n            if field_value is None:\n                field_value = []\n\n            for i, field_config in enumerate(field_value):\n                # Safety check to ensure field_config is not None\n                if field_config is None:\n                    continue\n\n                field_name = field_config.get(\"field_name\", f\"field_{i}\")\n                display_name = field_name  # Use field_name as display_name\n                field_type_option = field_config.get(\"field_type\", \"Text\")\n                default_value = \"\"  # All fields have empty default value\n                required = False  # All fields are optional by default\n                help_text = \"\"  # All fields have empty help text\n\n                # Map field type options to actual field types and input types\n                field_type_mapping = {\n                    \"Text\": {\"field_type\": \"multiline\", \"input_types\": [\"Text\", \"Message\"]},\n                    \"Data\": {\"field_type\": \"data\", \"input_types\": [\"Data\"]},\n                    \"Number\": {\"field_type\": \"number\", \"input_types\": [\"Text\", \"Message\"]},\n                    \"Handle\": {\"field_type\": \"handle\", \"input_types\": [\"Text\", \"Data\", \"Message\"]},\n                    \"Boolean\": {\"field_type\": \"boolean\", \"input_types\": None},\n                }\n\n                field_config_mapped = field_type_mapping.get(\n                    field_type_option, {\"field_type\": \"text\", \"input_types\": []}\n                )\n                field_type = field_config_mapped[\"field_type\"]\n                input_types_list = field_config_mapped[\"input_types\"]\n\n                # Create the appropriate input type based on field_type\n                dynamic_input_name = f\"dynamic_{field_name}\"\n\n                if field_type == \"text\":\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    if input_types_list:\n                        build_config[dynamic_input_name] = StrInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=current_value,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = StrInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=current_value,\n                            required=required,\n                        )\n\n                elif field_type == \"multiline\":\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    if input_types_list:\n                        build_config[dynamic_input_name] = MultilineInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=current_value,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = MultilineInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=current_value,\n                            required=required,\n                        )\n\n                elif field_type == \"number\":\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    try:\n                        if current_value:\n                            current_int = int(current_value)\n                        else:\n                            current_int = 0\n                    except (ValueError, TypeError):\n                        try:\n                            current_int = int(default_value) if default_value else 0\n                        except ValueError:\n                            current_int = 0\n\n                    if input_types_list:\n                        build_config[dynamic_input_name] = IntInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=current_int,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = IntInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=current_int,\n                            required=required,\n                        )\n\n                elif field_type == \"float\":\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    try:\n                        if current_value:\n                            current_float = float(current_value)\n                        else:\n                            current_float = 0.0\n                    except (ValueError, TypeError):\n                        try:\n                            current_float = float(default_value) if default_value else 0.0\n                        except ValueError:\n                            current_float = 0.0\n\n                    if input_types_list:\n                        build_config[dynamic_input_name] = FloatInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=current_float,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = FloatInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=current_float,\n                            required=required,\n                        )\n\n                elif field_type == \"boolean\":\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    # Convert current value to boolean\n                    if isinstance(current_value, bool):\n                        current_bool = current_value\n                    else:\n                        current_bool = str(current_value).lower() in [\"true\", \"1\", \"yes\"] if current_value else False\n\n                    # Boolean fields don't use input_types parameter to avoid errors\n                    build_config[dynamic_input_name] = BoolInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=help_text,\n                        value=current_bool,\n                        input_types=[],\n                        required=required,\n                    )\n\n                elif field_type == \"handle\":\n                    # HandleInput for generic data connections\n                    build_config[dynamic_input_name] = HandleInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Accepts: {', '.join(input_types_list) if input_types_list else 'Any'})\",\n                        input_types=input_types_list if input_types_list else [\"Data\", \"Text\", \"Message\"],\n                        required=required,\n                    )\n\n                elif field_type == \"data\":\n                    # Specialized for Data type connections\n                    build_config[dynamic_input_name] = HandleInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Data input)\",\n                        input_types=[\"Data\"] if not input_types_list else input_types_list,\n                        required=required,\n                    )\n\n                else:\n                    # Default to text input for unknown types\n                    # Use preserved value if available, otherwise use default\n                    current_value = current_values.get(dynamic_input_name, default_value)\n                    if current_value is None:\n                        current_value = default_value\n                    \n                    build_config[dynamic_input_name] = StrInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Unknown type '{field_type}', defaulting to text)\",\n                        value=current_value,\n                        required=required,\n                    )\n\n        return build_config\n\n    def get_dynamic_values(self) -> dict[str, Any]:\n        \"\"\"Extract simple values from all dynamic inputs, handling both manual and connected inputs.\"\"\"\n        dynamic_values = {}\n        connection_info = {}\n        form_fields = getattr(self, \"form_fields\", [])\n\n        for field_config in form_fields:\n            # Safety check to ensure field_config is not None\n            if field_config is None:\n                continue\n\n            field_name = field_config.get(\"field_name\", \"\")\n            if field_name:\n                dynamic_input_name = f\"dynamic_{field_name}\"\n                value = getattr(self, dynamic_input_name, None)\n\n                # Extract simple values from connections or manual input\n                if value is not None:\n                    try:\n                        extracted_value = self._extract_simple_value(value)\n                        dynamic_values[field_name] = extracted_value\n\n                        # Determine connection type for status\n                        if hasattr(value, \"text\") and hasattr(value, \"timestamp\"):\n                            connection_info[field_name] = \"Connected (Message)\"\n                        elif hasattr(value, \"data\"):\n                            connection_info[field_name] = \"Connected (Data)\"\n                        elif isinstance(value, (str, int, float, bool, list, dict)):\n                            connection_info[field_name] = \"Manual input\"\n                        else:\n                            connection_info[field_name] = \"Connected (Object)\"\n\n                    except Exception:\n                        # Fallback to string representation if all else fails\n                        dynamic_values[field_name] = str(value)\n                        connection_info[field_name] = \"Error\"\n                else:\n                    # Use empty default value if nothing connected\n                    dynamic_values[field_name] = \"\"\n                    connection_info[field_name] = \"Empty default\"\n\n        # Store connection info for status output\n        self._connection_info = connection_info\n        return dynamic_values\n\n    def _extract_simple_value(self, value: Any) -> Any:\n        \"\"\"Extract the simplest, most useful value from any input type.\"\"\"\n        # Handle None\n        if value is None:\n            return None\n\n        # Handle simple types directly\n        if isinstance(value, (str, int, float, bool)):\n            return value\n\n        # Handle lists and tuples - keep simple\n        if isinstance(value, (list, tuple)):\n            return [self._extract_simple_value(item) for item in value]\n\n        # Handle dictionaries - keep simple\n        if isinstance(value, dict):\n            return {str(k): self._extract_simple_value(v) for k, v in value.items()}\n\n        # Handle Message objects - extract only the text\n        if hasattr(value, \"text\"):\n            return str(value.text) if value.text is not None else \"\"\n\n        # Handle Data objects - extract the data content\n        if hasattr(value, \"data\") and value.data is not None:\n            return self._extract_simple_value(value.data)\n\n        # For any other object, convert to string\n        return str(value)\n\n    def process_form(self) -> Data:\n        \"\"\"Process all dynamic form inputs and return clean data with just field values.\"\"\"\n        # Get all dynamic values (just the key:value pairs)\n        dynamic_values = self.get_dynamic_values()\n\n        # Update status with connection info\n        connected_fields = len([v for v in getattr(self, \"_connection_info\", {}).values() if \"Connected\" in v])\n        total_fields = len(dynamic_values)\n\n        self.status = f\"Form processed successfully. {connected_fields}/{total_fields} fields connected to components.\"\n\n        # Return clean Data object with just the field values\n        return Data(data=dynamic_values)\n\n    def get_message(self) -> Message:\n        \"\"\"Return form data as a formatted text message.\"\"\"\n        # Get all dynamic values\n        dynamic_values = self.get_dynamic_values()\n\n        if not dynamic_values:\n            return Message(text=\"No form data available\")\n\n        # Format as text message\n        message_lines = [\"📋 Form Data:\"]\n        message_lines.append(\"=\" * 40)\n\n        for field_name, value in dynamic_values.items():\n            # Use field_name as display_name\n            display_name = field_name\n\n            message_lines.append(f\"• {display_name}: {value}\")\n\n        message_lines.append(\"=\" * 40)\n        message_lines.append(f\"Total fields: {len(dynamic_values)}\")\n\n        message_text = \"\\n\".join(message_lines)\n        self.status = f\"Message formatted with {len(dynamic_values)} fields\"\n\n        return Message(text=message_text)\n"
-              },
-              "dynamic_allowed_groups": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "allowed_groups",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_allowed_groups",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_allowed_users": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "allowed_users",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_allowed_users",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_connector_type": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "connector_type",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_connector_type",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_document_id": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "document_id",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_document_id",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_owner": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "owner",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_owner",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_owner_email": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "owner_email",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_owner_email",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_owner_name": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "owner_name",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_owner_name",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "dynamic_source_url": {
-                "_input_type": "MultilineInput",
-                "advanced": false,
-                "ai_enabled": false,
-                "copy_field": false,
-                "display_name": "source_url",
-                "dynamic": false,
-                "helper_text": null,
-                "info": " (Can connect to: Text, Message)",
-                "input_types": [
-                  "Text",
-                  "Message"
-                ],
-                "list": false,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "multiline": true,
-                "name": "dynamic_source_url",
-                "override_skip": false,
-                "password": false,
-                "placeholder": "",
-                "real_time_refresh": null,
-                "refresh_button": null,
-                "refresh_button_text": null,
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_input": true,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "type": "str",
-                "value": ""
-              },
-              "form_fields": {
-                "_input_type": "TableInput",
-                "advanced": false,
-                "display_name": "Input Configuration",
-                "dynamic": false,
-                "info": "Define the dynamic form fields. Each row creates a new input field that can connect to other components.",
-                "input_types": [
-                  "DataFrame",
-                  "Table"
-                ],
-                "is_list": true,
-                "list_add_label": "Add More",
-                "load_from_db": false,
-                "name": "form_fields",
-                "override_skip": false,
-                "placeholder": "",
-                "real_time_refresh": true,
-                "required": false,
-                "show": true,
-                "table_icon": "Table",
-                "table_schema": [
-                  {
-                    "description": "Name for the field (used as both internal name and display label)",
-                    "display_name": "Field Name",
-                    "formatter": "text",
-                    "name": "field_name",
-                    "type": "str"
-                  },
-                  {
-                    "description": "Type of input field to create",
-                    "display_name": "Field Type",
-                    "formatter": "text",
-                    "name": "field_type",
-                    "options": [
-                      "Text",
-                      "Data",
-                      "Number",
-                      "Handle",
-                      "Boolean"
-                    ],
-                    "type": "str",
-                    "value": "Text"
-                  }
-                ],
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_metadata": true,
-                "track_in_telemetry": false,
-                "trigger_icon": "Table",
-                "trigger_text": "Open table",
-                "type": "table",
-                "value": [
-                  {
-                    "field_name": "owner",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "owner_name",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "owner_email",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "connector_type",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "source_url",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "document_id",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "allowed_users",
-                    "field_type": "Text"
-                  },
-                  {
-                    "field_name": "allowed_groups",
-                    "field_type": "Text"
-                  }
-                ]
-              },
-              "include_metadata": {
-                "_input_type": "BoolInput",
-                "advanced": true,
-                "display_name": "Include Metadata",
-                "dynamic": false,
-                "info": "Include form configuration metadata in the output.",
-                "list": false,
-                "list_add_label": "Add More",
-                "name": "include_metadata",
-                "override_skip": false,
-                "placeholder": "",
-                "required": false,
-                "show": true,
-                "title_case": false,
-                "tool_mode": false,
-                "trace_as_metadata": true,
-                "track_in_telemetry": true,
-                "type": "bool",
-                "value": false
-              },
-              "is_refresh": false
-            },
-            "tool_mode": false
-          },
-          "selected_output": "form_data",
-          "showNode": true,
-          "type": "AdvancedDynamicFormBuilder"
-        },
-        "dragging": false,
-        "id": "AdvancedDynamicFormBuilder-81Exw",
-        "measured": {
-          "height": 881,
-          "width": 320
-        },
-        "position": {
-          "x": 1331.3793686192853,
-          "y": 868.8499669098999
-        },
-        "selected": false,
-        "type": "genericNode"
-      },
-      {
-        "data": {
           "description": "Uses Docling to process input documents connecting to your instance of Docling Serve.",
           "display_name": "Docling Serve",
           "id": "DoclingRemote-Dp3PX",
@@ -1302,7 +811,7 @@
             "description": "Uses Docling to process input documents connecting to your instance of Docling Serve.",
             "display_name": "Docling Serve",
             "documentation": "https://docling-project.github.io/docling/",
-            "edited": true,
+            "edited": false,
             "field_order": [
               "path",
               "file_path",
@@ -1320,10 +829,10 @@
             ],
             "frozen": false,
             "icon": "Docling",
-            "last_updated": "2026-05-08T19:20:27.016Z",
+            "last_updated": "2026-05-12T19:15:46.044Z",
             "legacy": false,
             "metadata": {
-              "code_hash": "3a18033f9e4f",
+              "code_hash": "8ece38f03b99",
               "dependencies": {
                 "dependencies": [
                   {
@@ -1375,7 +884,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "a451a847-ad7a-442f-ab14-569b43d392bd"
+                "value": "a049348d-7007-46da-88e8-1d6aefcfaf3b"
               },
               "_type": "Component",
               "api_headers": {
@@ -1470,7 +979,7 @@
                 "show": true,
                 "title_case": false,
                 "type": "code",
-                "value": "from __future__ import annotations\n\nimport base64\nimport json\nimport time\nfrom concurrent.futures import Future, ThreadPoolExecutor\nfrom pathlib import Path\nfrom typing import Any\n\nimport httpx\nfrom docling_core.types.doc import DoclingDocument\nfrom pydantic import ValidationError\n\nfrom lfx.base.data import BaseFileComponent\nfrom lfx.inputs import IntInput, NestedDictInput, StrInput, TableInput\nfrom lfx.inputs.inputs import FloatInput\nfrom lfx.schema import Data\nfrom lfx.schema.dotdict import dotdict\nfrom lfx.schema.message import Message\nfrom lfx.utils.util import transform_localhost_url\n\n\nclass DoclingRemoteComponent(BaseFileComponent):\n    display_name = \"Docling Serve\"\n    description = \"Uses Docling to process input documents connecting to your instance of Docling Serve.\"\n    documentation = \"https://docling-project.github.io/docling/\"\n    trace_type = \"tool\"\n    icon = \"Docling\"\n    name = \"DoclingRemote\"\n\n    MAX_500_RETRIES = 5\n\n    # https://docling-project.github.io/docling/usage/supported_formats/\n    VALID_EXTENSIONS = [\n        \"adoc\",\n        \"asciidoc\",\n        \"asc\",\n        \"bmp\",\n        \"csv\",\n        \"dotx\",\n        \"dotm\",\n        \"docm\",\n        \"docx\",\n        \"htm\",\n        \"html\",\n        \"jpeg\",\n        \"jpg\",\n        \"json\",\n        \"md\",\n        \"pdf\",\n        \"png\",\n        \"potx\",\n        \"ppsx\",\n        \"pptm\",\n        \"potm\",\n        \"ppsm\",\n        \"pptx\",\n        \"tiff\",\n        \"txt\",\n        \"xls\",\n        \"xlsx\",\n        \"xhtml\",\n        \"xml\",\n        \"webp\",\n    ]\n\n    inputs = [\n        *BaseFileComponent.get_base_inputs(),\n        StrInput(\n            name=\"api_url\",\n            display_name=\"Server address\",\n            info=\"URL of the Docling Serve instance.\",\n            required=True,\n        ),\n        StrInput(\n            name=\"task_id\",\n            display_name=\"Task ID\",\n            info=(\n                \"Optional task ID from a previous Docling Serve upload. \"\n                \"If provided, file input is ignored and the component polls for this task's results.\"\n            ),\n            required=False,\n        ),\n        IntInput(\n            name=\"max_concurrency\",\n            display_name=\"Concurrency\",\n            info=\"Maximum number of concurrent requests for the server.\",\n            advanced=True,\n            value=2,\n            input_types=[\"Message\"],\n        ),\n        FloatInput(\n            name=\"max_poll_timeout\",\n            display_name=\"Maximum poll time\",\n            info=\"Maximum waiting time for the document conversion to complete.\",\n            advanced=True,\n            value=3600,\n            input_types=[\"Message\"],\n        ),\n        TableInput(\n            name=\"api_headers\",\n            display_name=\"HTTP headers\",\n            advanced=True,\n            required=False,\n            info=(\"Optional headers required for connecting to Docling Serve.\"),\n            table_schema=[\n                {\n                    \"name\": \"key\",\n                    \"display_name\": \"Key\",\n                    \"type\": \"string\",\n                    \"description\": \"Key name\",\n                },\n                {\n                    \"name\": \"value\",\n                    \"display_name\": \"Value\",\n                    \"load_from_db\": True,\n                    \"type\": \"string\",\n                    \"description\": \"Value of the header\",\n                },\n            ],\n            value=[],\n            real_time_refresh=True,\n            input_types=[\"Data\", \"JSON\"],\n        ),\n        NestedDictInput(\n            name=\"docling_serve_opts\",\n            display_name=\"Docling options\",\n            advanced=True,\n            required=False,\n            info=(\n                \"Optional dictionary of additional options. \"\n                \"See https://github.com/docling-project/docling-serve/blob/main/docs/usage.md for more information.\"\n            ),\n            input_types=[\"Message\"],\n        ),\n    ]\n\n    outputs = [\n        *BaseFileComponent.get_base_outputs(),\n    ]\n\n    def _process_headers(self) -> dict[str, str]:\n        \"\"\"Process the headers input into a valid dictionary.\"\"\"\n        if not self.api_headers:\n            return {}\n\n        component_headers_dict = {}\n        # TableInput normalizes to list\n        items = self.api_headers if isinstance(self.api_headers, list) else [self.api_headers]\n\n        for item in items:\n            if not item:\n                continue\n\n            # Case 1: Data object\n            if hasattr(item, \"data\") and isinstance(item.data, dict):\n                data = item.data\n                if \"key\" in data and \"value\" in data:\n                    component_headers_dict[str(data[\"key\"])] = str(data[\"value\"])\n                else:\n                    # Fallback: merge all keys from Data object\n                    for k, v in data.items():\n                        if k not in (\"text_key\", \"default_value\"):\n                            component_headers_dict[str(k)] = str(v)\n\n            # Case 2: Dictionary (Table row)\n            elif isinstance(item, dict):\n                if \"key\" in item and \"value\" in item:\n                    component_headers_dict[str(item[\"key\"])] = str(item[\"value\"])\n                else:\n                    # Fallback: merge all keys\n                    for k, v in item.items():\n                        component_headers_dict[str(k)] = str(v)\n\n            # Case 3: Message object\n            elif hasattr(item, \"text\") and isinstance(item.text, str):\n                try:\n                    parsed = json.loads(item.text)\n                    if isinstance(parsed, dict):\n                        for k, v in parsed.items():\n                            component_headers_dict[str(k)] = str(v)\n                except json.JSONDecodeError:\n                    pass\n\n        return component_headers_dict\n\n    def update_build_config(self, build_config: dotdict, field_value: Any, field_name: str | None = None) -> dotdict:\n        if field_name == \"api_headers\":\n            if isinstance(field_value, dict):\n                # If it's a dict, convert to list of {key, value} pairs for TableInput\n                # This handles migration from NestedDictInput to TableInput\n                new_value = [{\"key\": k, \"value\": v} for k, v in field_value.items()]\n                build_config[\"api_headers\"][\"value\"] = new_value\n                return build_config\n            if field_value is None:\n                build_config[\"api_headers\"][\"value\"] = []\n                return build_config\n\n        # Default behavior\n        return super().update_build_config(build_config, field_value, field_name)\n\n    def _poll_and_fetch_result(\n        self, client: httpx.Client, base_url: str, task_id: str, file_path: str | None = None\n    ) -> Data | None:\n        \"\"\"Poll for task completion and fetch the result.\n\n        Args:\n            client: The HTTP client to use for requests.\n            base_url: The base URL of the Docling Serve API.\n            task_id: The task ID to poll for.\n            file_path: Optional file path to include in the result data.\n\n        Returns:\n            Data object with the DoclingDocument, or None if processing failed.\n        \"\"\"\n        http_failures = 0\n        retry_status_start = 500\n        retry_status_end = 600\n        start_wait_time = time.monotonic()\n\n        response = client.get(f\"{base_url}/status/poll/{task_id}\")\n        response.raise_for_status()\n        task = response.json()\n\n        while task[\"task_status\"] not in (\"success\", \"failure\"):\n            processing_time = time.monotonic() - start_wait_time\n            if processing_time >= self.max_poll_timeout:\n                msg = (\n                    f\"Processing time {processing_time=} exceeds the maximum poll timeout {self.max_poll_timeout=}.\"\n                    \"Please increase the max_poll_timeout parameter or review why the processing \"\n                    \"takes long on the server.\"\n                )\n                self.log(msg)\n                raise RuntimeError(msg)\n\n            time.sleep(2)\n            response = client.get(f\"{base_url}/status/poll/{task_id}\")\n\n            if retry_status_start <= response.status_code < retry_status_end:\n                http_failures += 1\n                if http_failures > self.MAX_500_RETRIES:\n                    self.log(f\"The status requests got a http response {response.status_code} too many times.\")\n                    return None\n                continue\n\n            task = response.json()\n\n        result_resp = client.get(f\"{base_url}/result/{task_id}\")\n        result_resp.raise_for_status()\n        result = result_resp.json()\n\n        if \"json_content\" not in result[\"document\"] or result[\"document\"][\"json_content\"] is None:\n            self.log(\"No JSON DoclingDocument found in the result.\")\n            return None\n\n        try:\n            doc = DoclingDocument.model_validate(result[\"document\"][\"json_content\"])\n            data_dict: dict[str, Any] = {\"doc\": doc}\n            if file_path:\n                data_dict[\"file_path\"] = file_path\n            return Data(data=data_dict)\n        except ValidationError as e:\n            self.log(f\"Error validating the document. {e}\")\n            return None\n\n    def _process_task_id(self) -> list[Data]:\n        \"\"\"Process an existing task by polling for status and retrieving results.\n\n        Returns:\n            List containing the result Data object, or empty list if processing failed.\n        \"\"\"\n        transformed_url = transform_localhost_url(self.api_url)\n        base_url = f\"{transformed_url}/v1\"\n\n        with httpx.Client(headers=self._process_headers()) as client:\n            result = self._poll_and_fetch_result(client, base_url, self.task_id)\n            return [result] if result else []\n\n    def load_files_base(self) -> list[Data]:\n        \"\"\"Load and process files, or poll an existing task if task_id is provided.\n\n        Returns:\n            list[Data]: Parsed data from the processed files or task.\n        \"\"\"\n        if self.task_id:\n            return self._process_task_id()\n        return super().load_files_base()\n\n    def process_files(self, file_list: list[BaseFileComponent.BaseFile]) -> list[BaseFileComponent.BaseFile]:\n        transformed_url = transform_localhost_url(self.api_url)\n        base_url = f\"{transformed_url}/v1\"\n\n        def _convert_document(client: httpx.Client, file_path: Path, options: dict[str, Any]) -> Data | None:\n            encoded_doc = base64.b64encode(file_path.read_bytes()).decode()\n            payload = {\n                \"options\": options,\n                \"sources\": [{\"kind\": \"file\", \"base64_string\": encoded_doc, \"filename\": file_path.name}],\n            }\n\n            response = client.post(f\"{base_url}/convert/source/async\", json=payload)\n            response.raise_for_status()\n            task = response.json()\n\n            return self._poll_and_fetch_result(client, base_url, task[\"task_id\"], str(file_path))\n\n        docling_options = {\n            \"to_formats\": [\"json\"],\n            \"image_export_mode\": \"placeholder\",\n            **(self.docling_serve_opts or {}),\n        }\n\n        processed_data: list[Data | None] = []\n        with (\n            httpx.Client(headers=self._process_headers()) as client,\n            ThreadPoolExecutor(max_workers=self.max_concurrency) as executor,\n        ):\n            futures: list[tuple[int, Future]] = []\n            for i, file in enumerate(file_list):\n                if file.path is None:\n                    processed_data.append(None)\n                    continue\n\n                futures.append((i, executor.submit(_convert_document, client, file.path, docling_options)))\n\n            for _index, future in futures:\n                try:\n                    result_data = future.result()\n                    processed_data.append(result_data)\n                except (httpx.HTTPStatusError, httpx.RequestError, KeyError, ValueError) as exc:\n                    self.log(f\"Docling remote processing failed: {exc}\")\n                    raise\n\n        return self.rollup_data(file_list, processed_data)\n"
+                "value": "from __future__ import annotations\n\nimport base64\nimport json\nimport time\nfrom concurrent.futures import Future, ThreadPoolExecutor\nfrom pathlib import Path\nfrom typing import Any\n\nimport httpx\nfrom docling_core.types.doc import DoclingDocument\nfrom pydantic import ValidationError\n\nfrom lfx.base.data import BaseFileComponent\nfrom lfx.inputs import IntInput, NestedDictInput, StrInput, TableInput\nfrom lfx.inputs.inputs import FloatInput\nfrom lfx.schema import Data\nfrom lfx.schema.dotdict import dotdict\nfrom lfx.schema.message import Message\nfrom lfx.utils.util import transform_localhost_url\n\n\nclass DoclingRemoteComponent(BaseFileComponent):\n    display_name = \"Docling Serve\"\n    description = (\n        \"Uses Docling to process input documents connecting to your instance of Docling Serve.\"\n    )\n    documentation = \"https://docling-project.github.io/docling/\"\n    trace_type = \"tool\"\n    icon = \"Docling\"\n    name = \"DoclingRemote\"\n\n    MAX_500_RETRIES = 5\n\n    # https://docling-project.github.io/docling/usage/supported_formats/\n    VALID_EXTENSIONS = [\n        \"adoc\",\n        \"asciidoc\",\n        \"asc\",\n        \"bmp\",\n        \"csv\",\n        \"dotx\",\n        \"dotm\",\n        \"docm\",\n        \"docx\",\n        \"htm\",\n        \"html\",\n        \"jpeg\",\n        \"jpg\",\n        \"json\",\n        \"md\",\n        \"pdf\",\n        \"png\",\n        \"potx\",\n        \"ppsx\",\n        \"pptm\",\n        \"potm\",\n        \"ppsm\",\n        \"pptx\",\n        \"tiff\",\n        \"txt\",\n        \"xls\",\n        \"xlsx\",\n        \"xhtml\",\n        \"xml\",\n        \"webp\",\n    ]\n\n    inputs = [\n        *BaseFileComponent.get_base_inputs(),\n        StrInput(\n            name=\"api_url\",\n            display_name=\"Server address\",\n            info=\"URL of the Docling Serve instance.\",\n            required=True,\n        ),\n        StrInput(\n            name=\"task_id\",\n            display_name=\"Task ID\",\n            info=(\n                \"Optional task ID from a previous Docling Serve upload. \"\n                \"If provided, file input is ignored and the component polls for this task's results.\"\n            ),\n            required=False,\n        ),\n        IntInput(\n            name=\"max_concurrency\",\n            display_name=\"Concurrency\",\n            info=\"Maximum number of concurrent requests for the server.\",\n            advanced=True,\n            value=2,\n            input_types=[\"Message\"],\n        ),\n        FloatInput(\n            name=\"max_poll_timeout\",\n            display_name=\"Maximum poll time\",\n            info=\"Maximum waiting time for the document conversion to complete.\",\n            advanced=True,\n            value=3600,\n            input_types=[\"Message\"],\n        ),\n        TableInput(\n            name=\"api_headers\",\n            display_name=\"HTTP headers\",\n            advanced=True,\n            required=False,\n            info=(\"Optional headers required for connecting to Docling Serve.\"),\n            table_schema=[\n                {\n                    \"name\": \"key\",\n                    \"display_name\": \"Key\",\n                    \"type\": \"string\",\n                    \"description\": \"Key name\",\n                },\n                {\n                    \"name\": \"value\",\n                    \"display_name\": \"Value\",\n                    \"load_from_db\": True,\n                    \"type\": \"string\",\n                    \"description\": \"Value of the header\",\n                },\n            ],\n            value=[],\n            real_time_refresh=True,\n            input_types=[\"Data\", \"JSON\"],\n        ),\n        NestedDictInput(\n            name=\"docling_serve_opts\",\n            display_name=\"Docling options\",\n            advanced=True,\n            required=False,\n            info=(\n                \"Optional dictionary of additional options. \"\n                \"See https://github.com/docling-project/docling-serve/blob/main/docs/usage.md for more information.\"\n            ),\n            input_types=[\"Message\"],\n        ),\n    ]\n\n    outputs = [\n        *BaseFileComponent.get_base_outputs(),\n    ]\n\n    def _process_headers(self) -> dict[str, str]:\n        \"\"\"Process the headers input into a valid dictionary.\"\"\"\n        if not self.api_headers:\n            return {}\n\n        component_headers_dict = {}\n        # TableInput normalizes to list\n        items = self.api_headers if isinstance(self.api_headers, list) else [self.api_headers]\n\n        for item in items:\n            if not item:\n                continue\n\n            # Case 1: Data object\n            if hasattr(item, \"data\") and isinstance(item.data, dict):\n                data = item.data\n                if \"key\" in data and \"value\" in data:\n                    component_headers_dict[str(data[\"key\"])] = str(data[\"value\"])\n                else:\n                    # Fallback: merge all keys from Data object\n                    for k, v in data.items():\n                        if k not in (\"text_key\", \"default_value\"):\n                            component_headers_dict[str(k)] = str(v)\n\n            # Case 2: Dictionary (Table row)\n            elif isinstance(item, dict):\n                if \"key\" in item and \"value\" in item:\n                    component_headers_dict[str(item[\"key\"])] = str(item[\"value\"])\n                else:\n                    # Fallback: merge all keys\n                    for k, v in item.items():\n                        component_headers_dict[str(k)] = str(v)\n\n            # Case 3: Message object\n            elif hasattr(item, \"text\") and isinstance(item.text, str):\n                try:\n                    parsed = json.loads(item.text)\n                    if isinstance(parsed, dict):\n                        for k, v in parsed.items():\n                            component_headers_dict[str(k)] = str(v)\n                except json.JSONDecodeError:\n                    pass\n\n        return component_headers_dict\n\n    def update_build_config(\n        self, build_config: dotdict, field_value: Any, field_name: str | None = None\n    ) -> dotdict:\n        if field_name == \"api_headers\":\n            if isinstance(field_value, dict):\n                # If it's a dict, convert to list of {key, value} pairs for TableInput\n                # This handles migration from NestedDictInput to TableInput\n                new_value = [{\"key\": k, \"value\": v} for k, v in field_value.items()]\n                build_config[\"api_headers\"][\"value\"] = new_value\n                return build_config\n            if field_value is None:\n                build_config[\"api_headers\"][\"value\"] = []\n                return build_config\n\n        # Default behavior\n        return super().update_build_config(build_config, field_value, field_name)\n\n    def _poll_and_fetch_result(\n        self, client: httpx.Client, base_url: str, task_id: str, file_path: str | None = None\n    ) -> Data | None:\n        \"\"\"Poll for task completion and fetch the result.\n\n        Args:\n            client: The HTTP client to use for requests.\n            base_url: The base URL of the Docling Serve API.\n            task_id: The task ID to poll for.\n            file_path: Optional file path to include in the result data.\n\n        Returns:\n            Data object with the DoclingDocument, or None if processing failed.\n        \"\"\"\n        http_failures = 0\n        retry_status_start = 500\n        retry_status_end = 600\n        start_wait_time = time.monotonic()\n\n        response = client.get(f\"{base_url}/status/poll/{task_id}\")\n        response.raise_for_status()\n        task = response.json()\n\n        while task[\"task_status\"] not in (\"success\", \"failure\"):\n            processing_time = time.monotonic() - start_wait_time\n            if processing_time >= self.max_poll_timeout:\n                msg = (\n                    f\"Processing time {processing_time=} exceeds the maximum poll timeout {self.max_poll_timeout=}.\"\n                    \"Please increase the max_poll_timeout parameter or review why the processing \"\n                    \"takes long on the server.\"\n                )\n                self.log(msg)\n                raise RuntimeError(msg)\n\n            time.sleep(2)\n            response = client.get(f\"{base_url}/status/poll/{task_id}\")\n\n            if retry_status_start <= response.status_code < retry_status_end:\n                http_failures += 1\n                if http_failures > self.MAX_500_RETRIES:\n                    self.log(\n                        f\"The status requests got a http response {response.status_code} too many times.\"\n                    )\n                    return None\n                continue\n\n            task = response.json()\n\n        result_resp = client.get(f\"{base_url}/result/{task_id}\")\n        result_resp.raise_for_status()\n        result = result_resp.json()\n\n        if \"json_content\" not in result[\"document\"] or result[\"document\"][\"json_content\"] is None:\n            self.log(\"No JSON DoclingDocument found in the result.\")\n            return None\n\n        try:\n            doc = DoclingDocument.model_validate(result[\"document\"][\"json_content\"])\n            data_dict: dict[str, Any] = {\"doc\": doc}\n            if file_path:\n                data_dict[\"file_path\"] = file_path\n            return Data(data=data_dict)\n        except ValidationError as e:\n            self.log(f\"Error validating the document. {e}\")\n            return None\n\n    def _process_task_id(self) -> list[Data]:\n        \"\"\"Process an existing task by polling for status and retrieving results.\n\n        Returns:\n            List containing the result Data object, or empty list if processing failed.\n        \"\"\"\n        transformed_url = transform_localhost_url(self.api_url)\n        base_url = f\"{transformed_url}/v1\"\n\n        with httpx.Client(headers=self._process_headers()) as client:\n            result = self._poll_and_fetch_result(client, base_url, self.task_id)\n            return [result] if result else []\n\n    def load_files_base(self) -> list[Data]:\n        \"\"\"Load and process files, or poll an existing task if task_id is provided.\n\n        Returns:\n            list[Data]: Parsed data from the processed files or task.\n        \"\"\"\n        if self.task_id:\n            return self._process_task_id()\n        return super().load_files_base()\n\n    def process_files(\n        self, file_list: list[BaseFileComponent.BaseFile]\n    ) -> list[BaseFileComponent.BaseFile]:\n        transformed_url = transform_localhost_url(self.api_url)\n        base_url = f\"{transformed_url}/v1\"\n\n        def _convert_document(\n            client: httpx.Client, file_path: Path, options: dict[str, Any]\n        ) -> Data | None:\n            encoded_doc = base64.b64encode(file_path.read_bytes()).decode()\n            payload = {\n                \"options\": options,\n                \"sources\": [\n                    {\"kind\": \"file\", \"base64_string\": encoded_doc, \"filename\": file_path.name}\n                ],\n            }\n\n            response = client.post(f\"{base_url}/convert/source/async\", json=payload)\n            response.raise_for_status()\n            task = response.json()\n\n            return self._poll_and_fetch_result(client, base_url, task[\"task_id\"], str(file_path))\n\n        docling_options = {\n            \"to_formats\": [\"json\"],\n            \"image_export_mode\": \"placeholder\",\n            **(self.docling_serve_opts or {}),\n        }\n\n        processed_data: list[Data | None] = []\n        with (\n            httpx.Client(headers=self._process_headers()) as client,\n            ThreadPoolExecutor(max_workers=self.max_concurrency) as executor,\n        ):\n            futures: list[tuple[int, Future]] = []\n            for i, file in enumerate(file_list):\n                if file.path is None:\n                    processed_data.append(None)\n                    continue\n\n                futures.append(\n                    (i, executor.submit(_convert_document, client, file.path, docling_options))\n                )\n\n            for _index, future in futures:\n                try:\n                    result_data = future.result()\n                    processed_data.append(result_data)\n                except (httpx.HTTPStatusError, httpx.RequestError, KeyError, ValueError) as exc:\n                    self.log(f\"Docling remote processing failed: {exc}\")\n                    raise\n\n        return self.rollup_data(file_list, processed_data)\n"
               },
               "delete_server_file_after_processing": {
                 "_input_type": "BoolInput",
@@ -4664,7 +4173,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "a451a847-ad7a-442f-ab14-569b43d392bd"
+                "value": "a049348d-7007-46da-88e8-1d6aefcfaf3b"
               },
               "_type": "Component",
               "api_base": {
@@ -4933,96 +4442,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -6506,7 +5925,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "a451a847-ad7a-442f-ab14-569b43d392bd"
+                "value": "a049348d-7007-46da-88e8-1d6aefcfaf3b"
               },
               "_type": "Component",
               "api_base": {
@@ -6775,96 +6194,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -7124,7 +6453,7 @@
                 "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
               },
               "_frontend_node_folder_id": {
-                "value": "a451a847-ad7a-442f-ab14-569b43d392bd"
+                "value": "a049348d-7007-46da-88e8-1d6aefcfaf3b"
               },
               "_type": "Component",
               "api_base": {
@@ -7392,96 +6721,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -7663,12 +6902,511 @@
         },
         "selected": false,
         "type": "genericNode"
+      },
+      {
+        "data": {
+          "id": "DynamicCreateData-Ntnbe",
+          "node": {
+            "base_classes": [
+              "JSON",
+              "Message"
+            ],
+            "beta": false,
+            "conditional_paths": [],
+            "custom_fields": {},
+            "description": "Dynamically create a Data with a specified number of fields.",
+            "display_name": "Dynamic Create Data",
+            "documentation": "",
+            "edited": false,
+            "field_order": [
+              "form_fields",
+              "include_metadata"
+            ],
+            "frozen": false,
+            "icon": "ListFilter",
+            "last_updated": "2026-05-12T19:18:22.532Z",
+            "legacy": false,
+            "metadata": {
+              "code_hash": "8af479187c18",
+              "dependencies": {
+                "dependencies": [
+                  {
+                    "name": "lfx",
+                    "version": null
+                  }
+                ],
+                "total_dependencies": 1
+              },
+              "module": "lfx.components.processing.dynamic_create_data.DynamicCreateDataComponent"
+            },
+            "minimized": false,
+            "output_types": [],
+            "outputs": [
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "JSON",
+                "group_outputs": false,
+                "loop_types": null,
+                "method": "process_form",
+                "name": "form_data",
+                "options": null,
+                "required_inputs": null,
+                "selected": "JSON",
+                "tool_mode": true,
+                "types": [
+                  "JSON"
+                ],
+                "value": "__UNDEFINED__"
+              },
+              {
+                "allows_loop": false,
+                "cache": true,
+                "display_name": "Message",
+                "group_outputs": false,
+                "loop_types": null,
+                "method": "get_message",
+                "name": "message",
+                "options": null,
+                "required_inputs": null,
+                "selected": "Message",
+                "tool_mode": true,
+                "types": [
+                  "Message"
+                ],
+                "value": "__UNDEFINED__"
+              }
+            ],
+            "pinned": false,
+            "template": {
+              "_frontend_node_flow_id": {
+                "value": "5488df7c-b93f-4f87-a446-b67028bc0813"
+              },
+              "_frontend_node_folder_id": {
+                "value": "a049348d-7007-46da-88e8-1d6aefcfaf3b"
+              },
+              "_type": "Component",
+              "code": {
+                "advanced": true,
+                "dynamic": true,
+                "fileTypes": [],
+                "file_path": "",
+                "info": "",
+                "list": false,
+                "load_from_db": false,
+                "multiline": true,
+                "name": "code",
+                "password": false,
+                "placeholder": "",
+                "required": true,
+                "show": true,
+                "title_case": false,
+                "type": "code",
+                "value": "from typing import Any\n\nfrom lfx.custom import Component\nfrom lfx.io import (\n    BoolInput,\n    FloatInput,\n    HandleInput,\n    IntInput,\n    MultilineInput,\n    Output,\n    StrInput,\n    TableInput,\n)\nfrom lfx.schema.data import Data\nfrom lfx.schema.message import Message\n\n\nclass DynamicCreateDataComponent(Component):\n    display_name: str = \"Dynamic Create Data\"\n    description: str = \"Dynamically create a Data with a specified number of fields.\"\n    name: str = \"DynamicCreateData\"\n    MAX_FIELDS = 15  # Define a constant for maximum number of fields\n    icon = \"ListFilter\"\n\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n\n    inputs = [\n        TableInput(\n            name=\"form_fields\",\n            display_name=\"Input Configuration\",\n            info=(\n                \"Define the dynamic form fields. Each row creates a new input field \"\n                \"that can connect to other components.\"\n            ),\n            table_schema=[\n                {\n                    \"name\": \"field_name\",\n                    \"display_name\": \"Field Name\",\n                    \"type\": \"str\",\n                    \"description\": \"Name for the field (used as both internal name and display label)\",\n                },\n                {\n                    \"name\": \"field_type\",\n                    \"display_name\": \"Field Type\",\n                    \"type\": \"str\",\n                    \"description\": \"Type of input field to create\",\n                    \"options\": [\"Text\", \"Data\", \"Number\", \"Handle\", \"Boolean\"],\n                    \"value\": \"Text\",\n                },\n            ],\n            value=[],\n            real_time_refresh=True,\n        ),\n        BoolInput(\n            name=\"include_metadata\",\n            display_name=\"Include Metadata\",\n            info=\"Include form configuration metadata in the output.\",\n            value=False,\n            advanced=True,\n        ),\n    ]\n\n    outputs = [\n        Output(display_name=\"JSON\", name=\"form_data\", method=\"process_form\"),\n        Output(display_name=\"Message\", name=\"message\", method=\"get_message\"),\n    ]\n\n    def update_build_config(self, build_config: dict, field_value: Any, field_name: str | None = None) -> dict:\n        \"\"\"Update build configuration to add dynamic inputs that can connect to other components.\"\"\"\n        if field_name == \"form_fields\":\n            # Clear existing dynamic inputs from build config\n            keys_to_remove = [key for key in build_config if key.startswith(\"dynamic_\")]\n            for key in keys_to_remove:\n                del build_config[key]\n\n            # Add dynamic inputs based on table configuration\n            # Safety check to ensure field_value is not None and is iterable\n            if field_value is None:\n                field_value = []\n\n            for i, field_config in enumerate(field_value):\n                # Safety check to ensure field_config is not None\n                if field_config is None:\n                    continue\n\n                field_name = field_config.get(\"field_name\", f\"field_{i}\")\n                display_name = field_name  # Use field_name as display_name\n                field_type_option = field_config.get(\"field_type\", \"Text\")\n                default_value = \"\"  # All fields have empty default value\n                required = False  # All fields are optional by default\n                help_text = \"\"  # All fields have empty help text\n\n                # Map field type options to actual field types and input types\n                field_type_mapping = {\n                    \"Text\": {\"field_type\": \"multiline\", \"input_types\": [\"Text\", \"Message\"]},\n                    \"Data\": {\"field_type\": \"data\", \"input_types\": [\"Data\"]},\n                    \"Number\": {\"field_type\": \"number\", \"input_types\": [\"Text\", \"Message\"]},\n                    \"Handle\": {\"field_type\": \"handle\", \"input_types\": [\"Text\", \"Data\", \"Message\"]},\n                    \"Boolean\": {\"field_type\": \"boolean\", \"input_types\": None},\n                }\n\n                field_config_mapped = field_type_mapping.get(\n                    field_type_option, {\"field_type\": \"text\", \"input_types\": []}\n                )\n                if not isinstance(field_config_mapped, dict):\n                    field_config_mapped = {\"field_type\": \"text\", \"input_types\": []}\n                field_type = field_config_mapped[\"field_type\"]\n                input_types_list = field_config_mapped[\"input_types\"]\n\n                # Create the appropriate input type based on field_type\n                dynamic_input_name = f\"dynamic_{field_name}\"\n\n                if field_type == \"text\":\n                    if input_types_list:\n                        build_config[dynamic_input_name] = StrInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=default_value,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = StrInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=default_value,\n                            required=required,\n                        )\n\n                elif field_type == \"multiline\":\n                    if input_types_list:\n                        build_config[dynamic_input_name] = MultilineInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=default_value,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = MultilineInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=default_value,\n                            required=required,\n                        )\n\n                elif field_type == \"number\":\n                    try:\n                        default_int = int(default_value) if default_value else 0\n                    except ValueError:\n                        default_int = 0\n\n                    if input_types_list:\n                        build_config[dynamic_input_name] = IntInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=default_int,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = IntInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=default_int,\n                            required=required,\n                        )\n\n                elif field_type == \"float\":\n                    try:\n                        default_float = float(default_value) if default_value else 0.0\n                    except ValueError:\n                        default_float = 0.0\n\n                    if input_types_list:\n                        build_config[dynamic_input_name] = FloatInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=f\"{help_text} (Can connect to: {', '.join(input_types_list)})\",\n                            value=default_float,\n                            required=required,\n                            input_types=input_types_list,\n                        )\n                    else:\n                        build_config[dynamic_input_name] = FloatInput(\n                            name=dynamic_input_name,\n                            display_name=display_name,\n                            info=help_text,\n                            value=default_float,\n                            required=required,\n                        )\n\n                elif field_type == \"boolean\":\n                    default_bool = default_value.lower() in [\"true\", \"1\", \"yes\"] if default_value else False\n\n                    # Boolean fields don't use input_types parameter to avoid errors\n                    build_config[dynamic_input_name] = BoolInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=help_text,\n                        value=default_bool,\n                        input_types=[],\n                        required=required,\n                    )\n\n                elif field_type == \"handle\":\n                    # HandleInput for generic data connections\n                    build_config[dynamic_input_name] = HandleInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Accepts: {', '.join(input_types_list) if input_types_list else 'Any'})\",\n                        input_types=input_types_list if input_types_list else [\"Data\", \"Text\", \"Message\"],\n                        required=required,\n                    )\n\n                elif field_type == \"data\":\n                    # Specialized for Data type connections\n                    build_config[dynamic_input_name] = HandleInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Data input)\",\n                        input_types=input_types_list if input_types_list else [\"Data\"],\n                        required=required,\n                    )\n\n                else:\n                    # Default to text input for unknown types\n                    build_config[dynamic_input_name] = StrInput(\n                        name=dynamic_input_name,\n                        display_name=display_name,\n                        info=f\"{help_text} (Unknown type '{field_type}', defaulting to text)\",\n                        value=default_value,\n                        required=required,\n                    )\n\n        return build_config\n\n    def get_dynamic_values(self) -> dict[str, Any]:\n        \"\"\"Extract simple values from all dynamic inputs, handling both manual and connected inputs.\"\"\"\n        dynamic_values = {}\n        connection_info = {}\n        form_fields = getattr(self, \"form_fields\", [])\n\n        for field_config in form_fields:\n            # Safety check to ensure field_config is not None\n            if field_config is None:\n                continue\n\n            field_name = field_config.get(\"field_name\", \"\")\n            if field_name:\n                dynamic_input_name = f\"dynamic_{field_name}\"\n                value = getattr(self, dynamic_input_name, None)\n\n                # Extract simple values from connections or manual input\n                if value is not None:\n                    try:\n                        extracted_value = self._extract_simple_value(value)\n                        dynamic_values[field_name] = extracted_value\n\n                        # Determine connection type for status\n                        if hasattr(value, \"text\") and hasattr(value, \"timestamp\"):\n                            connection_info[field_name] = \"Connected (Message)\"\n                        elif hasattr(value, \"data\"):\n                            connection_info[field_name] = \"Connected (Data)\"\n                        elif isinstance(value, (str, int, float, bool, list, dict)):\n                            connection_info[field_name] = \"Manual input\"\n                        else:\n                            connection_info[field_name] = \"Connected (Object)\"\n\n                    except (AttributeError, TypeError, ValueError):\n                        # Fallback to string representation if all else fails\n                        dynamic_values[field_name] = str(value)\n                        connection_info[field_name] = \"Error\"\n                else:\n                    # Use empty default value if nothing connected\n                    dynamic_values[field_name] = \"\"\n                    connection_info[field_name] = \"Empty default\"\n\n        # Store connection info for status output\n        self._connection_info = connection_info\n        return dynamic_values\n\n    def _extract_simple_value(self, value: Any) -> Any:\n        \"\"\"Extract the simplest, most useful value from any input type.\"\"\"\n        # Handle None\n        if value is None:\n            return None\n\n        # Handle simple types directly\n        if isinstance(value, (str, int, float, bool)):\n            return value\n\n        # Handle lists and tuples - keep simple\n        if isinstance(value, (list, tuple)):\n            return [self._extract_simple_value(item) for item in value]\n\n        # Handle dictionaries - keep simple\n        if isinstance(value, dict):\n            return {str(k): self._extract_simple_value(v) for k, v in value.items()}\n\n        # Handle Message objects - extract only the text\n        if hasattr(value, \"text\"):\n            return str(value.text) if value.text is not None else \"\"\n\n        # Handle Data objects - extract the data content\n        if hasattr(value, \"data\") and value.data is not None:\n            return self._extract_simple_value(value.data)\n\n        # For any other object, convert to string\n        return str(value)\n\n    def process_form(self) -> Data:\n        \"\"\"Process all dynamic form inputs and return clean data with just field values.\"\"\"\n        # Get all dynamic values (just the key:value pairs)\n        dynamic_values = self.get_dynamic_values()\n\n        # Update status with connection info\n        connected_fields = len([v for v in getattr(self, \"_connection_info\", {}).values() if \"Connected\" in v])\n        total_fields = len(dynamic_values)\n\n        self.status = f\"Form processed successfully. {connected_fields}/{total_fields} fields connected to components.\"\n\n        # Return clean Data object with just the field values\n        return Data(data=dynamic_values)\n\n    def get_message(self) -> Message:\n        \"\"\"Return form data as a formatted text message.\"\"\"\n        # Get all dynamic values\n        dynamic_values = self.get_dynamic_values()\n\n        if not dynamic_values:\n            return Message(text=\"No form data available\")\n\n        # Format as text message\n        message_lines = [\"📋 Form Data:\"]\n        message_lines.append(\"=\" * 40)\n\n        for field_name, value in dynamic_values.items():\n            # Use field_name as display_name\n            display_name = field_name\n\n            message_lines.append(f\"• {display_name}: {value}\")\n\n        message_lines.append(\"=\" * 40)\n        message_lines.append(f\"Total fields: {len(dynamic_values)}\")\n\n        message_text = \"\\n\".join(message_lines)\n        self.status = f\"Message formatted with {len(dynamic_values)} fields\"\n\n        return Message(text=message_text)\n"
+              },
+              "dynamic_allowed_groups": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "allowed_groups",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_allowed_groups",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_allowed_users": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "allowed_users",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_allowed_users",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_connector_type": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "connector_type",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_connector_type",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_document_id": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "document_id",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_document_id",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_owner": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "owner",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_owner",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_owner_email": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "owner_email",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_owner_email",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_owner_name": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "owner_name",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_owner_name",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "dynamic_source_url": {
+                "_input_type": "MultilineInput",
+                "advanced": false,
+                "ai_enabled": false,
+                "copy_field": false,
+                "display_name": "source_url",
+                "dynamic": false,
+                "helper_text": null,
+                "info": " (Can connect to: Text, Message)",
+                "input_types": [
+                  "Text",
+                  "Message"
+                ],
+                "list": false,
+                "list_add_label": "Add More",
+                "load_from_db": false,
+                "multiline": true,
+                "name": "dynamic_source_url",
+                "override_skip": false,
+                "password": false,
+                "placeholder": "",
+                "real_time_refresh": null,
+                "refresh_button": null,
+                "refresh_button_text": null,
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_input": true,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "type": "str",
+                "value": ""
+              },
+              "form_fields": {
+                "_input_type": "TableInput",
+                "advanced": false,
+                "display_name": "Input Configuration",
+                "dynamic": false,
+                "info": "Define the dynamic form fields. Each row creates a new input field that can connect to other components.",
+                "input_types": [
+                  "DataFrame",
+                  "Table"
+                ],
+                "is_list": true,
+                "list_add_label": "Add More",
+                "name": "form_fields",
+                "override_skip": false,
+                "placeholder": "",
+                "real_time_refresh": true,
+                "required": false,
+                "show": true,
+                "table_icon": "Table",
+                "table_schema": [
+                  {
+                    "description": "Name for the field (used as both internal name and display label)",
+                    "display_name": "Field Name",
+                    "formatter": "text",
+                    "name": "field_name",
+                    "type": "str"
+                  },
+                  {
+                    "description": "Type of input field to create",
+                    "display_name": "Field Type",
+                    "formatter": "text",
+                    "name": "field_type",
+                    "options": [
+                      "Text",
+                      "Data",
+                      "Number",
+                      "Handle",
+                      "Boolean"
+                    ],
+                    "type": "str",
+                    "value": "Text"
+                  }
+                ],
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": false,
+                "trigger_icon": "Table",
+                "trigger_text": "Open table",
+                "type": "table",
+                "value": [
+                  {
+                    "field_name": "allowed_groups",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "allowed_users",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "connector_type",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "document_id",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "owner",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "owner_email",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "owner_name",
+                    "field_type": "Text"
+                  },
+                  {
+                    "field_name": "source_url",
+                    "field_type": "Text"
+                  }
+                ]
+              },
+              "include_metadata": {
+                "_input_type": "BoolInput",
+                "advanced": true,
+                "display_name": "Include Metadata",
+                "dynamic": false,
+                "info": "Include form configuration metadata in the output.",
+                "list": false,
+                "list_add_label": "Add More",
+                "name": "include_metadata",
+                "override_skip": false,
+                "placeholder": "",
+                "required": false,
+                "show": true,
+                "title_case": false,
+                "tool_mode": false,
+                "trace_as_metadata": true,
+                "track_in_telemetry": true,
+                "type": "bool",
+                "value": false
+              },
+              "is_refresh": false
+            },
+            "tool_mode": false
+          },
+          "selected_output": "form_data",
+          "showNode": true,
+          "type": "DynamicCreateData"
+        },
+        "dragging": false,
+        "id": "DynamicCreateData-Ntnbe",
+        "measured": {
+          "height": 881,
+          "width": 320
+        },
+        "position": {
+          "x": 1317.7621425276811,
+          "y": 864.088275802676
+        },
+        "selected": false,
+        "type": "genericNode"
       }
     ],
     "viewport": {
-      "x": 193.22171349647556,
-      "y": -404.7149184337984,
-      "zoom": 0.5164469534707714
+      "x": 66.73274914006731,
+      "y": -203.58957854978382,
+      "zoom": 0.38486289817088426
     }
   },
   "description": "Load your data for chat context with Retrieval Augmented Generation.",
