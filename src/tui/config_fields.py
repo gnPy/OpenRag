@@ -273,6 +273,74 @@ CONFIG_SECTIONS: list[ConfigSection] = [
         ),
     ]),
 
+    # ── Infra Admin ─────────────────────────────────────────────
+    ConfigSection("Infra Admin", [
+        ConfigField(
+            "openrag_enable_infra_endpoints", "OPENRAG_ENABLE_INFRA_ENDPOINTS",
+            "Enable Infra Endpoints",
+            placeholder="false", default="false",
+            helper_text=(
+                "Master switch. When false, /api/infra/* is not mounted and "
+                "today's startup behaviour is preserved. The fields below "
+                "are only consulted when this is true."
+            ),
+        ),
+        ConfigField(
+            "openrag_auto_opensearch_setup", "OPENRAG_AUTO_OPENSEARCH_SETUP",
+            "Auto-run OpenSearch Setup",
+            placeholder="true", default="true",
+            helper_text=(
+                "Only consulted when infra endpoints are enabled. If false, "
+                "skip OpenSearch security setup at startup; trigger it via "
+                "POST /api/infra/opensearch/setup."
+            ),
+        ),
+        ConfigField(
+            "openrag_auto_first_admin", "OPENRAG_AUTO_FIRST_ADMIN",
+            "Auto-promote First User to Admin",
+            placeholder="true", default="true",
+            helper_text=(
+                "Only consulted when infra endpoints are enabled. If false, "
+                "first signed-in user gets the default role; create the "
+                "admin explicitly via POST /api/infra/users."
+            ),
+        ),
+        ConfigField(
+            "openrag_infra_admin_claim", "OPENRAG_INFRA_ADMIN_CLAIM",
+            "JWT Claim for Infra Access",
+            placeholder="roles", default="roles",
+            helper_text="JWT claim name that carries the role(s) (SaaS / on_prem mode).",
+        ),
+        ConfigField(
+            "openrag_infra_admin_claim_values", "OPENRAG_INFRA_ADMIN_CLAIM_VALUES",
+            "Accepted Claim Values",
+            placeholder="Manager", default="Manager",
+            helper_text="Comma-separated values; any match grants infra access.",
+        ),
+        ConfigField(
+            "openrag_infra_admin_user", "OPENRAG_INFRA_ADMIN_USER",
+            "OSS Basic-Auth Username",
+            placeholder="(falls back to OPENSEARCH_USERNAME)",
+            helper_text="OSS-only basic-auth username. Empty = fall back to OPENSEARCH_USERNAME.",
+        ),
+        ConfigField(
+            "openrag_infra_admin_password", "OPENRAG_INFRA_ADMIN_PASSWORD",
+            "OSS Basic-Auth Password",
+            placeholder="(falls back to OPENSEARCH_PASSWORD)",
+            secret=True,
+            helper_text="OSS-only basic-auth password. Empty = fall back to OPENSEARCH_PASSWORD.",
+        ),
+        ConfigField(
+            "openrag_infra_allow_insecure", "OPENRAG_INFRA_ALLOW_INSECURE",
+            "Allow Basic Auth over HTTP",
+            placeholder="false", default="false",
+            helper_text=(
+                "Permit OSS basic-auth over plain HTTP. Required only behind a "
+                "proxy that strips X-Forwarded-Proto and isn't on localhost."
+            ),
+        ),
+    ], advanced=True, gate_prompt="Configure Infra Admin endpoints?"),
+
     # ── Advanced ────────────────────────────────────────────────
     ConfigSection("Advanced", [
         ConfigField(

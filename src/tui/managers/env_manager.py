@@ -103,6 +103,16 @@ class EnvConfig:
     # Container version (linked to TUI version)
     openrag_version: str = ""
 
+    # Infra-admin plane (master flag + sub-flags)
+    openrag_enable_infra_endpoints: str = "false"
+    openrag_auto_opensearch_setup: str = "true"
+    openrag_auto_first_admin: str = "true"
+    openrag_infra_admin_claim: str = "roles"
+    openrag_infra_admin_claim_values: str = "Manager"
+    openrag_infra_admin_user: str = ""
+    openrag_infra_admin_password: str = ""
+    openrag_infra_allow_insecure: str = "false"
+
     # Validation errors
     validation_errors: Dict[str, str] = field(default_factory=dict)
 
@@ -232,6 +242,14 @@ class EnvManager:
             "LANGFUSE_SECRET_KEY": "langfuse_secret_key",  # pragma: allowlist secret
             "LANGFUSE_PUBLIC_KEY": "langfuse_public_key",  # pragma: allowlist secret
             "LANGFUSE_HOST": "langfuse_host",
+            "OPENRAG_ENABLE_INFRA_ENDPOINTS": "openrag_enable_infra_endpoints",
+            "OPENRAG_AUTO_OPENSEARCH_SETUP": "openrag_auto_opensearch_setup",
+            "OPENRAG_AUTO_FIRST_ADMIN": "openrag_auto_first_admin",
+            "OPENRAG_INFRA_ADMIN_CLAIM": "openrag_infra_admin_claim",
+            "OPENRAG_INFRA_ADMIN_CLAIM_VALUES": "openrag_infra_admin_claim_values",
+            "OPENRAG_INFRA_ADMIN_USER": "openrag_infra_admin_user",
+            "OPENRAG_INFRA_ADMIN_PASSWORD": "openrag_infra_admin_password",  # pragma: allowlist secret
+            "OPENRAG_INFRA_ALLOW_INSECURE": "openrag_infra_allow_insecure",
         }
 
     def _collect_preserved_env_lines(self) -> list[str]:
@@ -629,6 +647,51 @@ class EnvManager:
                         f.write(f"{var_name}={self._quote_env_value(var_value)}\n")
 
                 if langfuse_written:
+                    f.write("\n")
+
+                # Infra-admin plane (only emit if explicitly enabled or any
+                # sub-field is set non-default; keeps default .env quiet).
+                infra_enabled = self.config.openrag_enable_infra_endpoints.lower() in (
+                    "true", "1", "yes"
+                )
+                infra_sub_set = any([
+                    self.config.openrag_infra_admin_user,
+                    self.config.openrag_infra_admin_password,
+                    self.config.openrag_auto_opensearch_setup.lower() not in ("true", "1", "yes"),
+                    self.config.openrag_auto_first_admin.lower() not in ("true", "1", "yes"),
+                    self.config.openrag_infra_admin_claim != "roles",
+                    self.config.openrag_infra_admin_claim_values != "Manager",
+                    self.config.openrag_infra_allow_insecure.lower() in ("true", "1", "yes"),
+                ])
+                if infra_enabled or infra_sub_set:
+                    f.write("# Infra-admin plane\n")
+                    f.write(
+                        f"OPENRAG_ENABLE_INFRA_ENDPOINTS={self._quote_env_value(self.config.openrag_enable_infra_endpoints)}\n"
+                    )
+                    f.write(
+                        f"OPENRAG_AUTO_OPENSEARCH_SETUP={self._quote_env_value(self.config.openrag_auto_opensearch_setup)}\n"
+                    )
+                    f.write(
+                        f"OPENRAG_AUTO_FIRST_ADMIN={self._quote_env_value(self.config.openrag_auto_first_admin)}\n"
+                    )
+                    f.write(
+                        f"OPENRAG_INFRA_ADMIN_CLAIM={self._quote_env_value(self.config.openrag_infra_admin_claim)}\n"
+                    )
+                    f.write(
+                        f"OPENRAG_INFRA_ADMIN_CLAIM_VALUES={self._quote_env_value(self.config.openrag_infra_admin_claim_values)}\n"
+                    )
+                    if self.config.openrag_infra_admin_user:
+                        f.write(
+                            f"OPENRAG_INFRA_ADMIN_USER={self._quote_env_value(self.config.openrag_infra_admin_user)}\n"
+                        )
+                    if self.config.openrag_infra_admin_password:
+                        f.write(
+                            f"OPENRAG_INFRA_ADMIN_PASSWORD={self._quote_env_value(self.config.openrag_infra_admin_password)}\n"
+                        )
+                    if self.config.openrag_infra_allow_insecure.lower() in ("true", "1", "yes"):
+                        f.write(
+                            f"OPENRAG_INFRA_ALLOW_INSECURE={self._quote_env_value(self.config.openrag_infra_allow_insecure)}\n"
+                        )
                     f.write("\n")
 
                 if preserved_custom_lines:

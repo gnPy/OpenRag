@@ -399,6 +399,24 @@ def register_internal_routes(app: FastAPI):
     # Public — must work pre-auth so the onboarding wizard can render.
     app.include_router(config_api.router)
 
+    # ===== Infra-admin plane — gated by master flag =====
+    # /api/infra/* uses JWT-claim or basic-auth, NOT RBAC. Opt-in via env so
+    # default OSS installs are unchanged. Mounting happens here (and not in
+    # the infra package's import) so the master flag's effect is contained to
+    # a single line a reviewer can audit.
+    from config.settings import OPENRAG_ENABLE_INFRA_ENDPOINTS
+
+    if OPENRAG_ENABLE_INFRA_ENDPOINTS:
+        from api.infra import router as infra_router
+
+        app.include_router(infra_router)
+        import logging
+
+        logging.getLogger(__name__).info(
+            "Infra-admin plane enabled at /api/infra/* "
+            "(OPENRAG_ENABLE_INFRA_ENDPOINTS=true)"
+        )
+
     # ===== API Key Management Endpoints (JWT auth for UI) =====
     app.add_api_route("/keys", api_keys.list_keys_endpoint, methods=["GET"], tags=["internal"])
     app.add_api_route("/keys", api_keys.create_key_endpoint, methods=["POST"], tags=["internal"])

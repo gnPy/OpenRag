@@ -144,6 +144,37 @@ OPENRAG_INGEST_VIA_CHAT = os.getenv("OPENRAG_INGEST_VIA_CHAT", "false").lower() 
     "yes",
 )
 
+# ── Infra-admin plane (master flag + sub-flags) ──────────────────────────
+# Master kill-switch for the /api/infra/* router and the startup-gating
+# behaviour it enables. When false, the entire infra plane is inert:
+# router not mounted, startup auto-setup behaves as today, first-user-admin
+# runs as today. The two AUTO_* flags below are only consulted when this
+# master flag is true.
+OPENRAG_ENABLE_INFRA_ENDPOINTS = os.getenv("OPENRAG_ENABLE_INFRA_ENDPOINTS", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+OPENRAG_AUTO_OPENSEARCH_SETUP = os.getenv("OPENRAG_AUTO_OPENSEARCH_SETUP", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+OPENRAG_AUTO_FIRST_ADMIN = os.getenv("OPENRAG_AUTO_FIRST_ADMIN", "true").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+OPENRAG_INFRA_ADMIN_CLAIM = os.getenv("OPENRAG_INFRA_ADMIN_CLAIM", "roles")
+OPENRAG_INFRA_ADMIN_CLAIM_VALUES = os.getenv("OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager")
+OPENRAG_INFRA_ADMIN_USER = os.getenv("OPENRAG_INFRA_ADMIN_USER")
+OPENRAG_INFRA_ADMIN_PASSWORD = os.getenv("OPENRAG_INFRA_ADMIN_PASSWORD")
+OPENRAG_INFRA_ALLOW_INSECURE = os.getenv("OPENRAG_INFRA_ALLOW_INSECURE", "false").lower() in (
+    "true",
+    "1",
+    "yes",
+)
+
 # Ingest sample data configuration
 INGEST_SAMPLE_DATA = os.getenv("INGEST_SAMPLE_DATA", "true").lower() in ("true", "1", "yes")
 

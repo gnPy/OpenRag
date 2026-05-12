@@ -9,6 +9,8 @@ server URLs, and reapplies user settings if Langflow flows were reset.
 from config.settings import (
     DISABLE_INGEST_WITH_LANGFLOW,
     FETCH_OPENRAG_DOCS_AT_STARTUP,
+    OPENRAG_AUTO_OPENSEARCH_SETUP,
+    OPENRAG_ENABLE_INFRA_ENDPOINTS,
     clients,
     get_openrag_config,
 )
@@ -65,17 +67,42 @@ async def startup_tasks(services):
         # Index will be created after onboarding when we know the embedding model
         await wait_for_opensearch()
 
-        # Setup OpenSearch security (roles and mappings) after connection is established
-        try:
-            from utils.opensearch_utils import setup_opensearch_security
-
-            await setup_opensearch_security(clients.opensearch)
-            logger.info("OpenSearch security configuration completed successfully")
-        except Exception as e:
-            logger.warning(
-                "Failed to setup OpenSearch security configuration - continuing anyway",
-                error=str(e),
+        # Setup OpenSearch security (roles and mappings) after connection is established.
+        # OPENRAG_AUTO_OPENSEARCH_SETUP is only consulted when the infra-endpoint
+        # plane is enabled — otherwise today's auto-setup behaviour is preserved.
+        skip_auto_setup = (
+            OPENRAG_ENABLE_INFRA_ENDPOINTS and not OPENRAG_AUTO_OPENSEARCH_SETUP
+        )
+        if skip_auto_setup:
+            logger.info(
+                "Auto OpenSearch security setup is disabled "
+                "(OPENRAG_AUTO_OPENSEARCH_SETUP=false). "
+                "Trigger it via POST /api/infra/opensearch/setup."
             )
+        else:
+            try:
+                from utils.opensearch_utils import setup_opensearch_security
+
+                await setup_opensearch_security(clients.opensearch)
+                logger.info("OpenSearch security configuration completed successfully")
+                # Record completion so the infra status endpoint reports
+                # "configured" regardless of how the setup was triggered.
+                try:
+                    from services.opensearch_setup_status import (
+                        mark_opensearch_security_configured,
+                    )
+
+                    await mark_opensearch_security_configured(notes="auto-startup")
+                except Exception as mark_error:
+                    logger.warning(
+                        "Failed to record opensearch_security_v1 migration status",
+                        error=str(mark_error),
+                    )
+            except Exception as e:
+                logger.warning(
+                    "Failed to setup OpenSearch security configuration - continuing anyway",
+                    error=str(e),
+                )
 
         if DISABLE_INGEST_WITH_LANGFLOW:
             await _ensure_opensearch_index()

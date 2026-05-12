@@ -143,8 +143,17 @@ async def _assign_bootstrap_or_default(
     audit_repo: AuditRepo,
     user_id: str,
 ) -> None:
+    # When the infra-endpoint plane is enabled AND first-admin auto-promotion
+    # is disabled, never assign the bootstrap admin role — the operator will
+    # create the admin explicitly via POST /api/infra/users. The master flag
+    # is checked first so default OSS installs keep today's behaviour even if
+    # OPENRAG_AUTO_FIRST_ADMIN is somehow stashed in the env.
+    from config.settings import OPENRAG_AUTO_FIRST_ADMIN, OPENRAG_ENABLE_INFRA_ENDPOINTS
+
+    skip_bootstrap = OPENRAG_ENABLE_INFRA_ENDPOINTS and not OPENRAG_AUTO_FIRST_ADMIN
+
     admin_count = await role_repo.count_admins()
-    if admin_count == 0:
+    if admin_count == 0 and not skip_bootstrap:
         admin_role = await role_repo.get_by_name("admin")
         if admin_role is None:
             logger.warning("admin role not seeded; skipping bootstrap assignment")
