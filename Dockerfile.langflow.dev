@@ -50,6 +50,8 @@ WORKDIR /app
 RUN uv sync --frozen --no-dev --no-editable --extra postgresql
 RUN uv pip uninstall litellm
 
+COPY flows/component_index.json /app/component_index.json
+
 # Expose ports
 EXPOSE 7860
 

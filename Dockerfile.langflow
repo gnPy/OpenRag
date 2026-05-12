@@ -11,6 +11,7 @@ RUN pip install uv \
 # (which owns /app), then switch to root so the entrypoint can correct
 # bind-mount permissions at runtime before dropping back to uid=1000.
 COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoint
+COPY flows/component_index.json /app/component_index.json
 USER root
 
 EXPOSE 7860
