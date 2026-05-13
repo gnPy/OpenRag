@@ -407,13 +407,13 @@ async def _get_ibm_user(request: Request, response: Response, required: bool) ->
                 user_id = claims.get("username", sub)
                 email = claims.get("username", sub)
                 name = claims.get("display_name", claims.get("username", sub))
-                
+
                 exp = claims.get("exp")
                 if exp:
                     import datetime
 
                     from config.settings import PLATFORM_REFRESH_PERIOD
-                    
+
                     now = datetime.datetime.now(datetime.UTC).timestamp()
                     if exp - now < PLATFORM_REFRESH_PERIOD:
                         logger.info("IBM JWT token is expiring soon, attempting refresh...")
@@ -431,7 +431,10 @@ async def _get_ibm_user(request: Request, response: Response, required: bool) ->
                         else:
                             if now >= exp:
                                 if required:
-                                    raise HTTPException(status_code=401, detail="IBM session expired. Please log in again.")
+                                    raise HTTPException(
+                                        status_code=401,
+                                        detail="IBM session expired. Please log in again.",
+                                    )
                                 return None
 
     if lh_credentials and lh_credentials.strip() != "":
