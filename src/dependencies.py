@@ -21,7 +21,7 @@ from collections.abc import AsyncIterator, Sequence
 from typing import Optional
 
 from cachetools import TTLCache
-from fastapi import Depends, HTTPException, Request
+from fastapi import Depends, HTTPException, Request, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from session_manager import User
@@ -342,7 +342,7 @@ def require_all_permissions(required_perms: Sequence[str]):
 # ─────────────────────────────────────────────
 
 
-async def _get_ibm_user(request: Request, required: bool) -> Optional["User"]:
+async def _get_ibm_user(request: Request, response: Response, required: bool) -> Optional["User"]:
     """Authenticate via IBM AMS.
 
     0. X-IBM-LH-Credentials header (configurable via IBM_CREDENTIALS_HEADER) —
@@ -407,6 +407,32 @@ async def _get_ibm_user(request: Request, required: bool) -> Optional["User"]:
                 user_id = claims.get("username", sub)
                 email = claims.get("username", sub)
                 name = claims.get("display_name", claims.get("username", sub))
+                
+                exp = claims.get("exp")
+                if exp:
+                    import datetime
+
+                    from config.settings import PLATFORM_REFRESH_PERIOD
+                    
+                    now = datetime.datetime.now(datetime.UTC).timestamp()
+                    if exp - now < PLATFORM_REFRESH_PERIOD:
+                        logger.info("IBM JWT token is expiring soon, attempting refresh...")
+                        new_token = await ibm_auth.refresh_ibm_jwt(ibm_token)
+                        if new_token:
+                            ibm_token = new_token
+                            response.set_cookie(
+                                key=IBM_SESSION_COOKIE_NAME,
+                                value=new_token,
+                                httponly=True,
+                                secure=True,
+                                samesite="lax",
+                            )
+                            logger.info("Successfully refreshed IBM JWT token and updated cookie.")
+                        else:
+                            if now >= exp:
+                                if required:
+                                    raise HTTPException(status_code=401, detail="IBM session expired. Please log in again.")
+                                return None
 
     if lh_credentials and lh_credentials.strip() != "":
         logger.debug("[AUTH] IBM LH credentials found in request headers")
@@ -518,6 +544,7 @@ async def _get_ibm_user(request: Request, required: bool) -> Optional["User"]:
 
 async def get_current_user(
     request: Request,
+    response: Response,
     session_manager=Depends(get_session_manager),
 ) -> User:
     """
@@ -532,7 +559,7 @@ async def get_current_user(
     # IBM AMS cookie auth takes priority when enabled
     if IBM_AUTH_ENABLED:
         logger.debug("[AUTH] IBM auth mode enabled, getting current user")
-        user = await _get_ibm_user(request, required=True)
+        user = await _get_ibm_user(request, response, required=True)
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
         return await _attach_db_user_id(request, user)
@@ -560,6 +587,7 @@ async def get_current_user(
 
 async def get_optional_user(
     request: Request,
+    response: Response,
     session_manager=Depends(get_session_manager),
 ) -> User | None:
     """
@@ -574,7 +602,7 @@ async def get_optional_user(
     # IBM AMS cookie auth takes priority when enabled
     if IBM_AUTH_ENABLED:
         logger.debug("[AUTH] IBM auth mode enabled, getting optional user")
-        user = await _get_ibm_user(request, required=False)
+        user = await _get_ibm_user(request, response, required=False)
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
         if user:

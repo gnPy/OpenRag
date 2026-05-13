@@ -6,10 +6,13 @@ validate_ibm_jwt — full RS256 validation for optional use when
                   IBM_JWT_PUBLIC_KEY_URL is configured.
 fetch_ibm_public_key — fetch and cache IBM's public key PEM.
 """
+import asyncio
+
 import httpx
 import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
+from config.settings import PLATFORM_REFRESH_URL
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -88,3 +91,30 @@ def validate_ibm_jwt(token: str, public_key) -> dict | None:
     except jwt.InvalidTokenError as exc:
         logger.warning("IBM JWT validation failed", error=str(exc))
         return None
+
+async def refresh_ibm_jwt(token: str) -> str | None:
+    """Refresh the IBM JWT token using the configured PLATFORM_REFRESH_URL."""
+    if not PLATFORM_REFRESH_URL:
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "User-Agent": "curl/7.64.1"
+    }
+
+    async with httpx.AsyncClient() as client:
+        for attempt in range(10):
+            try:
+                resp = await client.post(PLATFORM_REFRESH_URL, headers=headers, timeout=30.0)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    new_token = data.get("token") or data.get("access_token") or data.get("refresh_token") or resp.text.strip().strip('"')
+                    if '.' in new_token:
+                        logger.info("Successfully refreshed IBM JWT token.")
+                        return new_token
+            except Exception as e:
+                logger.warning(f"Failed to refresh IBM token (attempt {attempt + 1}): {e}")
+            
+            await asyncio.sleep(10)
+    
+    return None
