@@ -544,9 +544,16 @@ MOCK_JOBS: dict[str, IngestionJobDetail] = {
 
 
 async def list_ingestion_jobs(
-    status: Optional[str] = Query(None, description="Filter by status: completed, failed, running, pending"),
-    component: Optional[str] = Query(None, description="Filter by component: openrag, docling, langflow, opensearch"),
-    actionability: Optional[str] = Query(None, description="Filter by actionability: USER_ACTIONABLE, RETRYABLE, ADMIN_ACTIONABLE, DEVELOPER_ACTIONABLE"),
+    status: Optional[str] = Query(
+        None, description="Filter by status: completed, failed, running, pending"
+    ),
+    component: Optional[str] = Query(
+        None, description="Filter by component: openrag, docling, langflow, opensearch"
+    ),
+    actionability: Optional[str] = Query(
+        None,
+        description="Filter by actionability: USER_ACTIONABLE, RETRYABLE, ADMIN_ACTIONABLE, DEVELOPER_ACTIONABLE",
+    ),
     user: User = Depends(get_api_key_user_async),
 ):
     """List ingestion jobs with optional filtering."""
