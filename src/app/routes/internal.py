@@ -413,8 +413,7 @@ def register_internal_routes(app: FastAPI):
         import logging
 
         logging.getLogger(__name__).info(
-            "Infra-admin plane enabled at /api/infra/* "
-            "(OPENRAG_ENABLE_INFRA_ENDPOINTS=true)"
+            "Infra-admin plane enabled at /api/infra/* (OPENRAG_ENABLE_INFRA_ENDPOINTS=true)"
         )
 
     # ===== API Key Management Endpoints (JWT auth for UI) =====

@@ -33,15 +33,9 @@ _BASIC = "Basic " + base64.b64encode(b"ops:s3cret").decode()
 @pytest_asyncio.fixture
 async def app(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -98,8 +92,10 @@ async def test_create_user_with_admin_role(app):
     # the infra principal and the roles requested.
     async with SessionLocal() as s:
         rows = (
-            await s.execute(select(AuditLog).where(AuditLog.event == "infra.user.created"))
-        ).scalars().all()
+            (await s.execute(select(AuditLog).where(AuditLog.event == "infra.user.created")))
+            .scalars()
+            .all()
+        )
         assert len(rows) == 1
         assert rows[0].actor_user_id is None
         assert rows[0].audit_metadata["actor"] == "ops"

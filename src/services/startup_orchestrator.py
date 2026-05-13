@@ -70,9 +70,7 @@ async def startup_tasks(services):
         # Setup OpenSearch security (roles and mappings) after connection is established.
         # OPENRAG_AUTO_OPENSEARCH_SETUP is only consulted when the infra-endpoint
         # plane is enabled — otherwise today's auto-setup behaviour is preserved.
-        skip_auto_setup = (
-            OPENRAG_ENABLE_INFRA_ENDPOINTS and not OPENRAG_AUTO_OPENSEARCH_SETUP
-        )
+        skip_auto_setup = OPENRAG_ENABLE_INFRA_ENDPOINTS and not OPENRAG_AUTO_OPENSEARCH_SETUP
         if skip_auto_setup:
             logger.info(
                 "Auto OpenSearch security setup is disabled "

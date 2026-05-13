@@ -44,17 +44,11 @@ async def test_router_mounted_when_master_on(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
     # Force missing creds so the gate replies 503 (not 401); either non-404
     # proves the router IS mounted, which is the whole point of this test.
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False)
     monkeypatch.setattr("config.settings.OPENSEARCH_USERNAME", "", raising=False)
     monkeypatch.setattr("config.settings.OPENSEARCH_PASSWORD", "", raising=False)
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
 
     import base64
 
@@ -68,9 +62,7 @@ async def test_router_mounted_when_master_on(monkeypatch):
     transport = httpx.ASGITransport(app=app)
     creds = "Basic " + base64.b64encode(b"any:any").decode()
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get(
-            "/infra/opensearch/status", headers={"Authorization": creds}
-        )
+        r = await c.get("/infra/opensearch/status", headers={"Authorization": creds})
 
     assert r.status_code != 404, "router must be present when master flag is on"
     # Specifically: with no creds configured we expect 503 (the explicit

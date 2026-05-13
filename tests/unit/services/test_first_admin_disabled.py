@@ -49,32 +49,22 @@ def _user(uid: str, email: str) -> User:
 
 @pytest.mark.asyncio
 async def test_master_off_preserves_first_user_admin(session, monkeypatch):
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", False, raising=False)
     # AUTO flag is false but irrelevant when master is off.
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False)
     monkeypatch.setenv("OPENRAG_DEFAULT_ROLE", "user")
 
     row = await ensure_user_row(session, _user("uid-1", "first@example.com"))
     await session.commit()
 
     roles = {r.name for r in await RoleRepo(session).list_user_roles(row.id)}
-    assert roles == {"admin"}, (
-        "master flag off must preserve today's first-user-admin behaviour"
-    )
+    assert roles == {"admin"}, "master flag off must preserve today's first-user-admin behaviour"
 
 
 @pytest.mark.asyncio
 async def test_master_on_auto_true_still_promotes(session, monkeypatch):
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_AUTO_FIRST_ADMIN", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_AUTO_FIRST_ADMIN", True, raising=False)
     monkeypatch.setenv("OPENRAG_DEFAULT_ROLE", "user")
 
     row = await ensure_user_row(session, _user("uid-2", "first@example.com"))
@@ -86,12 +76,8 @@ async def test_master_on_auto_true_still_promotes(session, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_master_on_auto_false_skips_admin(session, monkeypatch):
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False)
     monkeypatch.setenv("OPENRAG_DEFAULT_ROLE", "user")
 
     row = await ensure_user_row(session, _user("uid-3", "first@example.com"))
@@ -106,12 +92,8 @@ async def test_anonymous_still_gets_noauth_role_under_skip(session, monkeypatch)
     """The skip-bootstrap branch falls through to the default-role path,
     which still honours OPENRAG_NOAUTH_ROLE for the synthetic anonymous user.
     """
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_ENABLE_INFRA_ENDPOINTS", True, raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_AUTO_FIRST_ADMIN", False, raising=False)
     monkeypatch.setenv("OPENRAG_NOAUTH_ROLE", "viewer")
 
     row = await ensure_user_row(session, _user("anonymous", "anon@example.com"))

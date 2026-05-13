@@ -152,9 +152,7 @@ def _decode_jwt(request: Request, session_manager) -> Optional[dict]:
 def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
     payload = _decode_jwt(request, session_manager)
     if not payload:
-        raise HTTPException(
-            status_code=401, detail={"error": "infra_auth_required"}
-        )
+        raise HTTPException(status_code=401, detail={"error": "infra_auth_required"})
 
     accepted = _accepted_claim_values()
     if not accepted:
@@ -168,9 +166,7 @@ def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
     claim_name = app_settings.OPENRAG_INFRA_ADMIN_CLAIM
     have = _flatten_claim(payload.get(claim_name))
     if not (have & accepted):
-        raise HTTPException(
-            status_code=403, detail={"error": "infra_role_required"}
-        )
+        raise HTTPException(status_code=403, detail={"error": "infra_role_required"})
 
     subject = (
         payload.get("sub")
@@ -189,9 +185,7 @@ def _verify_jwt(request: Request, session_manager) -> InfraAdmin:
 
 def _scheme_from_request(request: Request) -> str:
     """Effective scheme, honoring X-Forwarded-Proto from a TLS-terminating proxy."""
-    forwarded = (
-        request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
-    )
+    forwarded = request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
     if forwarded:
         return forwarded
     return (request.url.scheme or "").lower()
@@ -222,9 +216,7 @@ def _enforce_https_or_local(request: Request) -> None:
     )
 
 
-def _verify_basic(
-    request: Request, credentials: Optional[HTTPBasicCredentials]
-) -> InfraAdmin:
+def _verify_basic(request: Request, credentials: Optional[HTTPBasicCredentials]) -> InfraAdmin:
     _enforce_https_or_local(request)
 
     if credentials is None:
@@ -234,13 +226,9 @@ def _verify_basic(
             headers={"WWW-Authenticate": 'Basic realm="infra"'},
         )
 
-    expected_user = (
-        app_settings.OPENRAG_INFRA_ADMIN_USER or app_settings.OPENSEARCH_USERNAME or ""
-    )
+    expected_user = app_settings.OPENRAG_INFRA_ADMIN_USER or app_settings.OPENSEARCH_USERNAME or ""
     expected_pw = (
-        app_settings.OPENRAG_INFRA_ADMIN_PASSWORD
-        or app_settings.OPENSEARCH_PASSWORD
-        or ""
+        app_settings.OPENRAG_INFRA_ADMIN_PASSWORD or app_settings.OPENSEARCH_PASSWORD or ""
     )
     if not expected_user or not expected_pw:
         raise HTTPException(

@@ -37,15 +37,9 @@ _BASIC = "Basic " + base64.b64encode(b"ops:s3cret").decode()
 @pytest_asyncio.fixture
 async def setup(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
 
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -149,9 +143,7 @@ async def test_drift_when_db_says_yes_but_role_missing(setup):
 @pytest.mark.asyncio
 async def test_degraded_when_opensearch_unreachable(setup):
     app, _, fake_os = setup
-    fake_os.transport.perform_request.side_effect = Exception(
-        "ConnectionError: cluster down"
-    )
+    fake_os.transport.perform_request.side_effect = Exception("ConnectionError: cluster down")
 
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:

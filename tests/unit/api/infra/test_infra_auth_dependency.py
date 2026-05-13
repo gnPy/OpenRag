@@ -92,15 +92,9 @@ def test_flatten_claim_returns_empty_for_unknown_shape():
 @pytest_asyncio.fixture
 async def oss_app(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
     return _build_app()
 
 
@@ -108,9 +102,7 @@ async def oss_app(monkeypatch):
 async def test_oss_basic_auth_happy_path(oss_app):
     transport = httpx.ASGITransport(app=oss_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get(
-            "/echo", headers={"Authorization": _basic_header("ops", "s3cret")}
-        )
+        r = await c.get("/echo", headers={"Authorization": _basic_header("ops", "s3cret")})
     assert r.status_code == 200, r.text
     assert r.json() == {"subject": "ops", "source": "basic"}
 
@@ -119,9 +111,7 @@ async def test_oss_basic_auth_happy_path(oss_app):
 async def test_oss_basic_auth_wrong_password(oss_app):
     transport = httpx.ASGITransport(app=oss_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get(
-            "/echo", headers={"Authorization": _basic_header("ops", "wrong")}
-        )
+        r = await c.get("/echo", headers={"Authorization": _basic_header("ops", "wrong")})
     assert r.status_code == 401
     assert r.headers.get("www-authenticate", "").startswith("Basic")
 
@@ -140,16 +130,10 @@ async def test_oss_falls_back_to_opensearch_credentials(monkeypatch):
     are used."""
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
     monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "", raising=False)
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
     monkeypatch.setattr("config.settings.OPENSEARCH_USERNAME", "admin", raising=False)
-    monkeypatch.setattr(
-        "config.settings.OPENSEARCH_PASSWORD", "fallback-pw", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENSEARCH_PASSWORD", "fallback-pw", raising=False)
 
     app = _build_app()
     transport = httpx.ASGITransport(app=app)
@@ -166,36 +150,24 @@ async def test_oss_falls_back_to_opensearch_credentials(monkeypatch):
 async def test_oss_503_when_no_credentials_configured(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
     monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "", raising=False)
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "", raising=False)
     monkeypatch.setattr("config.settings.OPENSEARCH_USERNAME", "", raising=False)
     monkeypatch.setattr("config.settings.OPENSEARCH_PASSWORD", "", raising=False)
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", True, raising=False)
 
     app = _build_app()
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
-        r = await c.get(
-            "/echo", headers={"Authorization": _basic_header("anyone", "anything")}
-        )
+        r = await c.get("/echo", headers={"Authorization": _basic_header("anyone", "anything")})
     assert r.status_code == 503
 
 
 @pytest.mark.asyncio
 async def test_oss_refuses_plain_http_without_allow_flag(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", False, raising=False)
     # ASGITransport reports 127.0.0.1 as the client host (which short-circuits
     # the HTTPS check), so force the local-host predicate to False to simulate
     # a request originating from outside the loopback.
@@ -215,15 +187,9 @@ async def test_oss_refuses_plain_http_without_allow_flag(monkeypatch):
 async def test_oss_honors_x_forwarded_proto_https(monkeypatch):
     """Reverse proxy terminated TLS upstream sets X-Forwarded-Proto=https."""
     monkeypatch.setenv("OPENRAG_RUN_MODE", "oss")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False
-    )
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ALLOW_INSECURE", False, raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_USER", "ops", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_PASSWORD", "s3cret", raising=False)
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ALLOW_INSECURE", False, raising=False)
     monkeypatch.setattr("api.infra.auth._is_local_host", lambda _request: False)
 
     app = _build_app()
@@ -247,9 +213,7 @@ async def test_oss_honors_x_forwarded_proto_https(monkeypatch):
 @pytest.mark.asyncio
 async def test_saas_jwt_with_matching_claim(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False)
     monkeypatch.setattr(
         "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
     )
@@ -265,9 +229,7 @@ async def test_saas_jwt_with_matching_claim(monkeypatch):
 @pytest.mark.asyncio
 async def test_saas_jwt_with_non_matching_claim(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False)
     monkeypatch.setattr(
         "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
     )
@@ -311,9 +273,7 @@ async def test_saas_jwt_invalid_token_returns_401(monkeypatch):
 @pytest.mark.asyncio
 async def test_saas_jwt_multiple_accepted_values(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False)
     monkeypatch.setattr(
         "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES",
         "Manager,Operator",
@@ -331,16 +291,12 @@ async def test_saas_jwt_multiple_accepted_values(monkeypatch):
 @pytest.mark.asyncio
 async def test_saas_jwt_nested_dict_claim(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False)
     monkeypatch.setattr(
         "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
     )
 
-    app = _build_app(
-        payload={"sub": "uid-2", "roles": [{"name": "Manager"}, {"name": "User"}]}
-    )
+    app = _build_app(payload={"sub": "uid-2", "roles": [{"name": "Manager"}, {"name": "User"}]})
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://t") as c:
         r = await c.get("/echo", headers={"Authorization": "Bearer x"})
@@ -354,9 +310,7 @@ async def test_on_prem_falls_back_to_ibm_session_cookie(monkeypatch):
     Triggered purely by OPENRAG_RUN_MODE, no need for IBM_AUTH_ENABLED.
     """
     monkeypatch.setenv("OPENRAG_RUN_MODE", "on_prem")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM", "roles", raising=False)
     monkeypatch.setattr(
         "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "Manager", raising=False
     )
@@ -417,9 +371,7 @@ async def test_on_prem_ibm_cookie_with_non_matching_role(monkeypatch):
 @pytest.mark.asyncio
 async def test_saas_503_when_claim_values_unset(monkeypatch):
     monkeypatch.setenv("OPENRAG_RUN_MODE", "saas")
-    monkeypatch.setattr(
-        "config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "", raising=False
-    )
+    monkeypatch.setattr("config.settings.OPENRAG_INFRA_ADMIN_CLAIM_VALUES", "", raising=False)
 
     app = _build_app(payload={"sub": "uid-x", "roles": ["Manager"]})
     transport = httpx.ASGITransport(app=app)

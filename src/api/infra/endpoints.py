@@ -99,9 +99,7 @@ async def _replace_user_roles(
     for name in role_names:
         role = await role_repo.get_by_name(name)
         if role is None:
-            raise HTTPException(
-                status_code=400, detail={"error": "unknown_role", "name": name}
-            )
+            raise HTTPException(status_code=400, detail={"error": "unknown_role", "name": name})
         resolved_ids.append(role.id)
 
     current_roles = await role_repo.list_user_roles(user_id)
@@ -112,15 +110,11 @@ async def _replace_user_roles(
     # set doesn't include it, refuse when they're the only one left.
     if current_admin and not target_admin:
         if await role_repo.count_admins() <= 1:
-            raise HTTPException(
-                status_code=400, detail={"error": "cannot_remove_last_admin"}
-            )
+            raise HTTPException(status_code=400, detail={"error": "cannot_remove_last_admin"})
 
     # Drop existing UserRole rows, then re-assign. Done in one transaction
     # so the role set is never partially applied.
-    await session.execute(
-        UserRole.__table__.delete().where(UserRole.user_id == user_id)
-    )
+    await session.execute(UserRole.__table__.delete().where(UserRole.user_id == user_id))
     for rid in resolved_ids:
         await role_repo.assign_role(user_id, rid, granted_by=actor.subject)
     return role_names
@@ -165,8 +159,7 @@ async def opensearch_status(
     elif not configured_in_db and not role_present:
         status = "unconfigured"
         message = (
-            "OpenSearch security has not been configured. "
-            "Run POST /api/infra/opensearch/setup."
+            "OpenSearch security has not been configured. Run POST /api/infra/opensearch/setup."
         )
     elif not configured_in_db and role_present:
         # Role exists (possibly applied by a prior install or out-of-band)
@@ -313,9 +306,7 @@ async def create_user(
         actor_user_id=None,
         target_type="user",
         target_id=row.id,
-        audit_metadata=_audit_metadata(
-            actor, {"email": body.email, "roles": assigned_roles}
-        ),
+        audit_metadata=_audit_metadata(actor, {"email": body.email, "roles": assigned_roles}),
         ip=request.client.host if request.client else None,
     )
     await session.commit()
@@ -428,9 +419,7 @@ async def delete_user(
     roles = await role_repo.list_user_roles(user_id)
     if any(r.name == "admin" for r in roles):
         if await role_repo.count_admins() <= 1:
-            raise HTTPException(
-                status_code=400, detail={"error": "cannot_delete_last_admin"}
-            )
+            raise HTTPException(status_code=400, detail={"error": "cannot_delete_last_admin"})
 
     deleted_provider = row.oauth_provider
     deleted_subject = row.oauth_subject
@@ -440,13 +429,9 @@ async def delete_user(
     # migration sets ON DELETE SET NULL but this is belt-and-suspenders
     # for deployments that haven't applied it.)
     await session.execute(
-        update(AuditLog)
-        .where(AuditLog.actor_user_id == user_id)
-        .values(actor_user_id=None)
+        update(AuditLog).where(AuditLog.actor_user_id == user_id).values(actor_user_id=None)
     )
-    await session.execute(
-        UserRole.__table__.delete().where(UserRole.user_id == user_id)
-    )
+    await session.execute(UserRole.__table__.delete().where(UserRole.user_id == user_id))
     from db.models import UserPreferences
 
     await session.execute(
