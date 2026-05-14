@@ -237,15 +237,10 @@ class SessionManager:
             "user_roles": roles + ["all_access"],  # compatible with OpenSearch's roles_key
         }
 
-        # Check for token from environment variable first
-        token = os.getenv("OPENSEARCH_JWT_TOKEN")
-        if token and (token.startswith("Bearer ") or token.startswith("Basic ")):
-            return token
-        if not token:
-            if self.private_key is None:
-                logger.error("JWT signing requested but signing is disabled (IBM auth mode)")
-                return None
-            token = jwt.encode(token_payload, self.private_key, algorithm=self.algorithm)
+        if self.private_key is None:
+            logger.error("JWT signing requested but signing is disabled (IBM auth mode)")
+            return None
+        token = jwt.encode(token_payload, self.private_key, algorithm=self.algorithm)
         return f"Bearer {token}"
 
     def create_jwt_token(self, user: User) -> str:
@@ -263,7 +258,11 @@ class SessionManager:
     ) -> str:
         """Create a short-lived OpenSearch JWT with current connector groups."""
         if ttl_seconds is None:
-            ttl_seconds = int(os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", "120"))
+            from config.settings import INGESTION_TIMEOUT
+
+            ttl_seconds = int(
+                os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", str(INGESTION_TIMEOUT + 300))
+            )
         return self._create_signed_jwt_token(
             user,
             expires_delta=timedelta(seconds=max(ttl_seconds, 1)),

@@ -50,6 +50,28 @@ def test_opensearch_jwt_includes_group_roles(monkeypatch):
     assert payload["sub"] == "user-1"
 
 
+def test_opensearch_jwt_default_ttl_tracks_ingestion_timeout(monkeypatch):
+    from session_manager import SessionManager, User
+
+    monkeypatch.setenv("JWT_SIGNING_KEY", "unit-test-secret-with-32-bytes!!")
+    monkeypatch.delenv("OPENSEARCH_JWT_TOKEN", raising=False)
+    monkeypatch.delenv("OPENRAG_OPENSEARCH_JWT_TTL", raising=False)
+    monkeypatch.setattr("config.settings.INGESTION_TIMEOUT", 3600)
+
+    manager = SessionManager("test")
+    user = User(user_id="user-1", email="user@example.com", name="User")
+
+    token = manager.create_opensearch_jwt_token(user)
+    payload = jwt.decode(
+        token.removeprefix("Bearer "),
+        "unit-test-secret-with-32-bytes!!",
+        algorithms=["HS256"],
+        audience=["opensearch", "openrag"],
+    )
+
+    assert payload["exp"] - payload["iat"] == 3900
+
+
 @pytest.mark.asyncio
 async def test_group_acl_service_uses_connector_hooks_generically():
     from services.group_acl_service import GroupACLService
@@ -230,7 +252,8 @@ async def test_google_drive_group_roles_use_directory_groups(monkeypatch):
     class Groups:
         def list(self, **kwargs):
             assert kwargs["userKey"] == "user@example.com"
-            assert kwargs["customer"] == "my_customer"
+            assert kwargs["domain"] == "example.com"
+            assert "customer" not in kwargs
             return Execute(
                 {
                     "groups": [
@@ -245,8 +268,69 @@ async def test_google_drive_group_roles_use_directory_groups(monkeypatch):
             return Groups()
 
     def fake_build(*args, **kwargs):
+        if args[:2] == ("cloudidentity", "v1"):
+            raise RuntimeError("Cloud Identity unavailable")
         assert args[:2] == ("admin", "directory_v1")
         return DirectoryService()
+
+    monkeypatch.setattr("connectors.google_drive_acl.build", fake_build)
+
+    roles = await get_current_user_google_group_roles(
+        drive_service=None,
+        credentials=Credentials(),
+    )
+
+    assert roles == [
+        google_drive_group_role("engineering@example.com"),
+        google_drive_group_role("security@example.com"),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_google_drive_group_roles_prefer_cloud_identity(monkeypatch):
+    from connectors.google_drive_acl import (
+        get_current_user_google_group_roles,
+        google_drive_group_role,
+    )
+
+    class Credentials:
+        id_token = jwt.encode(
+            {"email": "user@example.com"},
+            "google-test-secret-with-32-bytes",
+            algorithm="HS256",
+        )
+
+    class Execute:
+        def __init__(self, response):
+            self.response = response
+
+        def execute(self):
+            return self.response
+
+    class Memberships:
+        def searchTransitiveGroups(self, **kwargs):
+            assert kwargs["parent"] == "groups/-"
+            assert "member_key_id == 'user@example.com'" in kwargs["query"]
+            return Execute(
+                {
+                    "memberships": [
+                        {"groupKey": {"id": "Engineering@example.com"}},
+                        {"groupKey": {"id": "Security@example.com"}},
+                    ]
+                }
+            )
+
+    class Groups:
+        def memberships(self):
+            return Memberships()
+
+    class CloudIdentityService:
+        def groups(self):
+            return Groups()
+
+    def fake_build(*args, **kwargs):
+        assert args[:2] == ("cloudidentity", "v1")
+        return CloudIdentityService()
 
     monkeypatch.setattr("connectors.google_drive_acl.build", fake_build)
 

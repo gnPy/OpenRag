@@ -447,15 +447,17 @@ class OneDriveConnector(BaseConnector):
             for perm in permissions_data.get("value", []):
                 roles = perm.get("roles", [])  # ["read", "write", "owner"]
 
-                # Granted to user
-                if "grantedTo" in perm:
-                    user_info = perm["grantedTo"].get("user", {})
+                # Granted to user/group (grantedToV2 is the current Graph shape;
+                # grantedTo is retained for older responses).
+                granted_to = perm.get("grantedToV2") or perm.get("grantedTo")
+                if granted_to:
+                    user_info = granted_to.get("user", {})
                     email = user_info.get("email")
                     if email:
                         allowed_users.append(email)
                         if "owner" in roles:
                             owner = email
-                    group_info = perm["grantedTo"].get("group", {})
+                    group_info = granted_to.get("group", {})
                     group_role = microsoft_group_role(
                         group_info.get("id"),
                         access_token=access_token,
@@ -464,8 +466,13 @@ class OneDriveConnector(BaseConnector):
                         allowed_groups.append(group_role)
 
                 # Granted to identities (can include users and groups)
-                elif "grantedToIdentities" in perm:
-                    for identity in perm["grantedToIdentities"]:
+                identities = (
+                    perm.get("grantedToIdentitiesV2")
+                    or perm.get("grantedToIdentities")
+                    or []
+                )
+                if identities:
+                    for identity in identities:
                         # User
                         if "user" in identity:
                             user_info = identity["user"]
@@ -476,7 +483,7 @@ class OneDriveConnector(BaseConnector):
                                     owner = email
 
                         # Group
-                        elif "group" in identity:
+                        if "group" in identity:
                             group_info = identity["group"]
                             group_id = group_info.get("id")
                             group_role = microsoft_group_role(
