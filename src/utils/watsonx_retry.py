@@ -64,17 +64,16 @@ async def request_with_retry(
     runs unchanged.
     """
     start = time.monotonic()
-    resp: httpx.Response | None = None
     for attempt in range(1, max_attempts + 1):
         resp = await client.request(method, url, **kwargs)
         if resp.status_code != 429:
             return resp
         if attempt == max_attempts:
-            break
+            return resp
         elapsed = time.monotonic() - start
         remaining = total_cap_s - elapsed
         if remaining <= 0:
-            break
+            return resp
         ra = _retry_after_seconds(resp, cap)
         if ra is not None:
             sleep = ra
@@ -91,4 +90,4 @@ async def request_with_retry(
             sleep,
         )
         await asyncio.sleep(sleep)
-    return resp  # type: ignore[return-value]  # loop runs at least once
+    return await client.request(method, url, **kwargs)
