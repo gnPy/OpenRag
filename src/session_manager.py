@@ -187,10 +187,11 @@ class SessionManager:
 
     def _get_oidc_issuer(self) -> str:
         # Use OpenSearch-compatible issuer for OIDC validation
+        from config.settings import OPENRAG_FQDN
+
         oidc_issuer = "http://openrag-backend:8000"
-        openrag_fqdn = os.getenv("OPENRAG_FQDN")
-        if openrag_fqdn:
-            oidc_issuer = f"http://{openrag_fqdn}:8000"
+        if OPENRAG_FQDN:
+            oidc_issuer = f"http://{OPENRAG_FQDN}:8000"
         return oidc_issuer
 
     def _normalize_backend_roles(self, extra_roles: Iterable[str] | None = None) -> list[str]:
@@ -252,11 +253,9 @@ class SessionManager:
     ) -> str:
         """Create a short-lived OpenSearch JWT with current connector groups."""
         if ttl_seconds is None:
-            from config.settings import INGESTION_TIMEOUT
+            from config.settings import get_opensearch_jwt_ttl_seconds
 
-            ttl_seconds = int(
-                os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", str(INGESTION_TIMEOUT + 300))
-            )
+            ttl_seconds = get_opensearch_jwt_ttl_seconds()
         return self._create_signed_jwt_token(
             user,
             expires_delta=timedelta(seconds=max(ttl_seconds, 1)),

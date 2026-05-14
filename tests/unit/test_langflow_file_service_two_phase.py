@@ -6,8 +6,9 @@ ingestion flow until Docling reports SUCCESS, and must NEVER invoke it when
 Docling fails / expires / times out.
 """
 
+from unittest.mock import AsyncMock
+
 import pytest
-from unittest.mock import AsyncMock, patch
 
 from models.tasks import (
     DoclingPhaseStatus,
@@ -50,7 +51,7 @@ def langflow_service(mock_docling_service):
 
 @pytest.mark.asyncio
 async def test_two_phase_success_invokes_langflow_with_task_id(
-    langflow_service, mock_polling_service, file_tuple, file_task
+    langflow_service, mock_docling_service, mock_polling_service, file_tuple, file_task
 ):
     mock_polling_service.poll_until_ready.return_value = DoclingPollResult(
         outcome=PollOutcome.SUCCESS, elapsed_seconds=2.5
@@ -60,6 +61,15 @@ async def test_two_phase_success_invokes_langflow_with_task_id(
         file_tuple=file_tuple,
         docling_polling_service=mock_polling_service,
         file_task=file_task,
+        owner="owner-123",
+        jwt_token="Bearer jwt-token",
+    )
+
+    mock_docling_service.upload_to_docling_direct_async.assert_awaited_once_with(
+        "test.pdf",
+        b"PDFDATA",
+        user_id="owner-123",
+        auth_header="Bearer jwt-token",
     )
 
     # Langflow was invoked exactly once, with the docling_task_id forwarded.

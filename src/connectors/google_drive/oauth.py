@@ -1,7 +1,6 @@
 import asyncio
-import os
 import json
-from typing import Optional
+import os
 
 import requests as req_lib
 from google.auth.transport.requests import Request
@@ -34,14 +33,14 @@ class GoogleDriveOAuth:
 
     def __init__(
         self,
-        client_id: Optional[str] = None,
-        client_secret: Optional[str] = None,
+        client_id: str | None = None,
+        client_secret: str | None = None,
         token_file: str = "token.json",
     ):
         self.client_id = client_id
         self.client_secret = client_secret
         self.token_file = token_file
-        self.creds: Optional[Credentials] = None
+        self.creds: Credentials | None = None
 
     def _make_timeout_request(self) -> Request:
         """Build a google-auth Request transport with a bounded timeout."""
@@ -49,7 +48,18 @@ class GoogleDriveOAuth:
         session.timeout = _REFRESH_TIMEOUT_SECONDS
         return Request(session=session)
 
-    async def load_credentials(self) -> Optional[Credentials]:
+    def _missing_required_scopes(self, scopes: list[str] | None) -> list[str]:
+        current_scopes = set(scopes or [])
+        return [scope for scope in self.SCOPES if scope not in current_scopes]
+
+    def _remove_token_file(self) -> None:
+        if os.path.exists(self.token_file):
+            try:
+                os.remove(self.token_file)
+            except Exception:
+                logger.debug("[GoogleDrive] load_credentials: failed to remove token file")
+
+    async def load_credentials(self) -> Credentials | None:
         """Load existing credentials from token file"""
         from utils.encryption import read_encrypted_file
 
@@ -70,6 +80,17 @@ class GoogleDriveOAuth:
         logger.debug(
             "[GoogleDrive] load_credentials: token data loaded, creating Credentials object"
         )
+
+        missing_scopes = self._missing_required_scopes(token_data.get("scopes"))
+        if missing_scopes:
+            logger.info(
+                "[GoogleDrive] load_credentials: stored token is missing required scopes; "
+                "removing it so the user re-authenticates. missing_scopes=%s",
+                missing_scopes,
+            )
+            self.creds = None
+            self._remove_token_file()
+            return None
 
         self.creds = Credentials(
             token=token_data.get("token"),
@@ -104,11 +125,7 @@ class GoogleDriveOAuth:
             except Exception as e:
                 logger.debug("[GoogleDrive] load_credentials: token refresh failed: %s", e)
                 self.creds = None
-                if os.path.exists(self.token_file):
-                    try:
-                        os.remove(self.token_file)
-                    except Exception:
-                        pass
+                self._remove_token_file()
                 raise ValueError(
                     f"Failed to refresh Google Drive credentials. "
                     f"The refresh token may have expired or been revoked. "
@@ -127,12 +144,17 @@ class GoogleDriveOAuth:
     async def save_credentials(self):
         """Save credentials to token file (without client_secret)"""
         if self.creds:
+            scopes = (
+                getattr(self.creds, "granted_scopes", None)
+                or self.creds.scopes
+                or self.SCOPES
+            )
             # Create minimal token data without client_secret
             token_data = {
                 "token": self.creds.token,
                 "refresh_token": self.creds.refresh_token,
                 "id_token": self.creds.id_token,
-                "scopes": self.creds.scopes,
+                "scopes": list(scopes),
             }
 
             # Add expiry if available
@@ -143,7 +165,7 @@ class GoogleDriveOAuth:
 
             await write_encrypted_file(self.token_file, json.dumps(token_data))
 
-    def create_authorization_url(self, redirect_uri: str, state: Optional[str] = None) -> str:
+    def create_authorization_url(self, redirect_uri: str, state: str | None = None) -> str:
         """Create authorization URL for OAuth flow"""
         # Create flow from client credentials directly
         client_config = {

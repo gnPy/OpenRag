@@ -1,3 +1,4 @@
+import asyncio
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -5,7 +6,6 @@ from pathlib import Path
 import jwt
 import pytest
 import yaml
-
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src"
@@ -113,6 +113,28 @@ async def test_group_acl_service_uses_connector_hooks_generically():
     )
 
     assert roles == ["g:m365:t:g1", "g:m365:t:g2", "g:custom:t:g2"]
+
+
+def test_group_acl_service_invalidation_drops_cache_and_locks():
+    from services.group_acl_service import GroupACLService
+
+    service = GroupACLService(connector_service=object(), cache_ttl_seconds=60)
+    service._cache["user-1"] = (999999.0, ["g:test:t:g1"])
+    service._locks["user-1"] = asyncio.Lock()
+    service._cache["user-2"] = (999999.0, ["g:test:t:g2"])
+    service._locks["user-2"] = asyncio.Lock()
+
+    service.invalidate_user("user-1")
+
+    assert "user-1" not in service._cache
+    assert "user-1" not in service._locks
+    assert "user-2" in service._cache
+    assert "user-2" in service._locks
+
+    service.clear()
+
+    assert service._cache == {}
+    assert service._locks == {}
 
 
 def test_security_roles_include_group_acl_terms_query():

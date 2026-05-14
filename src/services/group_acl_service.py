@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import os
 import time
 from typing import Any
 
 from session_manager import User
 from utils.logging_config import get_logger
-
 
 logger = get_logger(__name__)
 
@@ -20,7 +18,9 @@ class GroupACLService:
     def __init__(self, connector_service: Any, cache_ttl_seconds: int | None = None):
         self.connector_service = connector_service
         if cache_ttl_seconds is None:
-            cache_ttl_seconds = int(os.getenv("OPENRAG_GROUP_ACL_CACHE_TTL", "0"))
+            from config.settings import GROUP_ACL_CACHE_TTL_SECONDS
+
+            cache_ttl_seconds = GROUP_ACL_CACHE_TTL_SECONDS
         self.cache_ttl_seconds = max(cache_ttl_seconds, 0)
         self._cache: dict[str, tuple[float, list[str]]] = {}
         self._locks: dict[str, asyncio.Lock] = {}
@@ -81,9 +81,11 @@ class GroupACLService:
 
     def invalidate_user(self, user_id: str) -> None:
         self._cache.pop(user_id, None)
+        self._locks.pop(user_id, None)
 
     def clear(self) -> None:
         self._cache.clear()
+        self._locks.clear()
 
     async def _resolve_user_group_roles(self, user: User) -> list[str]:
         connection_manager = getattr(self.connector_service, "connection_manager", None)

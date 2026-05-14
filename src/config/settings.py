@@ -36,6 +36,7 @@ LANGFLOW_OPENSEARCH_PORT = get_env_int("LANGFLOW_OPENSEARCH_PORT", OPENSEARCH_PO
 
 OPENSEARCH_USERNAME = os.getenv("OPENSEARCH_USERNAME", "admin")
 OPENSEARCH_PASSWORD = os.getenv("OPENSEARCH_PASSWORD")
+OPENRAG_FQDN = os.getenv("OPENRAG_FQDN")
 LANGFLOW_URL = os.getenv("LANGFLOW_URL", "http://localhost:7860")
 # Optional: public URL for browser links (e.g., http://localhost:7860)
 LANGFLOW_PUBLIC_URL = os.getenv("LANGFLOW_PUBLIC_URL")
@@ -115,6 +116,11 @@ RBAC_CACHE_BACKEND = os.getenv("CACHE_BACKEND", "memory").lower()
 # linger for up to this many seconds after a role mutation.
 RBAC_PERMISSION_CACHE_TTL_SECONDS = get_env_int("OPENRAG_PERM_CACHE_TTL", 60)
 
+# TTL (seconds) for cached upstream group memberships used when minting
+# OpenSearch JWTs. Defaults to 0 so group membership changes are resolved per
+# request unless an operator explicitly accepts bounded staleness.
+GROUP_ACL_CACHE_TTL_SECONDS = get_env_int("OPENRAG_GROUP_ACL_CACHE_TTL", 0)
+
 # Docling service URL configuration
 # Priority:
 # 1. DOCLING_SERVE_URL environment variable
@@ -176,6 +182,16 @@ LANGFLOW_CONNECT_TIMEOUT = get_env_float("LANGFLOW_CONNECT_TIMEOUT", 30.0)  # 30
 # Should be >= LANGFLOW_TIMEOUT to allow long-running ingestion to complete
 # Default: 3600 seconds (60 minutes)
 INGESTION_TIMEOUT = get_env_int("INGESTION_TIMEOUT", 3600)
+
+OPENSEARCH_JWT_TTL_BUFFER_SECONDS = 300
+
+
+def get_opensearch_jwt_ttl_seconds() -> int:
+    """Return the effective short-lived OpenSearch JWT TTL."""
+    return get_env_int(
+        "OPENRAG_OPENSEARCH_JWT_TTL",
+        INGESTION_TIMEOUT + OPENSEARCH_JWT_TTL_BUFFER_SECONDS,
+    )
 
 # Two-phase ingestion: backend-side Docling polling configuration.
 # Controls how the OpenRAG backend waits for Docling Serve to finish converting

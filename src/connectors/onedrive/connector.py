@@ -537,11 +537,7 @@ class OneDriveConnector(BaseConnector):
                 logger.info(f"Using cached download URL for file {file_id}")
                 content = await self._download_file_from_url(cached_info["downloadUrl"])
 
-                acl = DocumentACL(
-                    owner="",
-                    user_permissions={},
-                    group_permissions={},
-                )
+                acl = DocumentACL(owner="")
 
                 return ConnectorDocument(
                     id=file_id,
@@ -570,7 +566,7 @@ class OneDriveConnector(BaseConnector):
                     headers = {"Authorization": f"Bearer {token}"}
                     shares_content = await self._download_via_shares_endpoint(file_id, headers)
                     if shares_content is not None:
-                        acl = DocumentACL(owner="", user_permissions={}, group_permissions={})
+                        acl = DocumentACL(owner="")
                         return ConnectorDocument(
                             id=file_id,
                             filename="Unknown",
