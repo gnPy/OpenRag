@@ -1,6 +1,8 @@
-import httpx
 import asyncio
-from typing import Dict, List, Optional
+
+import httpx
+
+from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL_PREFIX
 from config.model_constants import (
     ANTHROPIC_DEFAULT_LANGUAGE_MODEL,
     ANTHROPIC_VALIDATION_MODELS,
@@ -8,7 +10,6 @@ from config.model_constants import (
     OPENAI_DEFAULT_LANGUAGE_MODEL,
     OPENAI_VALIDATION_MODELS,
 )
-from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL_PREFIX
 from utils.container_utils import transform_localhost_url
 from utils.logging_config import get_logger
 from utils.watsonx_retry import request_with_retry
@@ -32,7 +33,7 @@ class ModelsService:
     """Service for fetching available models from different AI providers and managing a model registry."""
 
     # Registry for caching model-to-provider mapping
-    _model_provider_registry: Dict[str, str] = {}
+    _model_provider_registry: dict[str, str] = {}
     _registry_lock = asyncio.Lock()
 
     def __init__(self):
@@ -125,7 +126,7 @@ class ModelsService:
     async def get_litellm_model_name(
         self,
         model_name: str,
-        provider: Optional[str] = None,
+        provider: str | None = None,
         strict: bool = False,
     ) -> str:
         """Resolve ``model_name`` to a LiteLLM-routable string.
@@ -170,7 +171,7 @@ class ModelsService:
 
     async def get_openai_models(
         self, api_key: str, update_index: bool = True
-    ) -> Dict[str, List[Dict[str, str]]]:
+    ) -> dict[str, list[dict[str, str]]]:
         """Fetch available models from OpenAI API with lightweight validation"""
         try:
             headers = {
@@ -256,7 +257,7 @@ class ModelsService:
 
     async def get_anthropic_models(
         self, api_key: str, update_index: bool = True
-    ) -> Dict[str, List[Dict[str, str]]]:
+    ) -> dict[str, list[dict[str, str]]]:
         """Fetch available models from Anthropic API"""
         try:
             headers = {
@@ -324,7 +325,7 @@ class ModelsService:
 
     async def get_ollama_models(
         self, endpoint: str = None, update_index: bool = True
-    ) -> Dict[str, List[Dict[str, str]]]:
+    ) -> dict[str, list[dict[str, str]]]:
         """Fetch available models from Ollama API with tool calling capabilities for language models"""
         try:
             ollama_url = transform_localhost_url(endpoint)
@@ -446,7 +447,7 @@ class ModelsService:
         api_key: str = None,
         project_id: str = None,
         update_index: bool = True,
-    ) -> Dict[str, List[Dict[str, str]]]:
+    ) -> dict[str, list[dict[str, str]]]:
         """Fetch available models from IBM Watson API"""
         try:
             # Use provided endpoint or default

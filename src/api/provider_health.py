@@ -1,22 +1,23 @@
 """Provider health check endpoint."""
 
 import asyncio
-from typing import Optional
+
 import httpx
 from fastapi import Depends
 from fastapi.responses import JSONResponse
-from utils.logging_config import get_logger
-from utils import provider_health_cache
-from config.settings import get_openrag_config
+
 from api.provider_validation import validate_provider_setup
+from config.settings import get_openrag_config
 from dependencies import get_current_user
 from session_manager import User
+from utils import provider_health_cache
+from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
 
 async def check_provider_health(
-    provider: Optional[str] = None,
+    provider: str | None = None,
     test_completion: bool = False,
     user: User = Depends(get_current_user),
 ):
