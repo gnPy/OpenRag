@@ -113,6 +113,10 @@ def get_connector_service(services: dict = Depends(get_services)):
     return services["connector_service"]
 
 
+def get_group_acl_service(services: dict = Depends(get_services)):
+    return services.get("group_acl_service")
+
+
 def get_langflow_file_service(services: dict = Depends(get_services)):
     return services["langflow_file_service"]
 
@@ -241,6 +245,56 @@ async def _attach_db_user_id(request: Request, user: User | None) -> User | None
     request.state.db_user_id = db_user_id
     request.state.user = user_with_db_id
     return user_with_db_id
+
+
+async def _attach_opensearch_jwt(
+    request: Request,
+    user: User | None,
+    session_manager,
+) -> User | None:
+    """Attach a short-lived OpenSearch JWT with current connector group roles."""
+    if user is None:
+        return None
+
+    from config.settings import IBM_AUTH_ENABLED
+
+    # IBM uses the upstream OpenSearch credential/JWT path. Until IBM can
+    # consume our minted group roles, preserve its token exactly.
+    if IBM_AUTH_ENABLED:
+        return user
+
+    services = getattr(getattr(request, "app", None), "state", None)
+    services = getattr(services, "services", {}) or {}
+    group_acl_service = services.get("group_acl_service")
+
+    group_roles: list[str] = []
+    if group_acl_service is not None:
+        try:
+            group_roles = await group_acl_service.get_user_group_roles(user)
+        except Exception as e:
+            logger.warning(
+                "Failed to resolve connector group ACL roles",
+                user_id=user.user_id,
+                error=str(e),
+            )
+
+    jwt_token = session_manager.create_opensearch_jwt_token(
+        user,
+        group_roles=group_roles,
+    )
+    if jwt_token:
+        request.state.opensearch_group_roles = group_roles
+        return dataclasses.replace(user, jwt_token=jwt_token)
+    return user
+
+
+async def _attach_request_user(
+    request: Request,
+    user: User | None,
+    session_manager,
+) -> User | None:
+    user_with_opensearch_jwt = await _attach_opensearch_jwt(request, user, session_manager)
+    return await _attach_db_user_id(request, user_with_opensearch_jwt)
 
 
 def invalidate_user_ensured_cache(
@@ -543,9 +597,7 @@ async def get_current_user(
 
     if is_no_auth_mode():
         user = AnonymousUser()
-        effective_token = session_manager.get_effective_jwt_token(None, None)
-        user_with_token = dataclasses.replace(user, jwt_token=effective_token)
-        return await _attach_db_user_id(request, user_with_token)
+        return await _attach_request_user(request, user, session_manager)
 
     auth_token = request.cookies.get("auth_token")
     if not auth_token:
@@ -555,11 +607,7 @@ async def get_current_user(
     if not user:
         raise HTTPException(status_code=401, detail="Authentication required")
 
-    # get_effective_jwt_token handles anonymous JWT creation if needed
-    effective_token = session_manager.get_effective_jwt_token(user.user_id, auth_token)
-    user_with_token = dataclasses.replace(user, jwt_token=effective_token)
-
-    return await _attach_db_user_id(request, user_with_token)
+    return await _attach_request_user(request, user, session_manager)
 
 
 async def get_optional_user(
@@ -588,9 +636,7 @@ async def get_optional_user(
 
     if is_no_auth_mode():
         user = AnonymousUser()
-        effective_token = session_manager.get_effective_jwt_token(None, None)
-        user_with_token = dataclasses.replace(user, jwt_token=effective_token)
-        return await _attach_db_user_id(request, user_with_token)
+        return await _attach_request_user(request, user, session_manager)
 
     auth_token = request.cookies.get("auth_token")
     if not auth_token:
@@ -598,14 +644,8 @@ async def get_optional_user(
         return None
 
     user = session_manager.get_user_from_token(auth_token)
-    # get_effective_jwt_token handles anonymous JWT creation if needed
-    effective_token = (
-        session_manager.get_effective_jwt_token(user.user_id, auth_token) if user else None
-    )
-    user_with_token = dataclasses.replace(user, jwt_token=effective_token) if user else None
-
-    if user_with_token:
-        return await _attach_db_user_id(request, user_with_token)
+    if user:
+        return await _attach_request_user(request, user, session_manager)
     request.state.user = None
     request.state.db_user_id = None
     return None
@@ -685,13 +725,10 @@ async def get_api_key_user_async(
     if user.user_id not in session_manager.users:
         session_manager.users[user.user_id] = user
 
-    effective_token = session_manager.get_effective_jwt_token(user.user_id, None)
-    user_with_token = dataclasses.replace(user, jwt_token=effective_token)
-
     request.state.api_key_id = user_info["key_id"]
     # Phase 2 will populate api_key_role_ids from the SQL api_keys table.
     # In Phase 1 we leave it unset so require_permission falls back to the
     # user's live role membership (no privilege escalation possible).
     request.state.api_key_role_ids = getattr(request.state, "api_key_role_ids", None)
 
-    return await _attach_db_user_id(request, user_with_token)
+    return await _attach_request_user(request, user, session_manager)

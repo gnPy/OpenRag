@@ -1,0 +1,201 @@
+import sys
+from dataclasses import dataclass
+from pathlib import Path
+
+import jwt
+import pytest
+import yaml
+
+
+ROOT = Path(__file__).resolve().parents[2]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+
+def test_canonical_group_role_is_compact_and_provider_scoped():
+    from utils.group_acl import canonical_group_role
+
+    role = canonical_group_role(
+        "m365",
+        "00000000-0000-0000-0000-000000000001",
+        "00000000-0000-0000-0000-000000000002",
+    )
+
+    assert role == "g:m365:AAAAAAAAAAAAAAAAAAAAAQ:AAAAAAAAAAAAAAAAAAAAAg"
+
+
+def test_opensearch_jwt_includes_group_roles(monkeypatch):
+    from session_manager import SessionManager, User
+
+    monkeypatch.setenv("JWT_SIGNING_KEY", "unit-test-secret-with-32-bytes!!")
+    monkeypatch.delenv("OPENSEARCH_JWT_TOKEN", raising=False)
+
+    manager = SessionManager("test")
+    user = User(user_id="user-1", email="user@example.com", name="User")
+
+    token = manager.create_opensearch_jwt_token(
+        user,
+        group_roles=["g:m365:t:g1", "g:m365:t:g2"],
+        ttl_seconds=60,
+    )
+    payload = jwt.decode(
+        token.removeprefix("Bearer "),
+        "unit-test-secret-with-32-bytes!!",
+        algorithms=["HS256"],
+        audience=["opensearch", "openrag"],
+    )
+
+    assert payload["roles"] == ["openrag_user", "g:m365:t:g1", "g:m365:t:g2"]
+    assert payload["sub"] == "user-1"
+
+
+@pytest.mark.asyncio
+async def test_group_acl_service_uses_connector_hooks_generically():
+    from services.group_acl_service import GroupACLService
+    from session_manager import User
+
+    @dataclass
+    class Connection:
+        connection_id: str
+        connector_type: str
+        is_active: bool = True
+
+    class ConnectionManager:
+        async def list_connections(self, user_id=None):
+            assert user_id == "user-1"
+            return [
+                Connection("sharepoint-1", "sharepoint"),
+                Connection("custom-1", "custom"),
+            ]
+
+    class Connector:
+        def __init__(self, roles):
+            self.roles = roles
+
+        async def get_current_user_group_roles(self):
+            return self.roles
+
+    class ConnectorService:
+        connection_manager = ConnectionManager()
+
+        async def get_connector(self, connection_id):
+            return {
+                "sharepoint-1": Connector(["g:m365:t:g1", "g:m365:t:g2"]),
+                "custom-1": Connector(["g:custom:t:g2", "g:m365:t:g1"]),
+            }[connection_id]
+
+    service = GroupACLService(ConnectorService(), cache_ttl_seconds=0)
+    roles = await service.get_user_group_roles(
+        User(user_id="user-1", email="user@example.com", name="User")
+    )
+
+    assert roles == ["g:m365:t:g1", "g:m365:t:g2", "g:custom:t:g2"]
+
+
+def test_security_roles_include_group_acl_terms_query():
+    for rel_path in ("securityconfig/roles.yml", "cloud_securityconfig/roles.yml"):
+        roles = yaml.safe_load((ROOT / rel_path).read_text())
+        dls = roles["openrag_user_role"]["index_permissions"][0]["dls"]
+        assert '{"terms":{"allowed_groups":[${user.roles}]}}' in dls
+
+
+def test_google_drive_file_acl_group_is_canonicalized(tmp_path):
+    from connectors.google_drive.connector import GoogleDriveConnector
+    from connectors.google_drive_acl import google_drive_group_role
+
+    class Execute:
+        def execute(self):
+            return {
+                "permissions": [
+                    {
+                        "type": "group",
+                        "role": "reader",
+                        "emailAddress": "Engineering@example.com",
+                    },
+                    {
+                        "type": "user",
+                        "role": "owner",
+                        "emailAddress": "owner@example.com",
+                    },
+                ]
+            }
+
+    class Permissions:
+        def list(self, **kwargs):
+            assert kwargs["fileId"] == "file-1"
+            return Execute()
+
+    class Service:
+        def permissions(self):
+            return Permissions()
+
+    connector = GoogleDriveConnector(
+        {
+            "client_id": "client",
+            "client_secret": "secret",
+            "token_file": str(tmp_path / "token.json"),
+        }
+    )
+    connector.service = Service()
+
+    acl = connector._extract_google_drive_acl({"id": "file-1"})
+
+    assert acl.owner == "owner@example.com"
+    assert acl.allowed_users == ["owner@example.com"]
+    assert acl.allowed_groups == [google_drive_group_role("engineering@example.com")]
+
+
+@pytest.mark.asyncio
+async def test_google_drive_group_roles_use_directory_groups(monkeypatch):
+    from connectors.google_drive_acl import (
+        get_current_user_google_group_roles,
+        google_drive_group_role,
+    )
+
+    class Credentials:
+        id_token = jwt.encode(
+            {"email": "user@example.com"},
+            "google-test-secret-with-32-bytes",
+            algorithm="HS256",
+        )
+
+    class Execute:
+        def __init__(self, response):
+            self.response = response
+
+        def execute(self):
+            return self.response
+
+    class Groups:
+        def list(self, **kwargs):
+            assert kwargs["userKey"] == "user@example.com"
+            assert kwargs["customer"] == "my_customer"
+            return Execute(
+                {
+                    "groups": [
+                        {"email": "Engineering@example.com"},
+                        {"email": "Security@example.com"},
+                    ]
+                }
+            )
+
+    class DirectoryService:
+        def groups(self):
+            return Groups()
+
+    def fake_build(*args, **kwargs):
+        assert args[:2] == ("admin", "directory_v1")
+        return DirectoryService()
+
+    monkeypatch.setattr("connectors.google_drive_acl.build", fake_build)
+
+    roles = await get_current_user_google_group_roles(
+        drive_service=None,
+        credentials=Credentials(),
+    )
+
+    assert roles == [
+        google_drive_group_role("engineering@example.com"),
+        google_drive_group_role("security@example.com"),
+    ]

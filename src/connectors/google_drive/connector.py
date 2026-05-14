@@ -13,6 +13,10 @@ from googleapiclient.http import MediaIoBaseDownload
 from utils.logging_config import get_logger
 
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
+from ..google_drive_acl import (
+    get_current_user_google_group_roles,
+    google_drive_group_role,
+)
 from .oauth import GoogleDriveOAuth
 
 logger = get_logger(__name__)
@@ -90,6 +94,8 @@ class GoogleDriveConnector(BaseConnector):
         logger.debug(f"Emitting document: {doc.id} ({doc.filename})")
 
     def __init__(self, config: Dict[str, Any]) -> None:
+        super().__init__(config)
+
         # Read from config OR env (backend env, not NEXT_PUBLIC_*):
         env_client_id = os.getenv(self.CLIENT_ID_ENV_VAR)
         env_client_secret = os.getenv(self.CLIENT_SECRET_ENV_VAR)
@@ -570,6 +576,12 @@ class GoogleDriveConnector(BaseConnector):
             logger.error("[GoogleDrive] authenticate failed: %s", e)
             return False
 
+    async def get_current_user_group_roles(self) -> List[str]:
+        """Return canonical group ACL roles for the connected Google user."""
+        if not self._authenticated and not await self.authenticate():
+            return []
+        return await get_current_user_google_group_roles(self.service, self.creds)
+
     async def list_files(
         self,
         page_token: Optional[str] = None,
@@ -651,7 +663,9 @@ class GoogleDriveConnector(BaseConnector):
 
                 # Add allowed groups
                 elif perm_type == "group" and email:
-                    allowed_groups.append(email)
+                    group_role = google_drive_group_role(email)
+                    if group_role:
+                        allowed_groups.append(group_role)
 
             # Fallback to file owners if no owner found in permissions
             if not owner and file_meta.get("owners"):

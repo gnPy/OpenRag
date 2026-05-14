@@ -33,6 +33,7 @@ openrag_user_role:
         {"bool":{"should":[
           {"term":{"owner":"${user.name}"}},
           {"term":{"allowed_users":"${user.name}"}},
+          {"terms":{"allowed_groups":[${user.roles}]}},
           {"bool":{"must_not":{"exists":{"field":"owner"}}}}
         ],"minimum_should_match":1}}
     - index_patterns: ["api_keys", "api_keys*"]

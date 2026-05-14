@@ -1,0 +1,141 @@
+"""Google Drive group ACL helpers."""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+import jwt
+from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
+
+from utils.group_acl import canonical_group_role
+from utils.logging_config import get_logger
+
+
+logger = get_logger(__name__)
+
+GOOGLE_DRIVE_GROUP_PROVIDER = "gdrive"
+
+
+def _group_tenant(group_email: str) -> str:
+    if "@" in group_email:
+        return group_email.rsplit("@", 1)[1].lower()
+    return "global"
+
+
+def google_drive_group_role(group_email: str | None) -> str | None:
+    """Return the canonical OpenSearch role for a Google Drive group email."""
+    if not group_email:
+        return None
+    email = group_email.strip().lower()
+    if not email:
+        return None
+    return canonical_group_role(
+        GOOGLE_DRIVE_GROUP_PROVIDER,
+        _group_tenant(email),
+        email,
+    )
+
+
+def _email_from_id_token(id_token: str | None) -> str | None:
+    if not id_token:
+        return None
+    try:
+        claims = jwt.decode(
+            id_token,
+            options={"verify_signature": False, "verify_aud": False},
+        )
+        email = claims.get("email")
+        if email:
+            return str(email)
+    except Exception as e:
+        logger.debug("Could not decode Google id_token email", error=str(e))
+    return None
+
+
+async def _execute_google_request(request: Any) -> dict[str, Any]:
+    return await asyncio.to_thread(request.execute)
+
+
+async def _get_drive_user_email(drive_service: Any, credentials: Any) -> str | None:
+    email = _email_from_id_token(getattr(credentials, "id_token", None))
+    if email:
+        return email
+
+    if drive_service is None:
+        return None
+
+    try:
+        about = await _execute_google_request(
+            drive_service.about().get(fields="user(emailAddress)")
+        )
+        return about.get("user", {}).get("emailAddress")
+    except Exception as e:
+        logger.warning("Google Drive group ACL lookup could not resolve user email", error=str(e))
+        return None
+
+
+async def get_current_user_google_group_roles(
+    drive_service: Any,
+    credentials: Any,
+) -> list[str]:
+    """Fetch Google Workspace groups for the connected Drive user."""
+    if credentials is None:
+        return []
+
+    user_email = await _get_drive_user_email(drive_service, credentials)
+    if not user_email:
+        return []
+
+    try:
+        directory_service = build(
+            "admin",
+            "directory_v1",
+            credentials=credentials,
+            cache_discovery=False,
+        )
+    except Exception as e:
+        logger.warning("Could not create Google Directory client for group ACLs", error=str(e))
+        return []
+
+    roles: list[str] = []
+    seen: set[str] = set()
+    page_token: str | None = None
+
+    try:
+        while True:
+            request = directory_service.groups().list(
+                customer="my_customer",
+                userKey=user_email,
+                maxResults=200,
+                pageToken=page_token,
+                fields="nextPageToken,groups(email)",
+            )
+            response = await _execute_google_request(request)
+
+            for group in response.get("groups", []) or []:
+                role = google_drive_group_role(group.get("email"))
+                if role and role not in seen:
+                    seen.add(role)
+                    roles.append(role)
+
+            page_token = response.get("nextPageToken")
+            if not page_token:
+                break
+    except HttpError as e:
+        status = getattr(getattr(e, "resp", None), "status", None)
+        if status in (401, 403):
+            logger.warning(
+                "Google Directory group ACL lookup denied; check Admin SDK API and "
+                "admin.directory.group.readonly consent",
+                status_code=status,
+            )
+            return []
+        logger.warning("Google Directory group ACL lookup failed", error=str(e))
+        return []
+    except Exception as e:
+        logger.warning("Google Directory group ACL lookup errored", error=str(e))
+        return []
+
+    return roles

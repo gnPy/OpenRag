@@ -8,6 +8,10 @@ import httpx
 from utils.logging_config import get_logger
 
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
+from ..microsoft_graph_acl import (
+    get_current_user_microsoft_group_roles,
+    microsoft_group_role,
+)
 from .oauth import SharePointOAuth
 
 logger = get_logger(__name__)
@@ -144,6 +148,14 @@ class SharePointConnector(BaseConnector):
     def base_url(self, value: str):
         """Set base URL (updates sharepoint_url internally)"""
         self.sharepoint_url = value
+
+    async def get_current_user_group_roles(self) -> List[str]:
+        """Return canonical group ACL roles for the connected Microsoft user."""
+        return await get_current_user_microsoft_group_roles(
+            self.oauth,
+            self._graph_base_url,
+            tenant_id=self.tenant_id,
+        )
 
     def set_file_infos(self, file_infos: List[Dict[str, Any]]) -> None:
         """
@@ -533,6 +545,14 @@ class SharePointConnector(BaseConnector):
                         allowed_users.append(user_identifier)
                         if "owner" in roles:
                             owner = user_identifier
+                    group_info = granted_to.get("group", {})
+                    group_role = microsoft_group_role(
+                        group_info.get("id"),
+                        access_token=access_token,
+                        tenant_id=self.tenant_id,
+                    )
+                    if group_role:
+                        allowed_groups.append(group_role)
 
                 # Granted to identities (can include users and groups)
                 if "grantedToIdentitiesV2" in perm or "grantedToIdentities" in perm:
@@ -555,9 +575,13 @@ class SharePointConnector(BaseConnector):
                         if "group" in identity:
                             group_info = identity["group"]
                             group_id = group_info.get("id")
-                            group_display_name = group_info.get("displayName", group_id)
-                            if group_id or group_display_name:
-                                allowed_groups.append(group_display_name or group_id)
+                            group_role = microsoft_group_role(
+                                group_id,
+                                access_token=access_token,
+                                tenant_id=self.tenant_id,
+                            )
+                            if group_role:
+                                allowed_groups.append(group_role)
 
             return DocumentACL(
                 owner=owner,

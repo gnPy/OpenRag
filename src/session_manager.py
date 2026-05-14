@@ -1,7 +1,7 @@
 import jwt
 import httpx
 from datetime import datetime, timedelta
-from typing import Dict, Optional, Any, Union
+from typing import Dict, Optional, Any, Union, Iterable
 from dataclasses import dataclass
 
 from cryptography.hazmat.primitives import serialization
@@ -191,22 +191,40 @@ class SessionManager:
         # Create JWT token using the shared method
         return self.create_jwt_token(user)
 
-    def create_jwt_token(self, user: User) -> str:
-        """Create JWT token for an existing user"""
+    def _get_oidc_issuer(self) -> str:
         # Use OpenSearch-compatible issuer for OIDC validation
         oidc_issuer = "http://openrag-backend:8000"
         openrag_fqdn = os.getenv("OPENRAG_FQDN")
         if openrag_fqdn:
             oidc_issuer = f"http://{openrag_fqdn}:8000"
+        return oidc_issuer
 
+    def _normalize_backend_roles(self, extra_roles: Iterable[str] | None = None) -> list[str]:
+        roles = ["openrag_user"]
+        seen = {"openrag_user"}
+        for role in extra_roles or ():
+            role = str(role).strip()
+            if role and role not in seen:
+                seen.add(role)
+                roles.append(role)
+        return roles
+
+    def _create_signed_jwt_token(
+        self,
+        user: User,
+        *,
+        expires_delta: timedelta,
+        backend_roles: Iterable[str] | None = None,
+    ) -> str:
         # Create JWT token with OIDC-compliant claims
         now = datetime.utcnow()
+        roles = self._normalize_backend_roles(backend_roles)
         token_payload = {
             # OIDC standard claims
-            "iss": oidc_issuer,  # Fixed issuer for OpenSearch OIDC
+            "iss": self._get_oidc_issuer(),  # Fixed issuer for OpenSearch OIDC
             "sub": user.user_id,  # Subject (user ID)
             "aud": ["opensearch", "openrag"],  # Audience
-            "exp": now + timedelta(days=7),  # Expiration
+            "exp": now + expires_delta,  # Expiration
             "iat": now,  # Issued at
             "auth_time": int(now.timestamp()),  # Authentication time
             # Custom claims
@@ -215,8 +233,8 @@ class SessionManager:
             "name": user.name,
             "preferred_username": user.email,
             "email_verified": True,
-            "roles": ["openrag_user"],  # Backend role for OpenSearch
-            "user_roles": ["openrag_user", "all_access"],  # compatible with OpenSearch's roles_key
+            "roles": roles,  # Backend roles for OpenSearch
+            "user_roles": roles + ["all_access"],  # compatible with OpenSearch's roles_key
         }
 
         # Check for token from environment variable first
@@ -225,10 +243,32 @@ class SessionManager:
             return token
         if not token:
             if self.private_key is None:
-                logger.error("create_jwt_token called but JWT signing is disabled (IBM auth mode)")
+                logger.error("JWT signing requested but signing is disabled (IBM auth mode)")
                 return None
             token = jwt.encode(token_payload, self.private_key, algorithm=self.algorithm)
         return f"Bearer {token}"
+
+    def create_jwt_token(self, user: User) -> str:
+        """Create the long-lived OpenRAG session JWT for an existing user."""
+        return self._create_signed_jwt_token(
+            user,
+            expires_delta=timedelta(days=7),
+        )
+
+    def create_opensearch_jwt_token(
+        self,
+        user: User,
+        group_roles: Iterable[str] | None = None,
+        ttl_seconds: int | None = None,
+    ) -> str:
+        """Create a short-lived OpenSearch JWT with current connector groups."""
+        if ttl_seconds is None:
+            ttl_seconds = int(os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", "120"))
+        return self._create_signed_jwt_token(
+            user,
+            expires_delta=timedelta(seconds=max(ttl_seconds, 1)),
+            backend_roles=group_roles,
+        )
 
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify JWT token and return user info"""
@@ -275,17 +315,9 @@ class SessionManager:
 
         from config.settings import clients
 
-        # In IBM mode credentials may rotate per-request — always create a fresh client
-        if IBM_AUTH_ENABLED:
-            return clients.create_user_opensearch_client(jwt_token)
-
-        # Check if we have a cached client for this user
-        if user_id not in self.user_opensearch_clients:
-            self.user_opensearch_clients[user_id] = (
-                clients.create_user_opensearch_client(jwt_token)
-            )
-
-        return self.user_opensearch_clients[user_id]
+        # User tokens can carry short-lived group roles, and IBM credentials can
+        # rotate per request. Build a client for the effective token we have now.
+        return clients.create_user_opensearch_client(jwt_token)
 
     def get_effective_jwt_token(self, user_id: str, jwt_token: str) -> str:
         """Get the effective JWT token, creating anonymous JWT if needed in no-auth mode"""

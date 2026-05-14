@@ -23,6 +23,7 @@ from services.chat_service import ChatService
 from services.docling_polling_service import DoclingPollingService
 from services.document_service import DocumentService
 from services.flows_service import FlowsService
+from services.group_acl_service import GroupACLService
 from services.knowledge_filter_service import KnowledgeFilterService
 from services.langflow_file_service import LangflowFileService
 from services.langflow_mcp_service import LangflowMCPService
@@ -121,6 +122,7 @@ async def initialize_services():
         langflow_connector_service=langflow_connector_service,
         openrag_connector_service=openrag_connector_service,
     )
+    group_acl_service = GroupACLService(connector_service)
 
     auth_service = AuthService(
         session_manager,
@@ -205,6 +207,7 @@ async def initialize_services():
         "langflow_file_service": langflow_file_service,
         "auth_service": auth_service,
         "connector_service": connector_service,
+        "group_acl_service": group_acl_service,
         "knowledge_filter_service": knowledge_filter_service,
         "models_service": models_service,
         "monitor_service": monitor_service,

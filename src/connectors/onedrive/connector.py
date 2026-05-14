@@ -6,6 +6,11 @@ from urllib.parse import urlparse
 import httpx
 
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
+from ..microsoft_graph_acl import (
+    get_current_user_microsoft_group_roles,
+    get_oauth_access_token,
+    microsoft_group_role,
+)
 from .oauth import OneDriveOAuth
 
 logger = logging.getLogger(__name__)
@@ -123,6 +128,13 @@ class OneDriveConnector(BaseConnector):
     def base_url(self, value: str):
         """Set base URL"""
         self._base_url = value
+
+    async def get_current_user_group_roles(self) -> List[str]:
+        """Return canonical group ACL roles for the connected Microsoft user."""
+        return await get_current_user_microsoft_group_roles(
+            self.oauth,
+            self._graph_base_url,
+        )
 
     def set_file_infos(self, file_infos: List[Dict[str, Any]]) -> None:
         """
@@ -406,8 +418,7 @@ class OneDriveConnector(BaseConnector):
         """
         try:
             # Get access token
-            token_data = await self.oauth.get_access_token()
-            access_token = token_data.get("access_token")
+            access_token = await get_oauth_access_token(self.oauth)
 
             if not access_token:
                 logger.warning(f"No access token available for ACL extraction: {file_id}")
@@ -444,6 +455,13 @@ class OneDriveConnector(BaseConnector):
                         allowed_users.append(email)
                         if "owner" in roles:
                             owner = email
+                    group_info = perm["grantedTo"].get("group", {})
+                    group_role = microsoft_group_role(
+                        group_info.get("id"),
+                        access_token=access_token,
+                    )
+                    if group_role:
+                        allowed_groups.append(group_role)
 
                 # Granted to identities (can include users and groups)
                 elif "grantedToIdentities" in perm:
@@ -461,9 +479,12 @@ class OneDriveConnector(BaseConnector):
                         elif "group" in identity:
                             group_info = identity["group"]
                             group_id = group_info.get("id")
-                            group_display_name = group_info.get("displayName", group_id)
-                            if group_id:
-                                allowed_groups.append(group_display_name)
+                            group_role = microsoft_group_role(
+                                group_id,
+                                access_token=access_token,
+                            )
+                            if group_role:
+                                allowed_groups.append(group_role)
 
             return DocumentACL(
                 owner=owner,

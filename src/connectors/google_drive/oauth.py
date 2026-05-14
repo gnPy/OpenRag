@@ -25,6 +25,7 @@ class GoogleDriveOAuth:
         "profile",
         "https://www.googleapis.com/auth/drive.readonly",
         "https://www.googleapis.com/auth/drive.metadata.readonly",
+        "https://www.googleapis.com/auth/admin.directory.group.readonly",
     ]
 
     AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"

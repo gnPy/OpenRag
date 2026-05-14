@@ -143,3 +143,12 @@ class BaseConnector(ABC):
         Subclasses (OneDrive, SharePoint) should override this method.
         """
         return None
+
+    async def get_current_user_group_roles(self) -> List[str]:
+        """Return OpenSearch backend roles for the current connector user.
+
+        Connectors that support upstream group ACLs can override this hook.
+        The core ACL service calls it generically so new connectors only need
+        to implement their own provider-specific group lookup.
+        """
+        return []

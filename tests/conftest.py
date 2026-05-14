@@ -37,7 +37,7 @@ from main import generate_jwt_keys
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
-async def onboard_system():
+async def onboard_system(request):
     """Perform initial onboarding once for all tests in the session.
 
     This ensures the OpenRAG config is marked as edited and properly initialized
@@ -47,6 +47,12 @@ async def onboard_system():
     an already-running external stack and must not wipe its state).
     """
     if os.environ.get("SDK_TESTS_ONLY") == "true":
+        yield
+        return
+    selected_items = getattr(request.session, "items", [])
+    if selected_items and all(
+        item.get_closest_marker("openrag_skip_app_onboard") for item in selected_items
+    ):
         yield
         return
 
