@@ -254,6 +254,7 @@ class SessionManager:
         """Create a short-lived OpenSearch JWT with current connector groups."""
         if ttl_seconds is None:
             from config.settings import get_opensearch_jwt_ttl_seconds
+
             ttl_seconds = get_opensearch_jwt_ttl_seconds()
         return self._create_signed_jwt_token(
             user,
