@@ -66,7 +66,9 @@ class GoogleDriveOAuth:
                 os.remove(self.token_file)
             return None
 
-        logger.debug("[GoogleDrive] load_credentials: token data loaded, creating Credentials object")
+        logger.debug(
+            "[GoogleDrive] load_credentials: token data loaded, creating Credentials object"
+        )
 
         self.creds = Credentials(
             token=token_data.get("token"),
@@ -135,13 +137,12 @@ class GoogleDriveOAuth:
             # Add expiry if available
             if self.creds.expiry:
                 token_data["expiry"] = self.creds.expiry.isoformat()
-                
+
             from utils.encryption import write_encrypted_file
+
             await write_encrypted_file(self.token_file, json.dumps(token_data))
 
-    def create_authorization_url(
-        self, redirect_uri: str, state: Optional[str] = None
-    ) -> str:
+    def create_authorization_url(self, redirect_uri: str, state: Optional[str] = None) -> str:
         """Create authorization URL for OAuth flow"""
         # Create flow from client credentials directly
         client_config = {
@@ -153,9 +154,7 @@ class GoogleDriveOAuth:
             }
         }
 
-        flow = Flow.from_client_config(
-            client_config, scopes=self.SCOPES, redirect_uri=redirect_uri
-        )
+        flow = Flow.from_client_config(client_config, scopes=self.SCOPES, redirect_uri=redirect_uri)
 
         kwargs = {
             "access_type": "offline",
@@ -173,9 +172,7 @@ class GoogleDriveOAuth:
 
         return auth_url
 
-    async def handle_authorization_callback(
-        self, authorization_code: str, state: str
-    ) -> bool:
+    async def handle_authorization_callback(self, authorization_code: str, state: str) -> bool:
         """Handle OAuth callback and exchange code for tokens"""
         if not hasattr(self, "_flow") or self._flow_state != state:
             raise ValueError("Invalid OAuth state")

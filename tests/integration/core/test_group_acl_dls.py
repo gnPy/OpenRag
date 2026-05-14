@@ -47,10 +47,7 @@ async def _search_visible_document_ids(opensearch_client, index_name: str) -> se
             "size": 10,
         },
     )
-    return {
-        hit["_source"]["document_id"]
-        for hit in response.get("hits", {}).get("hits", [])
-    }
+    return {hit["_source"]["document_id"] for hit in response.get("hits", {}).get("hits", [])}
 
 
 async def test_opensearch_dls_filters_group_only_documents():
