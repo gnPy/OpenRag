@@ -100,6 +100,66 @@ def test_security_roles_include_group_acl_terms_query():
         assert '{"terms":{"allowed_groups":[${user.roles}]}}' in dls
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("service_name", ["standard", "langflow"])
+async def test_connector_services_mint_group_jwt_when_session_user_is_missing(
+    service_name,
+    monkeypatch,
+):
+    from session_manager import SessionManager
+
+    monkeypatch.setenv("JWT_SIGNING_KEY", "unit-test-secret-with-32-bytes!!")
+    monkeypatch.delenv("OPENSEARCH_JWT_TOKEN", raising=False)
+    monkeypatch.setattr("config.settings.IBM_AUTH_ENABLED", False)
+
+    @dataclass
+    class Connection:
+        connection_id: str
+        connector_type: str
+        is_active: bool = True
+
+    class Connector:
+        async def get_current_user_group_roles(self):
+            return ["g:test:t:g1"]
+
+    class ConnectionManager:
+        async def list_connections(self, user_id=None):
+            assert user_id == "stored-user-id"
+            return [Connection("connection-1", "custom")]
+
+        async def get_connector(self, connection_id):
+            assert connection_id == "connection-1"
+            return Connector()
+
+    session_manager = SessionManager("test")
+    if service_name == "standard":
+        from connectors.service import ConnectorService
+
+        service = ConnectorService(
+            patched_async_client=None,
+            embed_model="test",
+            index_name="test-index",
+            session_manager=session_manager,
+        )
+    else:
+        from connectors.langflow_connector_service import LangflowConnectorService
+
+        service = LangflowConnectorService(session_manager=session_manager)
+
+    service.connection_manager = ConnectionManager()
+
+    token = await service._get_effective_sync_jwt("stored-user-id")
+    payload = jwt.decode(
+        token.removeprefix("Bearer "),
+        "unit-test-secret-with-32-bytes!!",
+        algorithms=["HS256"],
+        audience=["opensearch", "openrag"],
+    )
+
+    assert payload["sub"] == "stored-user-id"
+    assert payload["roles"] == ["openrag_user", "g:test:t:g1"]
+
+
 def test_google_drive_file_acl_group_is_canonicalized(tmp_path):
     from connectors.google_drive.connector import GoogleDriveConnector
     from connectors.google_drive_acl import google_drive_group_role

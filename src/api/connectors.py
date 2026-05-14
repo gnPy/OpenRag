@@ -511,10 +511,16 @@ async def connector_webhook(
                     affected_count=len(affected_files),
                 )
 
-                # Generate JWT token for the user (needed for OpenSearch authentication)
+                # Generate a current OpenSearch JWT for the user (needed for OpenSearch auth).
+                # The connector service also refreshes this as a fallback for background calls.
                 user = session_manager.get_user(connection.user_id)
                 if user:
-                    jwt_token = session_manager.create_jwt_token(user)
+                    from services.group_acl_service import GroupACLService
+
+                    jwt_token = await GroupACLService(
+                        connector_service,
+                        cache_ttl_seconds=0,
+                    ).create_opensearch_jwt(session_manager, user)
                 else:
                     jwt_token = None
 

@@ -38,6 +38,35 @@ class LangflowConnectorService:
         """Get a connector by connection ID"""
         return await self.connection_manager.get_connector(connection_id)
 
+    async def _get_effective_sync_jwt(
+        self,
+        user_id: str,
+        jwt_token: str | None = None,
+    ) -> str | None:
+        """Return a current OpenSearch JWT for connector sync work."""
+        if not self.session_manager:
+            return jwt_token
+        user = self.session_manager.get_user(user_id)
+        if user is None and user_id:
+            from session_manager import User
+
+            user = User(
+                user_id=user_id,
+                email=user_id,
+                name=user_id,
+                provider="connector",
+            )
+        if user is None:
+            return self.session_manager.get_effective_jwt_token(user_id, jwt_token)
+
+        from services.group_acl_service import GroupACLService
+
+        return await GroupACLService(self, cache_ttl_seconds=0).create_opensearch_jwt(
+            self.session_manager,
+            user,
+            fallback_jwt_token=jwt_token,
+        )
+
     async def process_connector_document(
         self,
         document: ConnectorDocument,
@@ -49,6 +78,7 @@ class LangflowConnectorService:
         ingest_settings: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Process a document from a connector using LangflowFileService pattern"""
+        jwt_token = await self._get_effective_sync_jwt(owner_user_id, jwt_token)
 
         logger.debug(
             "Processing connector document via Langflow",
@@ -201,6 +231,8 @@ class LangflowConnectorService:
         jwt_token: str = None,
     ) -> str:
         """Sync files from a connector connection using Langflow processing"""
+        jwt_token = await self._get_effective_sync_jwt(user_id, jwt_token)
+
         if not self.task_service:
             raise ValueError(
                 "TaskService not available - connector sync requires task service dependency"
@@ -310,6 +342,8 @@ class LangflowConnectorService:
             file_infos: Optional list of file info dicts with {id, name, mimeType, downloadUrl, size}
                        When provided, download URLs can be used directly without Graph API calls.
         """
+        jwt_token = await self._get_effective_sync_jwt(user_id, jwt_token)
+
         if not self.task_service:
             raise ValueError(
                 "TaskService not available - connector sync requires task service dependency"

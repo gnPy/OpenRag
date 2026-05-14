@@ -278,10 +278,18 @@ async def _attach_opensearch_jwt(
                 error=str(e),
             )
 
-    jwt_token = session_manager.create_opensearch_jwt_token(
-        user,
-        group_roles=group_roles,
-    )
+    if group_acl_service is not None:
+        jwt_token = await group_acl_service.create_opensearch_jwt(
+            session_manager,
+            user,
+            fallback_jwt_token=user.jwt_token,
+            group_roles=group_roles,
+        )
+    else:
+        jwt_token = session_manager.create_opensearch_jwt_token(
+            user,
+            group_roles=group_roles,
+        )
     if jwt_token:
         request.state.opensearch_group_roles = group_roles
         return dataclasses.replace(user, jwt_token=jwt_token)

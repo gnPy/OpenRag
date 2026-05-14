@@ -42,6 +42,36 @@ class ConnectorService:
         """Get a connector by connection ID"""
         return await self.connection_manager.get_connector(connection_id)
 
+    async def _get_effective_sync_jwt(
+        self,
+        user_id: str,
+        jwt_token: str | None = None,
+    ) -> str | None:
+        """Return a current OpenSearch JWT for connector sync work."""
+        if not self.session_manager:
+            return jwt_token
+
+        user = self.session_manager.get_user(user_id)
+        if user is None and user_id:
+            from session_manager import User
+
+            user = User(
+                user_id=user_id,
+                email=user_id,
+                name=user_id,
+                provider="connector",
+            )
+        if user is None:
+            return self.session_manager.get_effective_jwt_token(user_id, jwt_token)
+
+        from services.group_acl_service import GroupACLService
+
+        return await GroupACLService(self, cache_ttl_seconds=0).create_opensearch_jwt(
+            self.session_manager,
+            user,
+            fallback_jwt_token=jwt_token,
+        )
+
     async def process_connector_document(
         self,
         document: ConnectorDocument,
@@ -52,6 +82,7 @@ class ConnectorService:
         owner_email: str = None,
     ) -> Dict[str, Any]:
         """Process a document from a connector using existing processing pipeline"""
+        jwt_token = await self._get_effective_sync_jwt(owner_user_id, jwt_token)
 
         # Create temporary file from document content
         from utils.file_utils import auto_cleanup_tempfile
@@ -206,6 +237,8 @@ class ConnectorService:
                            in this set will be synced. Used to prevent deleted files
                            from being re-synced.
         """
+        jwt_token = await self._get_effective_sync_jwt(user_id, jwt_token)
+
         if not self.task_service:
             raise ValueError(
                 "TaskService not available - connector sync requires task service dependency"
@@ -330,6 +363,8 @@ class ConnectorService:
             ingest_settings: Optional UI-style dict (``embeddingModel``, ``chunkSize``, …) passed to
                 ``ConnectorFileProcessor`` when Langflow ingest is disabled.
         """
+        jwt_token = await self._get_effective_sync_jwt(user_id, jwt_token)
+
         if not self.task_service:
             raise ValueError(
                 "TaskService not available - connector sync requires task service dependency"

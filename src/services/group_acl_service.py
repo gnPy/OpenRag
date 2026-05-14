@@ -52,6 +52,33 @@ class GroupACLService:
                 )
             return roles
 
+    async def create_opensearch_jwt(
+        self,
+        session_manager,
+        user: User | None,
+        fallback_jwt_token: str | None = None,
+        group_roles: list[str] | None = None,
+    ) -> str | None:
+        """Mint the effective OpenSearch token for this user's current groups."""
+        if user is None:
+            return fallback_jwt_token
+
+        from config.settings import IBM_AUTH_ENABLED
+
+        fallback_jwt_token = fallback_jwt_token or user.jwt_token
+        if IBM_AUTH_ENABLED:
+            return session_manager.get_effective_jwt_token(user.user_id, fallback_jwt_token)
+
+        if group_roles is None:
+            group_roles = await self.get_user_group_roles(user)
+        jwt_token = session_manager.create_opensearch_jwt_token(
+            user,
+            group_roles=group_roles,
+        )
+        if jwt_token:
+            return jwt_token
+        return session_manager.get_effective_jwt_token(user.user_id, fallback_jwt_token)
+
     def invalidate_user(self, user_id: str) -> None:
         self._cache.pop(user_id, None)
 

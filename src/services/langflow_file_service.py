@@ -202,7 +202,7 @@ class LangflowFileService:
             embedding_model = selected_embedding_model
 
         headers = {
-            "X-Langflow-Global-Var-JWT": str(jwt_token),
+            "X-Langflow-Global-Var-JWT": str(jwt_token or ""),
             "X-Langflow-Global-Var-OWNER": str(owner),
             "X-Langflow-Global-Var-OWNER_NAME": str(owner_name),
             "X-Langflow-Global-Var-OWNER_EMAIL": str(owner_email),
@@ -337,7 +337,7 @@ class LangflowFileService:
         config = get_openrag_config()
         embedding_model = config.knowledge.embedding_model
         headers = {
-            "X-Langflow-Global-Var-JWT": str(jwt_token),
+            "X-Langflow-Global-Var-JWT": str(jwt_token or ""),
             "X-Langflow-Global-Var-OWNER": str(owner),
             "X-Langflow-Global-Var-OWNER_NAME": str(owner_name),
             "X-Langflow-Global-Var-OWNER_EMAIL": str(owner_email),
