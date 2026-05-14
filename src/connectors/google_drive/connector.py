@@ -21,6 +21,7 @@ from .oauth import GoogleDriveOAuth
 
 logger = get_logger(__name__)
 
+
 # -------------------------
 # Config model
 # -------------------------
@@ -105,6 +106,7 @@ class GoogleDriveConnector(BaseConnector):
 
         # Token file default - use data directory for persistence
         from config.paths import get_data_file
+
         token_file = config.get("token_file") or get_data_file("google_drive_token.json")
         Path(token_file).parent.mkdir(parents=True, exist_ok=True)
 
@@ -120,9 +122,7 @@ class GoogleDriveConnector(BaseConnector):
             )
 
         # Normalize incoming IDs from any of the supported alias keys
-        def _first_present_list(
-            cfg: Dict[str, Any], keys: Iterable[str]
-        ) -> Optional[List[str]]:
+        def _first_present_list(cfg: Dict[str, Any], keys: Iterable[str]) -> Optional[List[str]]:
             for k in keys:
                 v = cfg.get(k)
                 if v:  # accept non-empty list
@@ -362,11 +362,16 @@ class GoogleDriveConnector(BaseConnector):
         folders_to_expand: List[str] = []
 
         if self.cfg.file_ids:
-            logger.debug("[GoogleDrive] _iter_selected_items: processing %d file_id(s)", len(self.cfg.file_ids))
+            logger.debug(
+                "[GoogleDrive] _iter_selected_items: processing %d file_id(s)",
+                len(self.cfg.file_ids),
+            )
             for fid in self.cfg.file_ids:
                 meta = self._get_file_meta_by_id(fid)
                 if not meta:
-                    logger.debug("[GoogleDrive] _iter_selected_items: no metadata for file_id=%s", fid)
+                    logger.debug(
+                        "[GoogleDrive] _iter_selected_items: no metadata for file_id=%s", fid
+                    )
                     continue
 
                 if meta.get("mimeType") == "application/vnd.google-apps.folder":
@@ -384,7 +389,9 @@ class GoogleDriveConnector(BaseConnector):
             folders_to_expand.extend(self.cfg.folder_ids)
 
         if folders_to_expand:
-            logger.debug("[GoogleDrive] _iter_selected_items: expanding %d folder(s)", len(folders_to_expand))
+            logger.debug(
+                "[GoogleDrive] _iter_selected_items: expanding %d folder(s)", len(folders_to_expand)
+            )
             folder_children = self._bfs_expand_folders(folders_to_expand)
             for meta in folder_children:
                 meta = self._resolve_shortcut(meta)
@@ -400,11 +407,7 @@ class GoogleDriveConnector(BaseConnector):
             return []
 
         items = self._filter_by_mime(items)
-        items = [
-            m
-            for m in items
-            if m.get("mimeType") != "application/vnd.google-apps.folder"
-        ]
+        items = [m for m in items if m.get("mimeType") != "application/vnd.google-apps.folder"]
 
         if not items and (self.cfg.file_ids or self.cfg.folder_ids):
             logger.warning(
@@ -497,9 +500,7 @@ class GoogleDriveConnector(BaseConnector):
                 export_mime,
             )
             # NOTE: export_media does not accept supportsAllDrives/includeItemsFromAllDrives
-            request = self.service.files().export_media(
-                fileId=file_id, mimeType=export_mime
-            )
+            request = self.service.files().export_media(fileId=file_id, mimeType=export_mime)
         else:
             # This is a regular uploaded file (PDF, image, video, etc.) - use get_media
             # Also handles non-exportable Google Apps files (Forms, Sites, Maps, etc.)
@@ -525,9 +526,7 @@ class GoogleDriveConnector(BaseConnector):
                     f"Retrying with export_media (file might be a Google Doc)"
                 )
                 export_mime = "application/pdf"
-                request = self.service.files().export_media(
-                    fileId=file_id, mimeType=export_mime
-                )
+                request = self.service.files().export_media(fileId=file_id, mimeType=export_mime)
                 fh = io.BytesIO()
                 downloader = MediaIoBaseDownload(fh, request, chunksize=1024 * 1024)
                 done = False
@@ -601,7 +600,9 @@ class GoogleDriveConnector(BaseConnector):
                 "Google Drive service is not initialized. Please authenticate first."
             )
 
-        logger.debug("[GoogleDrive] list_files: entry (page_token=%s, max_files=%s)", page_token, max_files)
+        logger.debug(
+            "[GoogleDrive] list_files: entry (page_token=%s, max_files=%s)", page_token, max_files
+        )
 
         try:
             items = await asyncio.to_thread(self._iter_selected_items)
@@ -636,10 +637,14 @@ class GoogleDriveConnector(BaseConnector):
         """
         try:
             # Fetch permissions (requires additional API call)
-            permissions_list = self.service.permissions().list(
-                fileId=file_meta["id"],
-                fields="permissions(emailAddress,role,type,deleted,displayName)"
-            ).execute()
+            permissions_list = (
+                self.service.permissions()
+                .list(
+                    fileId=file_meta["id"],
+                    fields="permissions(emailAddress,role,type,deleted,displayName)",
+                )
+                .execute()
+            )
 
             allowed_users = []
             allowed_groups = []
@@ -744,12 +749,12 @@ class GoogleDriveConnector(BaseConnector):
             metadata={
                 "parents": meta.get("parents"),
                 "driveId": meta.get("driveId"),
-                "size": int(meta.get("size", 0))
-                if str(meta.get("size", "")).isdigit()
-                else None,
+                "size": int(meta.get("size", 0)) if str(meta.get("size", "")).isdigit() else None,
             },
         )
-        logger.debug("[GoogleDrive] get_file_content: done for file_id=%s (%d bytes)", file_id, len(blob))
+        logger.debug(
+            "[GoogleDrive] get_file_content: done for file_id=%s (%d bytes)", file_id, len(blob)
+        )
         return doc
 
     async def setup_subscription(self) -> str:
@@ -766,9 +771,7 @@ class GoogleDriveConnector(BaseConnector):
         # 1) Ensure we are authenticated and have a live Drive service
         ok = await self.authenticate()
         if not ok:
-            raise RuntimeError(
-                "GoogleDriveConnector.setup_subscription: not authenticated"
-            )
+            raise RuntimeError("GoogleDriveConnector.setup_subscription: not authenticated")
 
         # 2) Resolve webhook address (no param in ABC, so pull from config/env)
         webhook_address = getattr(self.cfg, "webhook_address", None) or os.getenv(
@@ -824,9 +827,7 @@ class GoogleDriveConnector(BaseConnector):
             }
 
             if not isinstance(channel_id, str) or not channel_id:
-                raise RuntimeError(
-                    f"Drive watch returned invalid channel id: {channel_id!r}"
-                )
+                raise RuntimeError(f"Drive watch returned invalid channel id: {channel_id!r}")
 
             return channel_id
 
@@ -902,9 +903,7 @@ class GoogleDriveConnector(BaseConnector):
             ):
                 self._active_channel = {}
 
-            if hasattr(self, "_subscriptions") and isinstance(
-                self._subscriptions, dict
-            ):
+            if hasattr(self, "_subscriptions") and isinstance(self._subscriptions, dict):
                 self._subscriptions.pop(subscription_id, None)
 
             return True
@@ -955,9 +954,7 @@ class GoogleDriveConnector(BaseConnector):
             except Exception as e:
                 selected_ids = set()
                 try:
-                    logger.error(
-                        f"handle_webhook: scope build failed, proceeding unfiltered: {e}"
-                    )
+                    logger.error(f"handle_webhook: scope build failed, proceeding unfiltered: {e}")
                 except Exception:
                     pass
 
@@ -994,11 +991,7 @@ class GoogleDriveConnector(BaseConnector):
                     # Filter to our selected scope if we have one; otherwise accept all
                     if selected_ids and (rid not in selected_ids):
                         # Shortcut target might be in scope even if the shortcut isn't
-                        tgt = (
-                            fobj.get("shortcutDetails", {}).get("targetId")
-                            if fobj
-                            else None
-                        )
+                        tgt = fobj.get("shortcutDetails", {}).get("targetId") if fobj else None
                         if not (tgt and tgt in selected_ids):
                             continue
 
@@ -1047,9 +1040,7 @@ class GoogleDriveConnector(BaseConnector):
                 blob = self._download_file_bytes(meta)
             except HttpError as e:
                 # Skip/record failures
-                logger.error(
-                    f"Failed to download {meta.get('name')} ({meta.get('id')}): {e}"
-                )
+                logger.error(f"Failed to download {meta.get('name')} ({meta.get('id')}): {e}")
                 continue
 
             from datetime import datetime
@@ -1095,9 +1086,7 @@ class GoogleDriveConnector(BaseConnector):
     # -------------------------
     def get_start_page_token(self) -> str:
         # getStartPageToken accepts supportsAllDrives (not includeItemsFromAllDrives)
-        resp = (
-            self.service.changes().getStartPageToken(**self._drives_get_flags).execute()
-        )
+        resp = self.service.changes().getStartPageToken(**self._drives_get_flags).execute()
         return resp["startPageToken"]
 
     def poll_changes_and_sync(self) -> Optional[str]:
@@ -1136,10 +1125,7 @@ class GoogleDriveConnector(BaseConnector):
                 # Match scope
                 if fid not in selected_ids:
                     # also consider shortcut target
-                    if (
-                        file_obj.get("mimeType")
-                        == "application/vnd.google-apps.shortcut"
-                    ):
+                    if file_obj.get("mimeType") == "application/vnd.google-apps.shortcut":
                         tgt = file_obj.get("shortcutDetails", {}).get("targetId")
                         if tgt and tgt in selected_ids:
                             pass

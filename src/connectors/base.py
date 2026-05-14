@@ -58,15 +58,11 @@ class BaseConnector(ABC):
     def get_client_id(self) -> str:
         """Get the OAuth client ID from environment variable"""
         if not self.CLIENT_ID_ENV_VAR:
-            raise NotImplementedError(
-                f"{self.__class__.__name__} must define CLIENT_ID_ENV_VAR"
-            )
+            raise NotImplementedError(f"{self.__class__.__name__} must define CLIENT_ID_ENV_VAR")
 
         client_id = os.getenv(self.CLIENT_ID_ENV_VAR)
         if not client_id:
-            raise ValueError(
-                f"Environment variable {self.CLIENT_ID_ENV_VAR} is not set"
-            )
+            raise ValueError(f"Environment variable {self.CLIENT_ID_ENV_VAR} is not set")
 
         return client_id
 
@@ -79,9 +75,7 @@ class BaseConnector(ABC):
 
         secret = os.getenv(self.CLIENT_SECRET_ENV_VAR)
         if not secret:
-            raise ValueError(
-                f"Environment variable {self.CLIENT_SECRET_ENV_VAR} is not set"
-            )
+            raise ValueError(f"Environment variable {self.CLIENT_SECRET_ENV_VAR} is not set")
 
         return secret
 
@@ -96,7 +90,9 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
-    async def list_files(self, page_token: Optional[str] = None, max_files: Optional[int] = None) -> Dict[str, Any]:
+    async def list_files(
+        self, page_token: Optional[str] = None, max_files: Optional[int] = None
+    ) -> Dict[str, Any]:
         """List all files. Returns files and next_page_token if any."""
         pass
 
@@ -138,7 +134,7 @@ class BaseConnector(ABC):
 
     async def _detect_base_url(self) -> Optional[str]:
         """Auto-detect base URL for the connector.
-        
+
         Default implementation returns None.
         Subclasses (OneDrive, SharePoint) should override this method.
         """

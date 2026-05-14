@@ -12,8 +12,8 @@ load_dotenv()
 
 # Force no-auth mode for testing by setting OAuth credentials to empty strings
 # This ensures anonymous JWT tokens are created automatically
-os.environ['GOOGLE_OAUTH_CLIENT_ID'] = ''
-os.environ['GOOGLE_OAUTH_CLIENT_SECRET'] = ''
+os.environ["GOOGLE_OAUTH_CLIENT_ID"] = ""
+os.environ["GOOGLE_OAUTH_CLIENT_SECRET"] = ""
 
 # RBAC is OFF by default in production. For tests we keep it ON so the
 # RBAC assertions in admin-endpoint and require_permission tests aren't
@@ -69,11 +69,13 @@ async def onboard_system(request):
     # require_permission-gated endpoint dies with
     # "no such table: permissions".
     from db.migrations_runtime import run_alembic_upgrade_async
+
     await run_alembic_upgrade_async("head")
 
     # Bind the SQLAlchemy engine to the migrated DB. init_engine is
     # idempotent and synchronous; safe to call from the test event loop.
     from db.engine import init_engine
+
     init_engine()
 
     # Clean up OpenSearch indices to ensure fresh state for tests
@@ -83,7 +85,6 @@ async def onboard_system(request):
         print("[DEBUG] Wiped all OpenSearch indices via API")
     except Exception as e:
         print(f"[DEBUG] Could not wipe OpenSearch indices: {e}")
-
 
     # Create app and perform onboarding via API
     from main import create_app, startup_tasks
@@ -142,7 +143,9 @@ def session_manager():
     # Generate RSA keys before creating SessionManager
     generate_jwt_keys()
     sm = SessionManager("test-secret-key")
-    print(f"[DEBUG] SessionManager created with keys: private={sm.private_key_path}, public={sm.public_key_path}")
+    print(
+        f"[DEBUG] SessionManager created with keys: private={sm.private_key_path}, public={sm.public_key_path}"
+    )
     return sm
 
 
@@ -151,29 +154,39 @@ def test_documents_dir():
     """Create a temporary directory with test documents."""
     with tempfile.TemporaryDirectory() as temp_dir:
         test_dir = Path(temp_dir)
-        
+
         # Create some test files in supported formats
-        (test_dir / "test1.md").write_text("# Machine Learning Document\n\nThis is a test document about machine learning.")
-        (test_dir / "test2.md").write_text("# AI Document\n\nAnother document discussing artificial intelligence.")
-        (test_dir / "test3.md").write_text("# Data Science Document\n\nThis is a markdown file about data science.")
-        
+        (test_dir / "test1.md").write_text(
+            "# Machine Learning Document\n\nThis is a test document about machine learning."
+        )
+        (test_dir / "test2.md").write_text(
+            "# AI Document\n\nAnother document discussing artificial intelligence."
+        )
+        (test_dir / "test3.md").write_text(
+            "# Data Science Document\n\nThis is a markdown file about data science."
+        )
+
         # Create subdirectory with files
         sub_dir = test_dir / "subdir"
         sub_dir.mkdir()
-        (sub_dir / "nested.md").write_text("# Neural Networks\n\nNested document about neural networks.")
-        
+        (sub_dir / "nested.md").write_text(
+            "# Neural Networks\n\nNested document about neural networks."
+        )
+
         yield test_dir
 
 
 @pytest.fixture
 def test_single_file():
     """Create a single test file."""
-    with tempfile.NamedTemporaryFile(mode='w', suffix='_test_document.md', delete=False) as f:
-        f.write("# Single Test Document\n\nThis is a test document about OpenRAG testing framework. This document contains multiple sentences to ensure proper chunking. The content should be indexed and searchable in OpenSearch after processing.")
+    with tempfile.NamedTemporaryFile(mode="w", suffix="_test_document.md", delete=False) as f:
+        f.write(
+            "# Single Test Document\n\nThis is a test document about OpenRAG testing framework. This document contains multiple sentences to ensure proper chunking. The content should be indexed and searchable in OpenSearch after processing."
+        )
         temp_path = f.name
-    
+
     yield temp_path
-    
+
     # Cleanup
     try:
         os.unlink(temp_path)
