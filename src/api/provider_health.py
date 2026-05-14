@@ -6,6 +6,7 @@ import httpx
 from fastapi import Depends
 from fastapi.responses import JSONResponse
 from utils.logging_config import get_logger
+from utils import provider_health_cache
 from config.settings import get_openrag_config
 from api.provider_validation import validate_provider_setup
 from dependencies import get_current_user
@@ -94,7 +95,29 @@ async def check_provider_health(
             embedding_endpoint = getattr(embedding_provider_config, "endpoint", None)
             embedding_project_id = getattr(embedding_provider_config, "project_id", None)
             embedding_model = current_config.knowledge.embedding_model
-        
+
+            # Short-circuit identical concurrent polls from the provider-health
+            # banner so we don't fan out N watsonx round-trips per poll cycle.
+            # Only the polled (no `check_provider`) success path is cached; the
+            # 503 branch and the specific-provider branch always re-validate.
+            health_cache_key = provider_health_cache.cache_key(
+                provider=provider,
+                embedding_provider=embedding_provider,
+                test_completion=test_completion,
+                llm_model=llm_model,
+                embedding_model=embedding_model,
+                endpoint=endpoint,
+                project_id=project_id,
+                api_key=api_key,
+                embedding_api_key=embedding_api_key,
+                embedding_endpoint=embedding_endpoint,
+                embedding_project_id=embedding_project_id,
+            )
+            cached_payload = provider_health_cache.get(health_cache_key)
+            if cached_payload is not None:
+                logger.debug("Returning cached provider-health response")
+                return JSONResponse(cached_payload, status_code=200)
+
         logger.info(f"Checking health for provider: {provider}")
         
         # Validate provider setup
@@ -204,19 +227,18 @@ async def check_provider_health(
                     status_code=503,
                 )
 
-            return JSONResponse(
-                {
-                    "status": "healthy",
-                    "message": "Both providers properly configured and validated",
-                    "llm_provider": provider,
-                    "embedding_provider": embedding_provider,
-                    "details": {
-                        "llm_model": llm_model,
-                        "embedding_model": embedding_model,
-                    },
+            healthy_payload = {
+                "status": "healthy",
+                "message": "Both providers properly configured and validated",
+                "llm_provider": provider,
+                "embedding_provider": embedding_provider,
+                "details": {
+                    "llm_model": llm_model,
+                    "embedding_model": embedding_model,
                 },
-                status_code=200,
-            )
+            }
+            provider_health_cache.set_(health_cache_key, healthy_payload)
+            return JSONResponse(healthy_payload, status_code=200)
         
     except Exception as e:
         error_message = str(e)

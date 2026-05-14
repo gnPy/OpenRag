@@ -11,6 +11,7 @@ from config.model_constants import (
 from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL, OPENAI_EMBEDDING_MODEL_PREFIX
 from utils.container_utils import transform_localhost_url
 from utils.logging_config import get_logger
+from utils.watsonx_retry import request_with_retry
 
 logger = get_logger(__name__)
 
@@ -456,7 +457,9 @@ class ModelsService:
             bearer_token = None
             if api_key:
                 async with httpx.AsyncClient() as client:
-                    token_response = await client.post(
+                    token_response = await request_with_retry(
+                        client,
+                        "POST",
                         "https://iam.cloud.ibm.com/identity/token",
                         headers={"Content-Type": "application/x-www-form-urlencoded"},
                         data={
@@ -501,8 +504,8 @@ class ModelsService:
                 if project_id:
                     text_params["project_id"] = project_id
 
-                text_response = await client.get(
-                    models_url, params=text_params, headers=headers, timeout=10.0
+                text_response = await request_with_retry(
+                    client, "GET", models_url, params=text_params, headers=headers, timeout=10.0
                 )
 
                 if text_response.status_code == 200:
@@ -538,8 +541,8 @@ class ModelsService:
                 if project_id:
                     embed_params["project_id"] = project_id
 
-                embed_response = await client.get(
-                    models_url, params=embed_params, headers=headers, timeout=10.0
+                embed_response = await request_with_retry(
+                    client, "GET", models_url, params=embed_params, headers=headers, timeout=10.0
                 )
 
                 if embed_response.status_code == 200:

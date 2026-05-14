@@ -4,6 +4,7 @@ import json
 import httpx
 from utils.container_utils import transform_localhost_url
 from utils.logging_config import get_logger
+from utils.watsonx_retry import request_with_retry
 
 logger = get_logger(__name__)
 def _parse_json_error_message(error_text: str) -> str:
@@ -392,7 +393,9 @@ async def _test_watsonx_lightweight_health(
     try:
         # Get bearer token from IBM IAM - this validates the API key without consuming credits
         async with httpx.AsyncClient() as client:
-            token_response = await client.post(
+            token_response = await request_with_retry(
+                client,
+                "POST",
                 "https://iam.cloud.ibm.com/identity/token",
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 data={
@@ -428,7 +431,9 @@ async def _test_watsonx_completion_with_tools(
     try:
         # Get bearer token from IBM IAM
         async with httpx.AsyncClient() as client:
-            token_response = await client.post(
+            token_response = await request_with_retry(
+                client,
+                "POST",
                 "https://iam.cloud.ibm.com/identity/token",
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 data={
@@ -484,7 +489,9 @@ async def _test_watsonx_completion_with_tools(
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            response = await request_with_retry(
+                client,
+                "POST",
                 url,
                 headers=headers,
                 params=params,
@@ -523,7 +530,9 @@ async def _test_watsonx_embedding(
     try:
         # Get bearer token from IBM IAM
         async with httpx.AsyncClient() as client:
-            token_response = await client.post(
+            token_response = await request_with_retry(
+                client,
+                "POST",
                 "https://iam.cloud.ibm.com/identity/token",
                 headers={"Content-Type": "application/x-www-form-urlencoded"},
                 data={
@@ -557,7 +566,9 @@ async def _test_watsonx_embedding(
         }
 
         async with httpx.AsyncClient() as client:
-            response = await client.post(
+            response = await request_with_retry(
+                client,
+                "POST",
                 url,
                 headers=headers,
                 params=params,
