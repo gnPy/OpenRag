@@ -488,9 +488,7 @@ class OneDriveConnector(BaseConnector):
 
                 # Granted to identities (can include users and groups)
                 identities = (
-                    perm.get("grantedToIdentitiesV2")
-                    or perm.get("grantedToIdentities")
-                    or []
+                    perm.get("grantedToIdentitiesV2") or perm.get("grantedToIdentities") or []
                 )
                 if identities:
                     for identity in identities:

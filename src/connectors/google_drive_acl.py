@@ -100,10 +100,7 @@ async def _get_cloud_identity_group_roles(
     roles: list[str] = []
     seen: set[str] = set()
     page_token: str | None = None
-    query = (
-        f"member_key_id == '{_cel_string(user_email)}' && "
-        f"'{GOOGLE_GROUP_LABEL}' in labels"
-    )
+    query = f"member_key_id == '{_cel_string(user_email)}' && '{GOOGLE_GROUP_LABEL}' in labels"
 
     try:
         while True:
