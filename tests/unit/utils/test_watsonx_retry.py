@@ -38,9 +38,7 @@ async def test_retries_on_429_then_succeeds():
         sleeps.append(seconds)
 
     with patch("utils.watsonx_retry.asyncio.sleep", side_effect=_record_sleep):
-        resp = await request_with_retry(
-            client, "POST", "https://example/x", base=1.0, cap=15.0
-        )
+        resp = await request_with_retry(client, "POST", "https://example/x", base=1.0, cap=15.0)
 
     assert resp.status_code == 200
     assert client.request.await_count == 3
@@ -99,9 +97,7 @@ async def test_retry_after_clamped_at_cap():
         sleeps.append(seconds)
 
     with patch("utils.watsonx_retry.asyncio.sleep", side_effect=_record_sleep):
-        await request_with_retry(
-            client, "POST", "https://example/x", cap=5.0, total_cap_s=60.0
-        )
+        await request_with_retry(client, "POST", "https://example/x", cap=5.0, total_cap_s=60.0)
 
     assert sleeps == [5.0]
 
@@ -126,9 +122,7 @@ async def test_exhausts_after_max_attempts_and_returns_last_429():
     client.request.return_value = _resp(429)
 
     with patch("utils.watsonx_retry.asyncio.sleep", AsyncMock()):
-        resp = await request_with_retry(
-            client, "POST", "https://example/x", max_attempts=4
-        )
+        resp = await request_with_retry(client, "POST", "https://example/x", max_attempts=4)
 
     assert resp.status_code == 429
     assert client.request.await_count == 4
@@ -141,9 +135,10 @@ async def test_total_cap_short_circuits_loop():
 
     # First call to time.monotonic gives start; subsequent calls jump past the budget.
     times = iter([0.0, 100.0, 100.0, 100.0, 100.0, 100.0])
-    with patch("utils.watsonx_retry.time.monotonic", side_effect=lambda: next(times)), patch(
-        "utils.watsonx_retry.asyncio.sleep", AsyncMock()
-    ) as sleep:
+    with (
+        patch("utils.watsonx_retry.time.monotonic", side_effect=lambda: next(times)),
+        patch("utils.watsonx_retry.asyncio.sleep", AsyncMock()) as sleep,
+    ):
         resp = await request_with_retry(
             client, "POST", "https://example/x", max_attempts=5, total_cap_s=30.0
         )

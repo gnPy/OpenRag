@@ -67,7 +67,11 @@ def test_invalidate_clears_all_entries():
         ("endpoint", "https://us-south.ml.cloud.ibm.com", "https://eu-de.ml.cloud.ibm.com"),
         ("project_id", "proj-abc", "proj-xyz"),
         ("api_key", "key-1", "key-2"),
-        ("embedding_endpoint", "https://us-south.ml.cloud.ibm.com", "https://eu-de.ml.cloud.ibm.com"),
+        (
+            "embedding_endpoint",
+            "https://us-south.ml.cloud.ibm.com",
+            "https://eu-de.ml.cloud.ibm.com",
+        ),
         ("embedding_project_id", "proj-abc", "proj-xyz"),
         ("embedding_api_key", "key-1", "key-2"),
     ],
