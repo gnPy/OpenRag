@@ -254,9 +254,7 @@ class SessionManager:
         if ttl_seconds is None:
             from config.settings import INGESTION_TIMEOUT
 
-            ttl_seconds = int(
-                os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", str(INGESTION_TIMEOUT + 300))
-            )
+            ttl_seconds = int(os.getenv("OPENRAG_OPENSEARCH_JWT_TTL", str(INGESTION_TIMEOUT + 300)))
         return self._create_signed_jwt_token(
             user,
             expires_delta=timedelta(seconds=max(ttl_seconds, 1)),
