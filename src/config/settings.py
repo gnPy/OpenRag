@@ -193,6 +193,7 @@ def get_opensearch_jwt_ttl_seconds() -> int:
         INGESTION_TIMEOUT + OPENSEARCH_JWT_TTL_BUFFER_SECONDS,
     )
 
+
 # Two-phase ingestion: backend-side Docling polling configuration.
 # Controls how the OpenRAG backend waits for Docling Serve to finish converting
 # a document before invoking the Langflow ingestion flow. Decoupling this poll

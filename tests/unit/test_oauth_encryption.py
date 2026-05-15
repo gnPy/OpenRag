@@ -80,16 +80,16 @@ async def test_msal_auth_upgrade(tmp_path, monkeypatch):
 
     print("Testing MSAL Auth Upgrade...")
     m_token_path = tmp_path / "fake_msal_token.json"
-    m_plain = {
-        "refresh_token": "legacy-flat-refresh-token"
-    }
+    m_plain = {"refresh_token": "legacy-flat-refresh-token"}
     with open(m_token_path, "w") as f:
         json.dump(m_plain, f)
 
     m_oauth = OneDriveOAuth(client_id="abc", client_secret="def", token_file=str(m_token_path))
 
     # We monkey patch MSAL acquire_token_by_refresh_token to pretend it worked
-    m_oauth.app.acquire_token_by_refresh_token = lambda refresh_token, scopes: {"access_token": "new-access-token"}
+    m_oauth.app.acquire_token_by_refresh_token = lambda refresh_token, scopes: {
+        "access_token": "new-access-token"
+    }
     m_oauth.app.get_accounts = lambda: [{"username": "fake-user"}]
 
     result = await m_oauth.load_credentials()

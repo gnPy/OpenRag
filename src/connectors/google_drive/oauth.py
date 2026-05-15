@@ -144,11 +144,7 @@ class GoogleDriveOAuth:
     async def save_credentials(self):
         """Save credentials to token file (without client_secret)"""
         if self.creds:
-            scopes = (
-                getattr(self.creds, "granted_scopes", None)
-                or self.creds.scopes
-                or self.SCOPES
-            )
+            scopes = getattr(self.creds, "granted_scopes", None) or self.creds.scopes or self.SCOPES
             # Create minimal token data without client_secret
             token_data = {
                 "token": self.creds.token,
