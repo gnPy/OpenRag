@@ -283,13 +283,18 @@
             "display_name": "Prompt Template",
             "documentation": "https://docs.langflow.org/components-prompts",
             "edited": false,
+            "error": null,
             "field_order": [
               "template",
               "use_double_brackets",
               "tool_placeholder"
             ],
             "frozen": false,
+            "full_path": null,
             "icon": "prompts",
+            "is_composition": null,
+            "is_input": null,
+            "is_output": null,
             "legacy": false,
             "metadata": {
               "code_hash": "3d3fd7b8a36f",
@@ -305,6 +310,7 @@
               "module": "custom_components.prompt_template"
             },
             "minimized": false,
+            "name": "",
             "output_types": [],
             "outputs": [
               {
@@ -327,6 +333,8 @@
               }
             ],
             "pinned": false,
+            "priority": null,
+            "replacement": null,
             "template": {
               "_type": "Component",
               "code": {
@@ -410,7 +418,7 @@
                 "trace_as_input": true,
                 "track_in_telemetry": false,
                 "type": "prompt",
-                "value": "You are generating prompt nudges to help a user explore a corpus.\n\nTask:\n1) Skim the documents to infer common themes, entities, or tasks.\n2) Propose exactly three concise, distinct prompt nudges that encourage useful next queries.\n3) If the chat history is provided, use it to generate new questions that the user might have, based on the llm's response to his previous query. DO NOT repeat user questions.\n4) Make the nudges concise, close to 40 characters.\n5) The nudges are questions or commands that the user can make to the chatbot, which will respond looking at the corpus.\n4) Return strings only, separating the nudges by a newline. Don't include quotation marks.\n5) If any error occured, return blank. This will be used in production, so don't ask for more info or confirm a info like you're talking to me still. If, for some reason, you can't provide the nudges, your job failed and you just return blank.\nRules: Be brief. No duplicates. No explanations outside the strings of the nudges. English only.\n\nExamples:\n  Show me this quarter's top 10 deals\n  Summarize recent client interactions\n  Search OpenSearch for mentions of our competitors\n\nChat history:\n{prompt}\n\nDocuments:\n{docs}\n\n"
+                "value": "You are generating prompt nudges to help a user explore a corpus.\n\nTask:\n1) Skim the documents to infer common themes, entities, or tasks.\n2) Propose exactly three concise, distinct prompt nudges that encourage useful next queries.\n4) Make the nudges concise, close to 40 characters.\n5) The nudges are questions or commands that the user can make to the chatbot, which will respond looking at the corpus.\n4) Return strings only, separating the nudges by a newline. Don't include quotation marks.\n5) If any error occured, return blank. This will be used in production, so don't ask for more info or confirm a info like you're talking to me still. If, for some reason, you can't provide the nudges, your job failed and you just return blank.\nRules: Be brief. No duplicates. No explanations outside the strings of the nudges. English only.\n\nIf chat history is provided, follow these rules:\n1) Generate recomendations based solely on the chat history and its chunks, not on the documents.\n3) Use it to generate new questions that the user might have, based on the llm's response to his previous query. DO NOT repeat user questions.\n2) Make the responses be on the same style as the previous questions, for example, if the user asks a question, make the generated nudges questions too.\n\nExamples:\n  What are this quarter's top 10 deals?\n  Summarize recent client interactions\n  Search OpenSearch for mentions of our competitors\n\n--------------------------------------------------------\n\nChat history:\n{prompt}\n\n\n--------------------------------------------------------\n\nDocuments (ignore if chat history is not empty):\n{docs}"
               },
               "tool_placeholder": {
                 "_input_type": "MessageTextInput",
@@ -759,14 +767,14 @@
             },
             "tool_mode": false
           },
-          "showNode": false,
+          "showNode": true,
           "type": "ChatInput"
         },
         "dragging": false,
         "id": "ChatInput-7W1BE",
         "measured": {
-          "height": 52,
-          "width": 192
+          "height": 207,
+          "width": 320
         },
         "position": {
           "x": 908.3744348370491,
@@ -1177,7 +1185,7 @@
                 "value": "ebc01d31-1976-46ce-a385-b0240327226c"
               },
               "_frontend_node_folder_id": {
-                "value": "79f95013-41e9-4a4f-af49-f07ec1fac77a"
+                "value": "fa162521-9e1c-4379-904f-b968a0e15113"
               },
               "_type": "Component",
               "api_key": {
@@ -1410,81 +1418,6 @@
                     "provider": "OpenAI"
                   },
                   {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "api_key_param": "apikey",
-                      "context_length": 128000,
-                      "max_tokens_field_name": "max_tokens",
-                      "model_class": "ChatWatsonx",
-                      "model_name_param": "model_id",
-                      "project_id_param": "project_id",
-                      "url_param": "url"
-                    },
-                    "name": "ibm/granite-4-h-small",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "api_key_param": "apikey",
-                      "context_length": 128000,
-                      "max_tokens_field_name": "max_tokens",
-                      "model_class": "ChatWatsonx",
-                      "model_name_param": "model_id",
-                      "project_id_param": "project_id",
-                      "url_param": "url"
-                    },
-                    "name": "ibm/granite-8b-code-instruct",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "api_key_param": "apikey",
-                      "context_length": 128000,
-                      "max_tokens_field_name": "max_tokens",
-                      "model_class": "ChatWatsonx",
-                      "model_name_param": "model_id",
-                      "project_id_param": "project_id",
-                      "url_param": "url"
-                    },
-                    "name": "ibm/granite-guardian-3-8b",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "api_key_param": "apikey",
-                      "context_length": 128000,
-                      "max_tokens_field_name": "max_tokens",
-                      "model_class": "ChatWatsonx",
-                      "model_name_param": "model_id",
-                      "project_id_param": "project_id",
-                      "url_param": "url"
-                    },
-                    "name": "meta-llama/llama-3-2-11b-vision-instruct",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "api_key_param": "apikey",
-                      "context_length": 128000,
-                      "max_tokens_field_name": "max_tokens",
-                      "model_class": "ChatWatsonx",
-                      "model_name_param": "model_id",
-                      "project_id_param": "project_id",
-                      "url_param": "url"
-                    },
-                    "name": "meta-llama/llama-3-3-70b-instruct",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
                     "category": "OpenAI",
                     "icon": "OpenAI",
                     "metadata": {
@@ -1492,8 +1425,7 @@
                       "context_length": 128000,
                       "max_tokens_field_name": "max_tokens",
                       "model_class": "ChatOpenAI",
-                      "model_name_param": "model",
-                      "not_enabled_locally": true
+                      "model_name_param": "model"
                     },
                     "name": "gpt-4o",
                     "provider": "OpenAI"
@@ -1746,7 +1678,7 @@
                 "value": "ebc01d31-1976-46ce-a385-b0240327226c"
               },
               "_frontend_node_folder_id": {
-                "value": "79f95013-41e9-4a4f-af49-f07ec1fac77a"
+                "value": "fa162521-9e1c-4379-904f-b968a0e15113"
               },
               "_type": "Component",
               "api_base": {
@@ -1906,7 +1838,7 @@
                 "type": "bool",
                 "value": true
               },
-              "is_refresh": false,
+              "is_refresh": true,
               "max_retries": {
                 "_input_type": "IntInput",
                 "advanced": true,
@@ -2015,96 +1947,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -2120,6 +1962,7 @@
                 "type": "model",
                 "value": [
                   {
+                    "category": "OpenAI",
                     "icon": "OpenAI",
                     "metadata": {
                       "embedding_class": "OpenAIEmbeddings",
@@ -2284,7 +2127,7 @@
           "x": -326.63616916760816,
           "y": 1367.3460258727496
         },
-        "selected": true,
+        "selected": false,
         "type": "genericNode"
       },
       {
@@ -3138,7 +2981,7 @@
                 "value": "ebc01d31-1976-46ce-a385-b0240327226c"
               },
               "_frontend_node_folder_id": {
-                "value": "79f95013-41e9-4a4f-af49-f07ec1fac77a"
+                "value": "fa162521-9e1c-4379-904f-b968a0e15113"
               },
               "_type": "Component",
               "api_base": {
@@ -3298,7 +3141,7 @@
                 "type": "bool",
                 "value": true
               },
-              "is_refresh": false,
+              "is_refresh": true,
               "max_retries": {
                 "_input_type": "IntInput",
                 "advanced": true,
@@ -3407,96 +3250,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -3512,6 +3265,7 @@
                 "type": "model",
                 "value": [
                   {
+                    "category": "OpenAI",
                     "icon": "OpenAI",
                     "metadata": {
                       "embedding_class": "OpenAIEmbeddings",
@@ -3757,7 +3511,7 @@
                 "value": "ebc01d31-1976-46ce-a385-b0240327226c"
               },
               "_frontend_node_folder_id": {
-                "value": "79f95013-41e9-4a4f-af49-f07ec1fac77a"
+                "value": "fa162521-9e1c-4379-904f-b968a0e15113"
               },
               "_type": "Component",
               "api_base": {
@@ -3917,7 +3671,7 @@
                 "type": "bool",
                 "value": true
               },
-              "is_refresh": false,
+              "is_refresh": true,
               "max_retries": {
                 "_input_type": "IntInput",
                 "advanced": true,
@@ -4026,96 +3780,6 @@
                     },
                     "name": "text-embedding-ada-002",
                     "provider": "OpenAI"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/granite-embedding-278m-multilingual",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-125m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "ibm/slate-30m-english-rtrvr-v2",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "intfloat/multilingual-e5-large",
-                    "provider": "IBM WatsonX"
-                  },
-                  {
-                    "category": "IBM WatsonX",
-                    "icon": "WatsonxAI",
-                    "metadata": {
-                      "embedding_class": "WatsonxEmbeddings",
-                      "model_type": "embeddings",
-                      "param_mapping": {
-                        "api_key": "apikey",
-                        "model_id": "model_id",
-                        "project_id": "project_id",
-                        "request_timeout": "request_timeout",
-                        "space_id": "space_id",
-                        "url": "url"
-                      }
-                    },
-                    "name": "sentence-transformers/all-minilm-l6-v2",
-                    "provider": "IBM WatsonX"
                   }
                 ],
                 "override_skip": false,
@@ -4131,6 +3795,7 @@
                 "type": "model",
                 "value": [
                   {
+                    "category": "OpenAI",
                     "icon": "OpenAI",
                     "metadata": {
                       "embedding_class": "OpenAIEmbeddings",
@@ -4656,7 +4321,7 @@
     ],
     "viewport": {
       "x": 219.98802613623758,
-      "y": -187.42019049039925,
+      "y": -149.42019049039925,
       "zoom": 0.4738353067326915
     }
   },
