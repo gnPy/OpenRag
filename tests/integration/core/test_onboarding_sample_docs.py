@@ -162,7 +162,10 @@ async def test_onboarding_ingests_sample_docs_and_creates_openrag_docs_filter(
     isolated_onboarding_docs_workspace,
 ):
     from config.settings import clients, config_manager
+    from db.migrations_runtime import run_alembic_upgrade_async
     from main import create_app
+
+    await run_alembic_upgrade_async("head")
 
     app = await create_app()
     startup_complete = False

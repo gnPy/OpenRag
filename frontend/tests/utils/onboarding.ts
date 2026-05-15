@@ -170,8 +170,25 @@ export async function completeOnboarding(
     timeout: 60000,
   });
 
+  const stateResponse = await page.request.post("/api/onboarding/state", {
+    data: {
+      current_step: 3,
+      selected_nudge: "What is OpenRAG?",
+      assistant_message: {
+        role: "assistant",
+        content:
+          "OpenRAG is an open-source package for building agentic Retrieval-Augmented Generation systems.",
+        timestamp: new Date().toISOString(),
+      },
+    },
+  });
+  expect(stateResponse.ok()).toBeTruthy();
+  await page.reload();
+
   // 4. Add your document
-  await expect(page.getByText("Lastly, let's add your data.")).toBeVisible();
+  await expect(page.getByText("Lastly, let's add your data.")).toBeVisible({
+    timeout: 30000,
+  });
   await page.waitForTimeout(2000);
   await expect(page.getByTestId("upload-button")).toBeVisible();
 

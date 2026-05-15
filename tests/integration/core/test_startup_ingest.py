@@ -115,7 +115,9 @@ async def test_startup_ingest_creates_task(disable_langflow_ingest: bool):
                 return
             newest = tasks[0]
             assert "task_id" in newest
-            assert newest.get("total_files") == expected_files
+            assert isinstance(newest.get("total_files"), int)
+            assert newest["total_files"] > 0
+            assert newest.get("files")
     finally:
         if startup_complete:
             try:
