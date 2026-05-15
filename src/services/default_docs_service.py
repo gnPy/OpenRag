@@ -151,7 +151,7 @@ async def ingest_default_documents_when_ready(
                 task_service,
                 file_paths,
                 existing_task_id=task_id,
-                connector_type="local",
+                connector_type="openrag_docs",
                 jwt_token=jwt_token,
             )
             task_id = new_task_id or task_id
@@ -162,7 +162,7 @@ async def ingest_default_documents_when_ready(
                 task_service,
                 file_paths,
                 existing_task_id=task_id,
-                connector_type="local",
+                connector_type="openrag_docs",
                 jwt_token=jwt_token,
             )
             task_id = new_task_id or task_id

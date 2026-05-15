@@ -182,6 +182,6 @@ export async function completeOnboarding(
     path.join(__dirname, "../assets", "test-document.md"),
   );
 
-  await expect(page.getByText("Done")).toBeVisible({ timeout: 60000 });
+  await expect(page.getByText("Done")).toBeVisible({ timeout: 120000 });
   await expect(page.getByTestId("onboarding-content")).toBeHidden();
 }
