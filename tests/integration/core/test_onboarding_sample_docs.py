@@ -184,9 +184,7 @@ async def test_onboarding_ingests_sample_docs_and_creates_openrag_docs_filter(
     assert config.onboarding.openrag_docs_filter_id == payload["openrag_docs_filter_id"]
     assert config.onboarding.openrag_docs_ingested_version
 
-    await clients.opensearch.indices.refresh(
-        index=isolated_onboarding_docs_workspace["index_name"]
-    )
+    await clients.opensearch.indices.refresh(index=isolated_onboarding_docs_workspace["index_name"])
     search_response = await clients.opensearch.search(
         index=isolated_onboarding_docs_workspace["index_name"],
         body={
