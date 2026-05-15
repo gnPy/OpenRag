@@ -23,7 +23,10 @@ async def test_langflow_nudges_chat_with_chunks_in_memory(monkeypatch):
 
     # Mock clients
     mock_lf_client = MagicMock()
-    monkeypatch.setattr("services.chat_service.clients.ensure_langflow_client", AsyncMock(return_value=mock_lf_client))
+    monkeypatch.setattr(
+        "services.chat_service.clients.ensure_langflow_client",
+        AsyncMock(return_value=mock_lf_client),
+    )
 
     # Prepopulate active_conversations with a message containing tool call chunks
     test_user_id = "test-user"
@@ -34,7 +37,7 @@ async def test_langflow_nudges_chat_with_chunks_in_memory(monkeypatch):
             "item": {
                 "type": "tool_call",
                 "tool_name": "Retrieval",
-                "results": [{"filename": "doc.md", "text": "Important retrieved content."}]
+                "results": [{"filename": "doc.md", "text": "Important retrieved content."}],
             }
         }
     ]
@@ -43,13 +46,14 @@ async def test_langflow_nudges_chat_with_chunks_in_memory(monkeypatch):
         test_resp_id: {
             "messages": [
                 {"role": "user", "content": "What is OpenRAG?"},
-                {"role": "assistant", "content": "It is an AI platform.", "chunks": chunks_data}
+                {"role": "assistant", "content": "It is an AI platform.", "chunks": chunks_data},
             ]
         }
     }
 
     # Mock async_langflow_chat to capture prompt
     captured_prompt = None
+
     async def mock_async_lf_chat(client, flow_id, prompt, user_id, **kwargs):
         nonlocal captured_prompt
         captured_prompt = prompt
@@ -58,10 +62,7 @@ async def test_langflow_nudges_chat_with_chunks_in_memory(monkeypatch):
     monkeypatch.setattr(agent, "async_langflow_chat", mock_async_lf_chat)
 
     svc = ChatService()
-    res = await svc.langflow_nudges_chat(
-        user_id=test_user_id,
-        previous_response_id=test_resp_id
-    )
+    res = await svc.langflow_nudges_chat(user_id=test_user_id, previous_response_id=test_resp_id)
 
     assert res["response"] == "Nudge 1\nNudge 2"
     assert captured_prompt is not None
@@ -82,7 +83,10 @@ async def test_langflow_nudges_chat_with_chunks_langflow_history(monkeypatch):
 
     # Mock clients
     mock_lf_client = MagicMock()
-    monkeypatch.setattr("services.chat_service.clients.ensure_langflow_client", AsyncMock(return_value=mock_lf_client))
+    monkeypatch.setattr(
+        "services.chat_service.clients.ensure_langflow_client",
+        AsyncMock(return_value=mock_lf_client),
+    )
 
     # Ensure active_conversations is empty for this test
     test_user_id = "lf-user"
@@ -100,18 +104,20 @@ async def test_langflow_nudges_chat_with_chunks_langflow_history(monkeypatch):
                     "item": {
                         "type": "tool_call",
                         "tool_name": "OpenSearch",
-                        "results": {"hits": ["Security info chunk."]}
+                        "results": {"hits": ["Security info chunk."]},
                     }
                 }
-            ]
-        }
+            ],
+        },
     ]
     mock_get_messages = AsyncMock(return_value=lf_messages)
     from services.langflow_history_service import langflow_history_service
+
     monkeypatch.setattr(langflow_history_service, "get_session_messages", mock_get_messages)
 
     # Mock async_langflow_chat to capture prompt
     captured_prompt = None
+
     async def mock_async_lf_chat(client, flow_id, prompt, user_id, **kwargs):
         nonlocal captured_prompt
         captured_prompt = prompt
@@ -120,10 +126,7 @@ async def test_langflow_nudges_chat_with_chunks_langflow_history(monkeypatch):
     monkeypatch.setattr(agent, "async_langflow_chat", mock_async_lf_chat)
 
     svc = ChatService()
-    res = await svc.langflow_nudges_chat(
-        user_id=test_user_id,
-        previous_response_id=test_resp_id
-    )
+    res = await svc.langflow_nudges_chat(user_id=test_user_id, previous_response_id=test_resp_id)
 
     assert res["response"] == "Nudge A\nNudge B"
     assert captured_prompt is not None
