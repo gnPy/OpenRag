@@ -12,7 +12,6 @@ from googleapiclient.errors import HttpError
 from utils.group_acl import canonical_group_role
 from utils.logging_config import get_logger
 
-
 logger = get_logger(__name__)
 
 GOOGLE_DRIVE_GROUP_PROVIDER = "gdrive"

@@ -8,7 +8,6 @@ import httpx
 import pytest
 import pytest_asyncio
 
-
 pytestmark = [
     pytest.mark.asyncio,
     pytest.mark.openrag_skip_app_onboard,
@@ -145,10 +144,10 @@ async def _wait_for_task(task_service, task_id: str, timeout_s: float = 90.0) ->
 async def test_onboarding_ingests_sample_docs_and_creates_openrag_docs_filter(
     isolated_onboarding_docs_workspace,
 ):
+    from config.settings import clients, config_manager
     from db.engine import init_engine
     from db.migrations_runtime import run_alembic_upgrade_async
     from main import create_app, startup_tasks
-    from config.settings import clients, config_manager
 
     await run_alembic_upgrade_async("head")
     init_engine()
@@ -184,9 +183,7 @@ async def test_onboarding_ingests_sample_docs_and_creates_openrag_docs_filter(
     assert config.onboarding.openrag_docs_filter_id == payload["openrag_docs_filter_id"]
     assert config.onboarding.openrag_docs_ingested_version
 
-    await clients.opensearch.indices.refresh(
-        index=isolated_onboarding_docs_workspace["index_name"]
-    )
+    await clients.opensearch.indices.refresh(index=isolated_onboarding_docs_workspace["index_name"])
     search_response = await clients.opensearch.search(
         index=isolated_onboarding_docs_workspace["index_name"],
         body={

@@ -1,8 +1,8 @@
+import os
 from abc import ABC, abstractmethod
-from typing import Dict, List, Any, Optional, AsyncGenerator
 from dataclasses import dataclass
 from datetime import datetime
-import os
+from typing import Any
 
 
 @dataclass
@@ -10,8 +10,8 @@ class DocumentACL:
     """Access Control List information for a document"""
 
     owner: str = None
-    allowed_users: List[str] = None
-    allowed_groups: List[str] = None
+    allowed_users: list[str] = None
+    allowed_groups: list[str] = None
 
     def __post_init__(self):
         if self.allowed_users is None:
@@ -32,7 +32,7 @@ class ConnectorDocument:
     acl: DocumentACL
     modified_time: datetime
     created_time: datetime
-    metadata: Dict[str, Any] = None
+    metadata: dict[str, Any] = None
 
     def __post_init__(self):
         if self.metadata is None:
@@ -51,7 +51,7 @@ class BaseConnector(ABC):
     CONNECTOR_DESCRIPTION: str = None
     CONNECTOR_ICON: str = None  # Icon identifier or emoji
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         self.config = config
         self._authenticated = False
 
@@ -91,8 +91,8 @@ class BaseConnector(ABC):
 
     @abstractmethod
     async def list_files(
-        self, page_token: Optional[str] = None, max_files: Optional[int] = None
-    ) -> Dict[str, Any]:
+        self, page_token: str | None = None, max_files: int | None = None, **kwargs: Any
+    ) -> dict[str, Any]:
         """List all files. Returns files and next_page_token if any."""
         pass
 
@@ -102,21 +102,21 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         """Handle webhook notification. Returns list of affected file IDs."""
         pass
 
     def handle_webhook_validation(
-        self, request_method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, request_method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         """Handle webhook validation (e.g., for subscription setup).
         Returns validation response if applicable, None otherwise.
         Default implementation returns None (no validation needed)."""
         return None
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         """Extract channel/subscription ID from webhook payload/headers.
         Must be implemented by each connector."""
         raise NotImplementedError(
@@ -132,7 +132,7 @@ class BaseConnector(ABC):
     def is_authenticated(self) -> bool:
         return self._authenticated
 
-    async def _detect_base_url(self) -> Optional[str]:
+    async def _detect_base_url(self) -> str | None:
         """Auto-detect base URL for the connector.
 
         Default implementation returns None.
@@ -140,7 +140,7 @@ class BaseConnector(ABC):
         """
         return None
 
-    async def get_current_user_group_roles(self) -> List[str]:
+    async def get_current_user_group_roles(self) -> list[str]:
         """Return OpenSearch backend roles for the current connector user.
 
         Connectors that support upstream group ACLs can override this hook.

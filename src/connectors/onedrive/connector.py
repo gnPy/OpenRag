@@ -1,8 +1,9 @@
 import logging
-from pathlib import Path
-from typing import List, Dict, Any, Optional
 from datetime import datetime
+from pathlib import Path
+from typing import Any
 from urllib.parse import urlparse
+
 import httpx
 
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
@@ -28,7 +29,7 @@ class OneDriveConnector(BaseConnector):
     CONNECTOR_DESCRIPTION = "Add knowledge from OneDrive"
     CONNECTOR_ICON = "onedrive"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
 
         logger.debug(f"OneDrive connector __init__ called with config type: {type(config)}")
@@ -97,7 +98,7 @@ class OneDriveConnector(BaseConnector):
             self.oauth = None
 
         # Track subscription ID for webhooks (note: change notifications might not be available for personal accounts)
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         # Graph API defaults
         self._graph_api_version = "v1.0"
@@ -121,7 +122,7 @@ class OneDriveConnector(BaseConnector):
 
         # Cache for file metadata including download URLs
         # This allows direct download without Graph API for sharing IDs
-        self._file_infos: Dict[str, Dict[str, Any]] = {}
+        self._file_infos: dict[str, dict[str, Any]] = {}
 
     @property
     def _graph_base_url(self) -> str:
@@ -129,7 +130,7 @@ class OneDriveConnector(BaseConnector):
         return f"https://graph.microsoft.com/{self._graph_api_version}"
 
     @property
-    def base_url(self) -> Optional[str]:
+    def base_url(self) -> str | None:
         """Generic base URL property (OneDrive/SharePoint domain)"""
         return self._base_url
 
@@ -138,14 +139,14 @@ class OneDriveConnector(BaseConnector):
         """Set base URL"""
         self._base_url = value
 
-    async def get_current_user_group_roles(self) -> List[str]:
+    async def get_current_user_group_roles(self) -> list[str]:
         """Return canonical group ACL roles for the connected Microsoft user."""
         return await get_current_user_microsoft_group_roles(
             self.oauth,
             self._graph_base_url,
         )
 
-    def set_file_infos(self, file_infos: List[Dict[str, Any]]) -> None:
+    def set_file_infos(self, file_infos: list[dict[str, Any]]) -> None:
         """
         Cache file metadata including download URLs for later use.
         This allows direct download without Graph API calls for sharing IDs.
@@ -161,7 +162,7 @@ class OneDriveConnector(BaseConnector):
                 if info.get("downloadUrl"):
                     logger.debug(f"Cached download URL for file {file_id}: {info.get('name')}")
 
-    def get_cached_file_info(self, file_id: str) -> Optional[Dict[str, Any]]:
+    def get_cached_file_info(self, file_id: str) -> dict[str, Any] | None:
         """Get cached file info by ID."""
         return self._file_infos.get(file_id)
 
@@ -188,7 +189,7 @@ class OneDriveConnector(BaseConnector):
 
             self._authenticated = authenticated
             return authenticated
-        except Exception as e:
+        except Exception:
             logger.exception("[CONNECTOR] OneDrive authentication failed")
             self._authenticated = False
             return False
@@ -199,7 +200,7 @@ class OneDriveConnector(BaseConnector):
             raise RuntimeError("OneDrive OAuth not initialized - missing credentials")
         return self.oauth.create_authorization_url(self.redirect_uri)
 
-    async def handle_oauth_callback(self, auth_code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(self, auth_code: str) -> dict[str, Any]:
         """Handle OAuth callback."""
         if not self.oauth:
             raise RuntimeError("OneDrive OAuth not initialized - missing credentials")
@@ -214,11 +215,11 @@ class OneDriveConnector(BaseConnector):
             logger.error(f"OAuth callback failed: {e}")
             raise
 
-    async def _detect_base_url(self) -> Optional[str]:
+    async def _detect_base_url(self) -> str | None:
         """Override base class method to detect OneDrive URL"""
         return await self._detect_onedrive_url()
 
-    async def _detect_onedrive_url(self) -> Optional[str]:
+    async def _detect_onedrive_url(self) -> str | None:
         """Auto-detect OneDrive URL from Microsoft Graph API"""
         logger.info("_detect_onedrive_url: Starting OneDrive URL detection")
         try:
@@ -262,10 +263,10 @@ class OneDriveConnector(BaseConnector):
                         logger.warning("_detect_onedrive_url: webUrl is empty in response")
                 else:
                     logger.warning(
-                        "[CONNECTOR] OneDrive detect URL failed", status_code=response.status_code
+                        f"[CONNECTOR] OneDrive detect URL failed: {response.status_code}"
                     )
 
-        except Exception as e:
+        except Exception:
             logger.exception("[CONNECTOR] OneDrive URL detection failed")
 
         return None
@@ -364,8 +365,8 @@ class OneDriveConnector(BaseConnector):
         return expiry.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
     async def list_files(
-        self, page_token: Optional[str] = None, max_files: Optional[int] = None, **kwargs
-    ) -> Dict[str, Any]:
+        self, page_token: str | None = None, max_files: int | None = None, **kwargs
+    ) -> dict[str, Any]:
         """List files from OneDrive using Microsoft Graph."""
         try:
             if not await self.authenticate():
@@ -375,7 +376,7 @@ class OneDriveConnector(BaseConnector):
             if self.cfg.file_ids or self.cfg.folder_ids:
                 return await self._list_selected_files()
 
-            files: List[Dict[str, Any]] = []
+            files: list[dict[str, Any]] = []
             max_files_value = max_files if max_files is not None else 100
 
             base_url = f"{self._graph_base_url}/me/drive/root/children"
@@ -412,7 +413,7 @@ class OneDriveConnector(BaseConnector):
             next_page_token = None
             next_link = data.get("@odata.nextLink")
             if next_link:
-                from urllib.parse import urlparse, parse_qs
+                from urllib.parse import parse_qs, urlparse
 
                 parsed = urlparse(next_link)
                 query_params = parse_qs(parsed.query)
@@ -425,7 +426,7 @@ class OneDriveConnector(BaseConnector):
             logger.error(f"Failed to list OneDrive files: {e}")
             return {"files": [], "next_page_token": None}
 
-    async def _extract_onedrive_acl(self, file_id: str, file_metadata: Dict) -> DocumentACL:
+    async def _extract_onedrive_acl(self, file_id: str, file_metadata: dict) -> DocumentACL:
         """
         Extract ACL from OneDrive item.
 
@@ -609,7 +610,7 @@ class OneDriveConnector(BaseConnector):
             logger.error(f"Failed to get OneDrive file content {file_id}: {e}")
             raise
 
-    async def _get_file_metadata_by_id(self, file_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_file_metadata_by_id(self, file_id: str) -> dict[str, Any] | None:
         """Get file metadata by ID using Graph API.
 
         Handles multiple ID formats:
@@ -654,7 +655,7 @@ class OneDriveConnector(BaseConnector):
             logger.error(f"Failed to get file metadata for {file_id}: {e}")
             return None
 
-    async def _fetch_item_metadata(self, file_id: str) -> Optional[Dict[str, Any]]:
+    async def _fetch_item_metadata(self, file_id: str) -> dict[str, Any] | None:
         """Fetch item metadata, trying multiple endpoints for different ID formats."""
         import base64
 
@@ -781,8 +782,8 @@ class OneDriveConnector(BaseConnector):
             raise
 
     async def _download_via_shares_endpoint(
-        self, file_id: str, headers: Dict[str, str]
-    ) -> Optional[bytes]:
+        self, file_id: str, headers: dict[str, str]
+    ) -> bytes | None:
         """
         Attempt to download content using the Graph /shares endpoint for sharing IDs.
         """
@@ -825,7 +826,7 @@ class OneDriveConnector(BaseConnector):
             logger.error(f"Failed to download from URL {download_url}: {e}")
             raise
 
-    def _parse_graph_date(self, date_str: Optional[str]) -> datetime:
+    def _parse_graph_date(self, date_str: str | None) -> datetime:
         """Parse Microsoft Graph date string to datetime."""
         if not date_str:
             return datetime.now()
@@ -841,8 +842,8 @@ class OneDriveConnector(BaseConnector):
         self,
         url: str,
         method: str = "GET",
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
+        data: dict | None = None,
+        params: dict | None = None,
     ) -> httpx.Response:
         """Make authenticated API request to Microsoft Graph."""
         token = self.oauth.get_access_token()
@@ -864,9 +865,9 @@ class OneDriveConnector(BaseConnector):
             response.raise_for_status()
             return response
 
-    async def _list_selected_files(self) -> Dict[str, Any]:
+    async def _list_selected_files(self) -> dict[str, Any]:
         """List only selected files/folders (selective sync)."""
-        files: List[Dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
 
         # Process selected file IDs
         if self.cfg.file_ids:
@@ -895,9 +896,9 @@ class OneDriveConnector(BaseConnector):
 
         return {"files": files, "next_page_token": None}
 
-    async def _list_folder_contents(self, folder_id: str) -> List[Dict[str, Any]]:
+    async def _list_folder_contents(self, folder_id: str) -> list[dict[str, Any]]:
         """List all files in a folder recursively."""
-        files: List[Dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
 
         try:
             url = f"{self._graph_base_url}/me/drive/items/{folder_id}/children"
@@ -929,25 +930,25 @@ class OneDriveConnector(BaseConnector):
 
     # Webhook methods - BaseConnector interface
     def handle_webhook_validation(
-        self, request_method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, request_method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         """Handle webhook validation (Graph API specific)."""
         if request_method == "POST" and "validationToken" in query_params:
             return query_params["validationToken"]
         return None
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         """Extract channel/subscription ID from webhook payload."""
         notifications = payload.get("value", [])
         if notifications:
             return notifications[0].get("subscriptionId")
         return None
 
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         """Handle webhook notification and return affected file IDs."""
-        affected_files: List[str] = []
+        affected_files: list[str] = []
         notifications = payload.get("value", [])
         for notification in notifications:
             resource = notification.get("resource")

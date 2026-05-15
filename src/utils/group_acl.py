@@ -6,8 +6,7 @@ import base64
 import hashlib
 import re
 import uuid
-from typing import Iterable
-
+from collections.abc import Iterable
 
 _SAFE_COMPONENT_RE = re.compile(r"^[a-z0-9_-]+$")
 

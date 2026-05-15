@@ -45,7 +45,7 @@ class GoogleDriveOAuth:
     def _make_timeout_request(self) -> Request:
         """Build a google-auth Request transport with a bounded timeout."""
         session = req_lib.Session()
-        session.timeout = _REFRESH_TIMEOUT_SECONDS
+        session.timeout = _REFRESH_TIMEOUT_SECONDS  # type: ignore[attr-defined]
         return Request(session=session)
 
     def _missing_required_scopes(self, scopes: list[str] | None) -> list[str]:

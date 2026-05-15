@@ -11,7 +11,6 @@ import jwt
 from utils.group_acl import canonical_group_role, canonical_group_roles
 from utils.logging_config import get_logger
 
-
 logger = get_logger(__name__)
 
 MICROSOFT_GRAPH_GROUP_PROVIDER = "m365"

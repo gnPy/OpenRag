@@ -1,15 +1,16 @@
-import jwt
-import httpx
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Any, Union, Iterable
-from dataclasses import dataclass
-
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, ed448
-
 import os
-from utils.logging_config import get_logger
+from collections.abc import Iterable
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any
+
+import httpx
+import jwt
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
+
 from config.settings import IBM_AUTH_ENABLED
+from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -25,10 +26,10 @@ class User:
     provider: str = "google"
     created_at: datetime = None
     last_login: datetime = None
-    jwt_token: Optional[str] = None
-    opensearch_username: Optional[str] = None
-    opensearch_credentials: Optional[str] = None  # Raw base64 credentials (without "Basic " prefix)
-    db_user_id: Optional[str] = None  # Internal OpenRAG users.id
+    jwt_token: str | None = None
+    opensearch_username: str | None = None
+    opensearch_credentials: str | None = None  # Raw base64 credentials (without "Basic " prefix)
+    db_user_id: str | None = None  # Internal OpenRAG users.id
 
     def __post_init__(self):
         if self.created_at is None:
@@ -61,8 +62,8 @@ class SessionManager:
 
         keys_dir = get_keys_path()
         self.secret_key = secret_key  # Keep for backward compatibility
-        self.users: Dict[str, User] = {}  # user_id -> User
-        self.user_opensearch_clients: Dict[str, Any] = {}  # user_id -> OpenSearch client
+        self.users: dict[str, User] = {}  # user_id -> User
+        self.user_opensearch_clients: dict[str, Any] = {}  # user_id -> OpenSearch client
 
         self.private_key_path = private_key_path or os.path.join(keys_dir, "private_key.pem")
         self.public_key_path = public_key_path or os.path.join(keys_dir, "public_key.pem")
@@ -130,14 +131,14 @@ class SessionManager:
             with open(self.public_key_path, "rb") as f:
                 self.public_key = serialization.load_pem_public_key(f.read())
 
-            self.public_key_pem = open(self.public_key_path, "r").read()
+            self.public_key_pem = open(self.public_key_path).read()
 
         except FileNotFoundError as e:
-            raise Exception(f"RSA key files not found: {e}")
+            raise Exception(f"RSA key files not found: {e}") from e
         except Exception as e:
-            raise Exception(f"Failed to load RSA keys: {e}")
+            raise Exception(f"Failed to load RSA keys: {e}") from e
 
-    async def get_user_info_from_token(self, access_token: str) -> Optional[Dict[str, Any]]:
+    async def get_user_info_from_token(self, access_token: str) -> dict[str, Any] | None:
         """Get user info from Google using access token"""
         try:
             async with httpx.AsyncClient() as client:
@@ -160,7 +161,7 @@ class SessionManager:
             logger.error("Error getting user info", error=str(e))
             return None
 
-    async def create_user_session(self, access_token: str, issuer: str) -> Optional[str]:
+    async def create_user_session(self, access_token: str, issuer: str) -> str | None:
         """Create user session from OAuth access token"""
         user_info = await self.get_user_info_from_token(access_token)
         if not user_info:
@@ -262,7 +263,7 @@ class SessionManager:
             backend_roles=group_roles,
         )
 
-    def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+    def verify_token(self, token: str) -> dict[str, Any] | None:
         """Verify JWT token and return user info"""
         if IBM_AUTH_ENABLED:
             # IBM Auth Mode: Token verification handled externally by Traefik
@@ -281,20 +282,20 @@ class SessionManager:
         except jwt.InvalidTokenError:
             return None
 
-    def get_user(self, user_id: str) -> Optional[User]:
+    def get_user(self, user_id: str) -> User | None:
         """Get user by ID"""
         if user_id == "anonymous":
             return AnonymousUser()
         return self.users.get(user_id)
 
-    def get_user_from_token(self, token: str) -> Optional[User]:
+    def get_user_from_token(self, token: str) -> User | None:
         """Get user from JWT token"""
         payload = self.verify_token(token)
         if payload:
             return self.get_user(payload["user_id"])
         return None
 
-    def get_user_opensearch_client(self, user_or_id: Union[User, str], jwt_token: str = None):
+    def get_user_opensearch_client(self, user_or_id: User | str, jwt_token: str = None):
         """Get or create OpenSearch client for user with their JWT"""
         if isinstance(user_or_id, User):
             user_id = user_or_id.user_id

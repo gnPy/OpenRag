@@ -31,9 +31,9 @@ if not os.environ.get("SDK_TESTS_ONLY") == "true":
     _test_db_path = Path(_test_db_dir) / "openrag.db"
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_test_db_path}"
 
-from config.settings import clients
-from session_manager import SessionManager
-from main import generate_jwt_keys
+from config.settings import clients  # noqa: E402
+from main import generate_jwt_keys  # noqa: E402
+from session_manager import SessionManager  # noqa: E402
 
 
 @pytest_asyncio.fixture(scope="session", autouse=True)
@@ -87,8 +87,9 @@ async def onboard_system(request):
         print(f"[DEBUG] Could not wipe OpenSearch indices: {e}")
 
     # Create app and perform onboarding via API
-    from main import create_app, startup_tasks
     import httpx
+
+    from main import create_app, startup_tasks
 
     app = await create_app()
     await startup_tasks(app.state.services)
@@ -106,7 +107,7 @@ async def onboard_system(request):
             # If it fails, it might already be onboarded, which is fine
             print(f"[DEBUG] Onboarding returned {resp.status_code}: {resp.text}")
         else:
-            print(f"[DEBUG] Session onboarding completed successfully")
+            print("[DEBUG] Session onboarding completed successfully")
 
     yield
 
