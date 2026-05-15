@@ -141,70 +141,90 @@ async def _wait_for_task(task_service, task_id: str, timeout_s: float = 90.0) ->
     raise AssertionError(f"Sample-doc ingestion task did not finish: {last_status}")
 
 
+async def _post_onboarding_when_langflow_ready(
+    client: httpx.AsyncClient,
+    payload: dict[str, str],
+    timeout_s: float = 60.0,
+) -> httpx.Response:
+    deadline = asyncio.get_event_loop().time() + timeout_s
+    last_response = None
+    while asyncio.get_event_loop().time() < deadline:
+        response = await client.post("/onboarding", json=payload)
+        if response.status_code != 503 or "Langflow service" not in response.text:
+            return response
+        last_response = response
+        await asyncio.sleep(1.0)
+    assert last_response is not None
+    return last_response
+
+
 async def test_onboarding_ingests_sample_docs_and_creates_openrag_docs_filter(
     isolated_onboarding_docs_workspace,
 ):
     from config.settings import clients, config_manager
-    from db.engine import init_engine
-    from db.migrations_runtime import run_alembic_upgrade_async
-    from main import create_app, startup_tasks
-
-    await run_alembic_upgrade_async("head")
-    init_engine()
+    from main import create_app
 
     app = await create_app()
-    await startup_tasks(app.state.services)
+    startup_complete = False
+    try:
+        await app.router.startup()
+        startup_complete = True
 
-    transport = httpx.ASGITransport(app=app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
-        response = await client.post(
-            "/onboarding",
-            json={
-                "openai_api_key": os.environ["OPENAI_API_KEY"],
-                "llm_provider": "openai",
-                "embedding_provider": "openai",
-                "embedding_model": "text-embedding-3-small",
-                "llm_model": "gpt-4o-mini",
+        transport = httpx.ASGITransport(app=app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://testserver") as client:
+            response = await _post_onboarding_when_langflow_ready(
+                client,
+                {
+                    "openai_api_key": os.environ["OPENAI_API_KEY"],
+                    "llm_provider": "openai",
+                    "embedding_provider": "openai",
+                    "embedding_model": "text-embedding-3-small",
+                    "llm_model": "gpt-4o-mini",
+                },
+            )
+
+        assert response.status_code == 200, response.text
+        payload = response.json()
+        assert payload["sample_data_ingested"] is True
+        assert payload["task_id"]
+        assert payload["openrag_docs_filter_id"]
+
+        task_status = await _wait_for_task(app.state.services["task_service"], payload["task_id"])
+        assert task_status["status"] == "completed"
+        assert task_status["successful_files"] == 1
+        assert task_status["failed_files"] == 0
+
+        config = config_manager.get_config()
+        assert config.onboarding.openrag_docs_filter_id == payload["openrag_docs_filter_id"]
+        assert config.onboarding.openrag_docs_ingested_version
+
+        await clients.opensearch.indices.refresh(
+            index=isolated_onboarding_docs_workspace["index_name"]
+        )
+        search_response = await clients.opensearch.search(
+            index=isolated_onboarding_docs_workspace["index_name"],
+            body={
+                "query": {"match_all": {}},
+                "_source": [
+                    "connector_type",
+                    "filename",
+                    "is_sample_data",
+                    "text",
+                ],
+                "size": 10,
             },
         )
+        hits = search_response.get("hits", {}).get("hits", [])
+        assert hits, "Expected onboarding sample document chunks to be indexed"
 
-    assert response.status_code == 200, response.text
-    payload = response.json()
-    assert payload["sample_data_ingested"] is True
-    assert payload["task_id"]
-    assert payload["openrag_docs_filter_id"]
-
-    task_status = await _wait_for_task(app.state.services["task_service"], payload["task_id"])
-    assert task_status["status"] == "completed"
-    assert task_status["successful_files"] == 1
-    assert task_status["failed_files"] == 0
-
-    config = config_manager.get_config()
-    assert config.onboarding.openrag_docs_filter_id == payload["openrag_docs_filter_id"]
-    assert config.onboarding.openrag_docs_ingested_version
-
-    await clients.opensearch.indices.refresh(index=isolated_onboarding_docs_workspace["index_name"])
-    search_response = await clients.opensearch.search(
-        index=isolated_onboarding_docs_workspace["index_name"],
-        body={
-            "query": {"match_all": {}},
-            "_source": [
-                "connector_type",
-                "filename",
-                "is_sample_data",
-                "text",
-            ],
-            "size": 10,
-        },
-    )
-    hits = search_response.get("hits", {}).get("hits", [])
-    assert hits, "Expected onboarding sample document chunks to be indexed"
-
-    sources = [hit["_source"] for hit in hits]
-    assert any(
-        source.get("filename") == isolated_onboarding_docs_workspace["sample_file"].name
-        and source.get("connector_type") == "openrag_docs"
-        and source.get("is_sample_data") == "true"
-        and isolated_onboarding_docs_workspace["sample_text"] in source.get("text", "")
-        for source in sources
-    )
+        sources = [hit["_source"] for hit in hits]
+        assert any(
+            source.get("filename") == isolated_onboarding_docs_workspace["sample_file"].name
+            and source.get("connector_type") == "openrag_docs"
+            and source.get("is_sample_data") == "true"
+            and isolated_onboarding_docs_workspace["sample_text"] in source.get("text", "")
+            for source in sources
+        )
+    finally:
+        if startup_complete:
+            await app.router.shutdown()
