@@ -73,6 +73,7 @@ class UploadTask:
     updated_at: float = field(default_factory=time.time)
     processor: Any | None = None
     background_task: Any | None = None
+    temp_file_paths: list[str] | None = None
     _sequence_number: int = field(init=False, repr=False)
 
     def __post_init__(self):
