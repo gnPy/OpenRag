@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from typing import Any
 
 from cachetools import LRUCache
 
@@ -625,7 +626,7 @@ class FlowsService:
         return "OpenAI"
 
     async def _update_flow_field(
-        self, flow_id: str, field_name: str, field_value: str, node_display_name: str = None
+        self, flow_id: str, field_name: str, field_value: Any, node_display_name: str = None
     ):
         """
         Generic helper function to update any field in any Langflow component.
@@ -1032,7 +1033,7 @@ class FlowsService:
             # Process all flows simultaneously
             raw_results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            results = []
+            results: list[Any] = []
             for i, result in enumerate(raw_results):
                 if isinstance(result, Exception):
                     flow_name = flow_configs[i]["name"]
@@ -1237,7 +1238,7 @@ class FlowsService:
                 "flow_id": flow_id,
             }
 
-    async def _update_component_langflow(self, template, model: str):
+    async def _update_component_langflow(self, template, model: Any):
         # Call custom_component/update endpoint to get updated template
         # Only call if code field exists (custom components should have code)
         if "code" in template and "value" in template["code"]:

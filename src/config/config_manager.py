@@ -193,7 +193,7 @@ class ConfigManager:
             return self._config
 
         # Start with defaults
-        config_data = {
+        config_data: dict[str, Any] = {
             "providers": {
                 "openai": {},
                 "anthropic": {},

@@ -2,7 +2,7 @@ import itertools
 import time
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import ClassVar, Dict, Optional
+from typing import Any, ClassVar, Dict, Optional
 
 
 class TaskStatus(Enum):
@@ -71,6 +71,8 @@ class UploadTask:
     status: TaskStatus = TaskStatus.PENDING
     created_at: float = field(default_factory=time.time)
     updated_at: float = field(default_factory=time.time)
+    processor: Optional[Any] = None
+    background_task: Optional[Any] = None
     _sequence_number: int = field(init=False, repr=False)
 
     def __post_init__(self):
