@@ -256,7 +256,7 @@ async def _attach_opensearch_jwt(
     user: User | None,
     session_manager,
 ) -> User | None:
-    """Attach a short-lived OpenSearch JWT with current connector group roles."""
+    """Attach OpenSearch auth state and refresh DLS principal lookup state."""
     if user is None:
         return None
 
@@ -267,23 +267,9 @@ async def _attach_opensearch_jwt(
     group_acl_service = services.get("group_acl_service")
     dls_principal_service = services.get("dls_principal_service")
 
-    group_roles: list[str] = []
-    if group_acl_service is not None:
-        try:
-            group_roles = await group_acl_service.get_user_group_roles(user)
-        except Exception as e:
-            logger.warning(
-                "Failed to resolve connector group ACL roles",
-                user_id=user.user_id,
-                error=str(e),
-            )
-
     if dls_principal_service is not None:
         try:
-            principals = await dls_principal_service.refresh_user_principals(
-                user,
-                group_roles=group_roles if group_acl_service is not None else None,
-            )
+            principals = await dls_principal_service.refresh_user_principals(user)
             request.state.opensearch_dls_principals = principals
         except Exception as e:
             logger.warning(
@@ -292,7 +278,7 @@ async def _attach_opensearch_jwt(
                 error=str(e),
             )
 
-    request.state.opensearch_group_roles = group_roles
+    request.state.opensearch_group_roles = []
 
     # IBM uses the upstream OpenSearch credential/JWT path. We still refresh
     # the DLS lookup row above so connector groups and aliases can be resolved
@@ -495,6 +481,9 @@ async def _get_ibm_user(request: Request, required: bool) -> Optional["User"]:
         logger.debug("[AUTH] IBM LH credentials found in request headers")
         opensearch_username, _ = extract_ibm_credentials(lh_credentials)
         logger.debug("[AUTH] IBM LH credentials extracted successfully")
+        user_id = user_id or opensearch_username
+        email = email or opensearch_username
+        name = name or opensearch_username
 
         # Persist credentials to connections.json for reuse by background processes
         connector_service = request.app.state.services.get("connector_service")
@@ -618,7 +607,7 @@ async def get_current_user(
         user = await _get_ibm_user(request, required=True)
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
-        return await _attach_db_user_id(request, user)
+        return await _attach_request_user(request, user, session_manager)
 
     if is_no_auth_mode():
         user = AnonymousUser()
@@ -655,7 +644,7 @@ async def get_optional_user(
         if user and user.user_id and user.user_id not in session_manager.users:
             session_manager.users[user.user_id] = user
         if user:
-            return await _attach_db_user_id(request, user)
+            return await _attach_request_user(request, user, session_manager)
         request.state.db_user_id = None
         return None
 
@@ -708,7 +697,7 @@ async def get_api_key_user_async(
                 opensearch_username=ibm_username,
                 opensearch_credentials=ibm_api_key,
             )
-            return await _attach_db_user_id(request, user)
+            return await _attach_request_user(request, user, session_manager)
 
     # API key path
     api_key = request.headers.get("X-API-Key")
