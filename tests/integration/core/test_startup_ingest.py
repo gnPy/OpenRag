@@ -53,9 +53,21 @@ async def test_startup_ingest_creates_task(disable_langflow_ingest: bool):
     for mod in [
         "api.router",
         "api.connector_router",
+        "api",
+        "app.container",
+        "app.factory",
+        "app.lifespan",
+        "app.routes",
+        "app.routes.internal",
         "config.settings",
+        "dependencies",
         "auth_middleware",
         "main",
+        "services",
+        "services.default_docs_service",
+        "services.search_service",
+        "services.startup_orchestrator",
+        "utils.opensearch_init",
     ]:
         sys.modules.pop(mod, None)
 

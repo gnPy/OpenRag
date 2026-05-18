@@ -37,6 +37,7 @@ _RELOAD_MODULES = [
     "services.default_docs_service",
     "services.search_service",
     "services.startup_orchestrator",
+    "utils.opensearch_init",
 ]
 
 

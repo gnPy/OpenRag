@@ -312,9 +312,13 @@ class TaskProcessor:
 
         dimensions = len(embeddings[0])
 
+        # Mapping updates are index-admin operations and fail under document-level
+        # security when attempted with a user-scoped OpenSearch client.
+        mapping_client = clients.opensearch or opensearch_client
+
         # Ensure the embedding field exists for this model
         embedding_field_name = await ensure_embedding_field_exists(
-            opensearch_client, embedding_model, get_index_name(), dimensions
+            mapping_client, embedding_model, get_index_name(), dimensions
         )
 
         # Index each chunk as a separate document
