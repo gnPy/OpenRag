@@ -146,7 +146,11 @@ class TaskService:
             session_manager=self.session_manager,
         )
         return await self.create_custom_task(
-            user_id, file_paths, processor, original_filenames=original_filenames, temp_file_paths=file_paths
+            user_id,
+            file_paths,
+            processor,
+            original_filenames=original_filenames,
+            temp_file_paths=file_paths,
         )
 
     async def create_langflow_upload_task(
@@ -185,7 +189,12 @@ class TaskService:
             docling_polling_service=self.docling_polling_service,
         )
         return await self.create_custom_task(
-            user_id, file_paths, processor, original_filenames, existing_task_id=existing_task_id, temp_file_paths=file_paths
+            user_id,
+            file_paths,
+            processor,
+            original_filenames,
+            existing_task_id=existing_task_id,
+            temp_file_paths=file_paths,
         )
 
     async def create_langflow_url_upload_task(
