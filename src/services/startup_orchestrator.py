@@ -7,7 +7,6 @@ server URLs, and reapplies user settings if Langflow flows were reset.
 """
 
 from config.settings import (
-    DISABLE_INGEST_WITH_LANGFLOW,
     FETCH_OPENRAG_DOCS_AT_STARTUP,
     OPENRAG_SKIP_OS_SECURITY_SETUP,
     clients,
@@ -87,7 +86,7 @@ async def startup_tasks(services):
                     error=str(e),
                 )
 
-        if DISABLE_INGEST_WITH_LANGFLOW:
+        if get_openrag_config().knowledge.disable_ingest_with_langflow:
             await _ensure_opensearch_index()
 
         # Ensure that the OpenSearch index exists if onboarding was already completed

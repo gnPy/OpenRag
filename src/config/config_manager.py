@@ -80,6 +80,7 @@ class KnowledgeConfig:
     ocr: bool = False
     picture_descriptions: bool = False
     index_name: str = "documents"  # OpenSearch index name
+    disable_ingest_with_langflow: bool = False
 
 
 @dataclass
@@ -293,6 +294,10 @@ class ConfigManager:
         if os.getenv("PICTURE_DESCRIPTIONS_ENABLED"):
             config_data["knowledge"]["picture_descriptions"] = os.getenv(
                 "PICTURE_DESCRIPTIONS_ENABLED"
+            ).lower() in ("true", "1", "yes")
+        if os.getenv("DISABLE_INGEST_WITH_LANGFLOW"):
+            config_data["knowledge"]["disable_ingest_with_langflow"] = os.getenv(
+                "DISABLE_INGEST_WITH_LANGFLOW"
             ).lower() in ("true", "1", "yes")
 
         # Agent settings

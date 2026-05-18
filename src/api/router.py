@@ -7,7 +7,7 @@ import tempfile
 from fastapi import Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
-from config.settings import DISABLE_INGEST_WITH_LANGFLOW
+from config.settings import get_openrag_config
 from dependencies import (
     get_current_user,
     get_document_service,
@@ -40,12 +40,13 @@ async def upload_ingest_router(
     - If DISABLE_INGEST_WITH_LANGFLOW is True: uses traditional OpenRAG upload
     - If DISABLE_INGEST_WITH_LANGFLOW is False (default): uses Langflow upload-ingest via task service
     """
+    disable_ingest_with_langflow = get_openrag_config().knowledge.disable_ingest_with_langflow
     logger.debug(
         "Router upload_ingest endpoint called",
-        disable_langflow_ingest=DISABLE_INGEST_WITH_LANGFLOW,
+        disable_langflow_ingest=disable_ingest_with_langflow,
     )
 
-    if DISABLE_INGEST_WITH_LANGFLOW:
+    if disable_ingest_with_langflow:
         logger.debug("Routing to traditional OpenRAG upload")
         # Route to traditional upload — just take the first file
         from api.upload import upload as traditional_upload_fn

@@ -1054,7 +1054,7 @@ def get_agent_config():
 def get_embedding_model() -> str:
     """Return the currently configured embedding model."""
     return get_openrag_config().knowledge.embedding_model or (
-        OPENAI_DEFAULT_EMBEDDING_MODEL if DISABLE_INGEST_WITH_LANGFLOW else ""
+        OPENAI_DEFAULT_EMBEDDING_MODEL if get_openrag_config().knowledge.disable_ingest_with_langflow else ""
     )
 
 

@@ -1,6 +1,5 @@
 from config.settings import (
     AGENT_COMPONENT_DISPLAY_NAME,
-    DISABLE_INGEST_WITH_LANGFLOW,
     LANGFLOW_URL_INGEST_FLOW_ID,
     NUDGES_FLOW_ID,
     LANGFLOW_URL,
@@ -1044,7 +1043,7 @@ class FlowsService:
                 return None
 
             # Update embedding component
-            if not DISABLE_INGEST_WITH_LANGFLOW and (embedding_model or force_embedding_update):
+            if not get_openrag_config().knowledge.disable_ingest_with_langflow and (embedding_model or force_embedding_update):
                 # Get all embedding nodes in the flow
                 embedding_nodes = self._find_nodes_in_flow(flow_data, display_name=OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME)
                 logger.info(f"Found {len(embedding_nodes)} embedding nodes in flow {flow_name} with display name '{OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME}'")

@@ -1,6 +1,6 @@
 """Connector router that automatically routes based on configuration settings."""
 
-from config.settings import DISABLE_INGEST_WITH_LANGFLOW
+from config.settings import get_openrag_config
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -20,12 +20,12 @@ class ConnectorRouter:
         self.openrag_connector_service = openrag_connector_service
         logger.debug(
             "ConnectorRouter initialized",
-            disable_langflow_ingest=DISABLE_INGEST_WITH_LANGFLOW,
+            disable_langflow_ingest=get_openrag_config().knowledge.disable_ingest_with_langflow,
         )
 
     def get_active_service(self):
         """Get the currently active connector service based on configuration."""
-        if DISABLE_INGEST_WITH_LANGFLOW:
+        if get_openrag_config().knowledge.disable_ingest_with_langflow:
             logger.debug("Using traditional OpenRAG connector service")
             return self.openrag_connector_service
         else:
