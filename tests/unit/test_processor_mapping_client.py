@@ -41,10 +41,7 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping(
         class Embeddings:
             async def create(self, model, input):
                 return SimpleNamespace(
-                    data=[
-                        SimpleNamespace(embedding=[0.1, 0.2, 0.3])
-                        for _ in input
-                    ]
+                    data=[SimpleNamespace(embedding=[0.1, 0.2, 0.3]) for _ in input]
                 )
 
         embeddings = Embeddings()
