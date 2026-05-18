@@ -117,6 +117,10 @@ def get_group_acl_service(services: dict = Depends(get_services)):
     return services.get("group_acl_service")
 
 
+def get_dls_principal_service(services: dict = Depends(get_services)):
+    return services.get("dls_principal_service")
+
+
 def get_langflow_file_service(services: dict = Depends(get_services)):
     return services["langflow_file_service"]
 
@@ -258,14 +262,10 @@ async def _attach_opensearch_jwt(
 
     from config.settings import IBM_AUTH_ENABLED
 
-    # IBM uses the upstream OpenSearch credential/JWT path. Until IBM can
-    # consume our minted group roles, preserve its token exactly.
-    if IBM_AUTH_ENABLED:
-        return user
-
     services = getattr(getattr(request, "app", None), "state", None)
     services = getattr(services, "services", {}) or {}
     group_acl_service = services.get("group_acl_service")
+    dls_principal_service = services.get("dls_principal_service")
 
     group_roles: list[str] = []
     if group_acl_service is not None:
@@ -278,20 +278,37 @@ async def _attach_opensearch_jwt(
                 error=str(e),
             )
 
+    if dls_principal_service is not None:
+        try:
+            principals = await dls_principal_service.refresh_user_principals(
+                user,
+                group_roles=group_roles if group_acl_service is not None else None,
+            )
+            request.state.opensearch_dls_principals = principals
+        except Exception as e:
+            logger.warning(
+                "Failed to refresh OpenSearch DLS principals",
+                user_id=user.user_id,
+                error=str(e),
+            )
+
+    request.state.opensearch_group_roles = group_roles
+
+    # IBM uses the upstream OpenSearch credential/JWT path. We still refresh
+    # the DLS lookup row above so connector groups and aliases can be resolved
+    # without relying on JWT role claims.
+    if IBM_AUTH_ENABLED:
+        return user
+
     if group_acl_service is not None:
         jwt_token = await group_acl_service.create_opensearch_jwt(
             session_manager,
             user,
             fallback_jwt_token=user.jwt_token,
-            group_roles=group_roles,
         )
     else:
-        jwt_token = session_manager.create_opensearch_jwt_token(
-            user,
-            group_roles=group_roles,
-        )
+        jwt_token = session_manager.create_opensearch_jwt_token(user)
     if jwt_token:
-        request.state.opensearch_group_roles = group_roles
         return dataclasses.replace(user, jwt_token=jwt_token)
     return user
 

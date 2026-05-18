@@ -131,6 +131,7 @@ class LangflowFileService:
         source_url: str | None = None,
         allowed_users: list[str] | None = None,
         allowed_groups: list[str] | None = None,
+        allowed_principals: list[str] | None = None,
         selected_embedding_model: str | None = None,
         docling_task_id: str | None = None,
     ) -> dict[str, Any]:
@@ -220,10 +221,9 @@ class LangflowFileService:
 
         # Serialize ACL lists as JSON strings for Langflow global vars
         # (flows will parse these back into lists before indexing)
-        if allowed_users is not None:
-            headers["X-Langflow-Global-Var-ALLOWED_USERS"] = json.dumps(allowed_users or [])
-        if allowed_groups is not None:
-            headers["X-Langflow-Global-Var-ALLOWED_GROUPS"] = json.dumps(allowed_groups or [])
+        headers["X-Langflow-Global-Var-ALLOWED_USERS"] = json.dumps(allowed_users or [])
+        headers["X-Langflow-Global-Var-ALLOWED_GROUPS"] = json.dumps(allowed_groups or [])
+        headers["X-Langflow-Global-Var-ALLOWED_PRINCIPALS"] = json.dumps(allowed_principals or [])
 
         # Add provider credentials as global variables for ingestion
         await add_provider_credentials_to_headers(
@@ -347,6 +347,7 @@ class LangflowFileService:
             "X-Langflow-Global-Var-SOURCE_URL": str(docs_url),
             "X-Langflow-Global-Var-ALLOWED_USERS": json.dumps([]),
             "X-Langflow-Global-Var-ALLOWED_GROUPS": json.dumps([]),
+            "X-Langflow-Global-Var-ALLOWED_PRINCIPALS": json.dumps([]),
             "X-Langflow-Global-Var-DOCLING_TASK_ID": "",
         }
         await add_provider_credentials_to_headers(

@@ -9,8 +9,10 @@ import httpx
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
 from ..microsoft_graph_acl import (
     get_current_user_microsoft_group_roles,
+    get_current_user_microsoft_principals,
     get_oauth_access_token,
     microsoft_group_role,
+    microsoft_user_principal,
 )
 from .oauth import OneDriveOAuth
 
@@ -142,6 +144,13 @@ class OneDriveConnector(BaseConnector):
     async def get_current_user_group_roles(self) -> list[str]:
         """Return canonical group ACL roles for the connected Microsoft user."""
         return await get_current_user_microsoft_group_roles(
+            self.oauth,
+            self._graph_base_url,
+        )
+
+    async def get_current_user_principals(self) -> list[str]:
+        """Return canonical user ACL principals for the connected Microsoft user."""
+        return await get_current_user_microsoft_principals(
             self.oauth,
             self._graph_base_url,
         )
@@ -464,6 +473,7 @@ class OneDriveConnector(BaseConnector):
 
             allowed_users = []
             allowed_groups = []
+            allowed_principals = []
             owner = None
 
             for perm in permissions_data.get("value", []):
@@ -479,6 +489,17 @@ class OneDriveConnector(BaseConnector):
                         allowed_users.append(email)
                         if "owner" in roles:
                             owner = email
+                    for identifier in (
+                        user_info.get("id"),
+                        user_info.get("userPrincipalName"),
+                        email,
+                    ):
+                        user_principal = microsoft_user_principal(
+                            identifier,
+                            access_token=access_token,
+                        )
+                        if user_principal:
+                            allowed_principals.append(user_principal)
                     group_info = granted_to.get("group", {})
                     group_role = microsoft_group_role(
                         group_info.get("id"),
@@ -486,6 +507,7 @@ class OneDriveConnector(BaseConnector):
                     )
                     if group_role:
                         allowed_groups.append(group_role)
+                        allowed_principals.append(group_role)
 
                 # Granted to identities (can include users and groups)
                 identities = (
@@ -501,6 +523,17 @@ class OneDriveConnector(BaseConnector):
                                 allowed_users.append(email)
                                 if "owner" in roles:
                                     owner = email
+                            for identifier in (
+                                user_info.get("id"),
+                                user_info.get("userPrincipalName"),
+                                email,
+                            ):
+                                user_principal = microsoft_user_principal(
+                                    identifier,
+                                    access_token=access_token,
+                                )
+                                if user_principal:
+                                    allowed_principals.append(user_principal)
 
                         # Group
                         if "group" in identity:
@@ -512,11 +545,13 @@ class OneDriveConnector(BaseConnector):
                             )
                             if group_role:
                                 allowed_groups.append(group_role)
+                                allowed_principals.append(group_role)
 
             return DocumentACL(
                 owner=owner,
                 allowed_users=allowed_users,
                 allowed_groups=allowed_groups,
+                allowed_principals=allowed_principals,
             )
 
         except Exception as e:

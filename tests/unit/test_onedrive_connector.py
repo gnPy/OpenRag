@@ -34,6 +34,7 @@ async def test_onedrive_cached_download_path_returns_document_with_empty_acl(tmp
     assert doc.acl.owner == ""
     assert doc.acl.allowed_users == []
     assert doc.acl.allowed_groups == []
+    assert doc.acl.allowed_principals == []
 
 
 @pytest.mark.asyncio
@@ -61,3 +62,4 @@ async def test_onedrive_sharing_id_fallback_returns_document_with_empty_acl(tmp_
     assert doc.acl.owner == ""
     assert doc.acl.allowed_users == []
     assert doc.acl.allowed_groups == []
+    assert doc.acl.allowed_principals == []

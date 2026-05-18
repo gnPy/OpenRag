@@ -1,0 +1,227 @@
+"""Maintain OpenSearch DLS lookup rows for connector ACL principals."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import UTC, datetime
+from typing import Any
+
+from session_manager import User
+from utils.group_acl import unique_acl_principals
+from utils.logging_config import get_logger
+
+logger = get_logger(__name__)
+
+
+class DLSPrincipalService:
+    """Refresh the per-OpenSearch-user principal lookup index.
+
+    Document DLS can only see the OpenSearch authenticated principal and roles.
+    This service bridges connector-specific user aliases by writing a lookup row
+    keyed by the actual OpenSearch user name. DLS then uses a terms lookup on the
+    row's ``principals`` array.
+    """
+
+    def __init__(self, connector_service: Any, opensearch_client: Any | None = None):
+        self.connector_service = connector_service
+        self.opensearch_client = opensearch_client
+        self._admin_opensearch_client: Any | None = None
+        self._ensure_lock = asyncio.Lock()
+        self._index_checked = False
+
+    async def refresh_user_principals(
+        self,
+        user: User | None,
+        *,
+        group_roles: list[str] | None = None,
+    ) -> list[str]:
+        """Resolve and persist current DLS principals for this request user."""
+        if user is None or not user.user_id:
+            return []
+
+        principals = unique_acl_principals(
+            [
+                *(group_roles or []),
+                *await self._resolve_connector_principals(
+                    user,
+                    include_group_roles=group_roles is None,
+                ),
+                *self._resolve_auth_user_principals(user),
+            ]
+        )
+
+        user_names = self._opensearch_user_names(user)
+        if not user_names:
+            return principals
+
+        client = self._get_opensearch_client()
+        if client is None:
+            logger.warning(
+                "Unable to refresh DLS principals: OpenSearch client is unavailable",
+                user_id=user.user_id,
+            )
+            return principals
+
+        try:
+            await self.ensure_index(client)
+            updated_at = datetime.now(UTC).isoformat()
+            for user_name in user_names:
+                await client.index(
+                    index=self.index_name,
+                    id=user_name,
+                    body={
+                        "user_name": user_name,
+                        "auth_user_id": user.user_id,
+                        "auth_email": user.email,
+                        "provider": user.provider,
+                        "principals": principals,
+                        "updated_at": updated_at,
+                    },
+                    refresh="wait_for",
+                )
+        except Exception as e:
+            logger.warning(
+                "Failed to refresh DLS principal lookup row",
+                user_id=user.user_id,
+                user_names=user_names,
+                principal_count=len(principals),
+                error=str(e),
+            )
+
+        return principals
+
+    @property
+    def index_name(self) -> str:
+        from config.settings import DLS_PRINCIPAL_INDEX_NAME
+
+        return DLS_PRINCIPAL_INDEX_NAME
+
+    async def ensure_index(self, client: Any) -> None:
+        """Create the lookup index if it does not exist."""
+        if self._index_checked:
+            return
+
+        async with self._ensure_lock:
+            if self._index_checked:
+                return
+
+            from config.settings import DLS_PRINCIPAL_INDEX_BODY
+
+            if not await client.indices.exists(index=self.index_name):
+                await client.indices.create(index=self.index_name, body=DLS_PRINCIPAL_INDEX_BODY)
+                logger.info("Created DLS principal lookup index", index_name=self.index_name)
+            self._index_checked = True
+
+    def _get_opensearch_client(self) -> Any | None:
+        if self.opensearch_client is not None:
+            return self.opensearch_client
+
+        try:
+            from config.settings import (
+                IBM_AUTH_ENABLED,
+                OPENSEARCH_PASSWORD,
+                OPENSEARCH_USERNAME,
+                clients,
+            )
+
+            if IBM_AUTH_ENABLED:
+                if not OPENSEARCH_PASSWORD:
+                    return None
+                if self._admin_opensearch_client is None:
+                    self._admin_opensearch_client = clients.create_basic_opensearch_client(
+                        OPENSEARCH_USERNAME,
+                        OPENSEARCH_PASSWORD,
+                    )
+                return self._admin_opensearch_client
+
+            return clients.opensearch
+        except Exception:
+            return None
+
+    @staticmethod
+    def _opensearch_user_names(user: User) -> list[str]:
+        return unique_acl_principals(
+            [
+                user.opensearch_username,
+                user.user_id,
+            ]
+        )
+
+    def _resolve_auth_user_principals(self, user: User) -> list[str]:
+        connection_manager = getattr(self.connector_service, "connection_manager", None)
+        resolver = getattr(connection_manager, "get_auth_user_principals", None)
+        if resolver is None:
+            return []
+        try:
+            return resolver(user) or []
+        except Exception as e:
+            logger.warning(
+                "Failed to resolve auth-user DLS principals",
+                user_id=user.user_id,
+                error=str(e),
+            )
+            return []
+
+    async def _resolve_connector_principals(
+        self,
+        user: User,
+        *,
+        include_group_roles: bool,
+    ) -> list[str]:
+        connection_manager = getattr(self.connector_service, "connection_manager", None)
+        if connection_manager is None:
+            return []
+
+        try:
+            connections = await connection_manager.list_connections(user_id=user.user_id)
+        except Exception as e:
+            logger.warning("Failed to list connector connections for DLS principals", error=str(e))
+            return []
+
+        principals: list[str] = []
+        for connection in connections:
+            if not getattr(connection, "is_active", False):
+                continue
+
+            try:
+                connector = await self.connector_service.get_connector(connection.connection_id)
+            except Exception as e:
+                logger.debug(
+                    "Skipping connector DLS principal lookup",
+                    connection_id=getattr(connection, "connection_id", None),
+                    connector_type=getattr(connection, "connector_type", None),
+                    error=str(e),
+                )
+                continue
+
+            if connector is None:
+                continue
+
+            try:
+                principals.extend(await connector.get_current_user_principals() or [])
+            except NotImplementedError:
+                pass
+            except Exception as e:
+                logger.warning(
+                    "Connector DLS principal lookup failed",
+                    connection_id=getattr(connection, "connection_id", None),
+                    connector_type=getattr(connection, "connector_type", None),
+                    error=str(e),
+                )
+
+            if not include_group_roles:
+                continue
+
+            try:
+                principals.extend(await connector.get_current_user_group_roles() or [])
+            except NotImplementedError:
+                pass
+            except Exception as e:
+                logger.warning(
+                    "Connector group principal lookup failed",
+                    connection_id=getattr(connection, "connection_id", None),
+                    connector_type=getattr(connection, "connector_type", None),
+                    error=str(e),
+                )
+
+        return principals

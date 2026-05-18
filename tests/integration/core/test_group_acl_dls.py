@@ -49,14 +49,21 @@ async def _search_visible_document_ids(opensearch_client, index_name: str) -> se
     return {hit["_source"]["document_id"] for hit in response.get("hits", {}).get("hits", [])}
 
 
-async def test_opensearch_dls_filters_group_only_documents():
-    """Prove allowed_groups is enforced by OpenSearch DLS roles.
+async def test_opensearch_dls_filters_group_and_user_acl_documents():
+    """Prove user and connector principal ACLs are enforced by OpenSearch DLS.
 
     This test avoids live connector dependencies. The admin client seeds a
-    documents* index with group-only docs, then user-scoped OpenSearch clients
-    search with JWT roles that should and should not match those groups.
+    documents* index with ACL-only docs, then a user-scoped OpenSearch client
+    searches with JWT subject/email claims and lookup-table principals that
+    should and should not match. Connector groups are not passed through JWT
+    roles.
     """
-    from config.settings import INDEX_BODY, clients
+    from config.settings import (
+        DLS_PRINCIPAL_INDEX_BODY,
+        DLS_PRINCIPAL_INDEX_NAME,
+        INDEX_BODY,
+        clients,
+    )
     from session_manager import SessionManager, User
     from utils.opensearch_utils import setup_opensearch_security
 
@@ -70,13 +77,35 @@ async def test_opensearch_dls_filters_group_only_documents():
         pytest.skip("OpenSearch is not reachable")
 
     index_name = f"documents_group_acl_dls_{uuid4().hex}"
+    user_id = f"group-dls-user-{uuid4().hex}"
+    user_email = f"{user_id}@example.com"
     matching_group = "g:test:tenant:engineering"
     other_group = "g:test:tenant:sales"
+    user_principal = "u:test:tenant:reader"
+    other_principal = "u:test:tenant:other"
 
     try:
         await setup_opensearch_security(admin_client)
 
         await admin_client.indices.create(index=index_name, body=INDEX_BODY)
+        if not await admin_client.indices.exists(index=DLS_PRINCIPAL_INDEX_NAME):
+            await admin_client.indices.create(
+                index=DLS_PRINCIPAL_INDEX_NAME,
+                body=DLS_PRINCIPAL_INDEX_BODY,
+            )
+        await admin_client.index(
+            index=DLS_PRINCIPAL_INDEX_NAME,
+            id=user_id,
+            body={
+                "user_name": user_id,
+                "auth_user_id": user_id,
+                "auth_email": user_email,
+                "provider": "test",
+                "principals": [matching_group, user_principal],
+                "updated_at": "2026-05-15T00:00:00+00:00",
+            },
+            refresh=True,
+        )
         await admin_client.bulk(
             body=[
                 {"index": {"_index": index_name, "_id": "engineering-doc"}},
@@ -87,6 +116,47 @@ async def test_opensearch_dls_filters_group_only_documents():
                     "owner": "external-owner",
                     "allowed_users": [],
                     "allowed_groups": [matching_group],
+                    "allowed_principals": [matching_group],
+                },
+                {"index": {"_index": index_name, "_id": "subject-doc"}},
+                {
+                    "document_id": "subject-doc",
+                    "filename": "subject.md",
+                    "text": "Visible to the matching JWT subject",
+                    "owner": "external-owner",
+                    "allowed_users": [user_id],
+                    "allowed_groups": [],
+                    "allowed_principals": [],
+                },
+                {"index": {"_index": index_name, "_id": "email-doc"}},
+                {
+                    "document_id": "email-doc",
+                    "filename": "email.md",
+                    "text": "Visible to the matching JWT email",
+                    "owner": "external-owner",
+                    "allowed_users": [user_email],
+                    "allowed_groups": [],
+                    "allowed_principals": [],
+                },
+                {"index": {"_index": index_name, "_id": "principal-user-doc"}},
+                {
+                    "document_id": "principal-user-doc",
+                    "filename": "principal-user.md",
+                    "text": "Visible to the matching DLS user principal",
+                    "owner": "external-owner",
+                    "allowed_users": [],
+                    "allowed_groups": [],
+                    "allowed_principals": [user_principal],
+                },
+                {"index": {"_index": index_name, "_id": "principal-group-doc"}},
+                {
+                    "document_id": "principal-group-doc",
+                    "filename": "principal-group.md",
+                    "text": "Visible to the matching DLS group principal lookup",
+                    "owner": "external-owner",
+                    "allowed_users": [],
+                    "allowed_groups": [],
+                    "allowed_principals": [matching_group],
                 },
                 {"index": {"_index": index_name, "_id": "sales-doc"}},
                 {
@@ -96,6 +166,7 @@ async def test_opensearch_dls_filters_group_only_documents():
                     "owner": "external-owner",
                     "allowed_users": [],
                     "allowed_groups": [other_group],
+                    "allowed_principals": [other_principal],
                 },
             ],
             refresh=True,
@@ -103,31 +174,29 @@ async def test_opensearch_dls_filters_group_only_documents():
 
         session_manager = SessionManager("test")
         user = User(
-            user_id="group-dls-user",
-            email="group-dls-user@example.com",
+            user_id=user_id,
+            email=user_email,
             name="Group DLS User",
         )
-        matching_token = session_manager.create_opensearch_jwt_token(
-            user,
-            group_roles=[matching_group],
-            ttl_seconds=120,
-        )
-        no_group_token = session_manager.create_opensearch_jwt_token(
-            user,
-            group_roles=[],
-            ttl_seconds=120,
-        )
+        token = session_manager.create_opensearch_jwt_token(user, ttl_seconds=120)
 
-        matching_client = clients.create_user_opensearch_client(matching_token)
-        no_group_client = clients.create_user_opensearch_client(no_group_token)
+        user_client = clients.create_user_opensearch_client(token)
         try:
-            assert await _search_visible_document_ids(matching_client, index_name) == {
-                "engineering-doc"
+            assert await _search_visible_document_ids(user_client, index_name) == {
+                "email-doc",
+                "engineering-doc",
+                "principal-group-doc",
+                "principal-user-doc",
+                "subject-doc",
             }
-            assert await _search_visible_document_ids(no_group_client, index_name) == set()
         finally:
-            await matching_client.close()
-            await no_group_client.close()
+            await user_client.close()
     finally:
         await admin_client.indices.delete(index=index_name, ignore_unavailable=True)
+        await admin_client.delete(
+            index=DLS_PRINCIPAL_INDEX_NAME,
+            id=user_id,
+            ignore=[404],
+            refresh=True,
+        )
         await admin_client.close()

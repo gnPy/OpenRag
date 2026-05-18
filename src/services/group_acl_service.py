@@ -57,9 +57,8 @@ class GroupACLService:
         session_manager,
         user: User | None,
         fallback_jwt_token: str | None = None,
-        group_roles: list[str] | None = None,
     ) -> str | None:
-        """Mint the effective OpenSearch token for this user's current groups."""
+        """Mint the effective OpenSearch token for this user."""
         if user is None:
             return fallback_jwt_token
 
@@ -69,12 +68,7 @@ class GroupACLService:
         if IBM_AUTH_ENABLED:
             return session_manager.get_effective_jwt_token(user.user_id, fallback_jwt_token)
 
-        if group_roles is None:
-            group_roles = await self.get_user_group_roles(user)
-        jwt_token = session_manager.create_opensearch_jwt_token(
-            user,
-            group_roles=group_roles,
-        )
+        jwt_token = session_manager.create_opensearch_jwt_token(user)
         if jwt_token:
             return jwt_token
         return session_manager.get_effective_jwt_token(user.user_id, fallback_jwt_token)

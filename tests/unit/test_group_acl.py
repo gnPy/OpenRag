@@ -25,7 +25,24 @@ def test_canonical_group_role_is_compact_and_provider_scoped():
     assert role == "g:m365:AAAAAAAAAAAAAAAAAAAAAQ:AAAAAAAAAAAAAAAAAAAAAg"
 
 
-def test_opensearch_jwt_includes_group_roles(monkeypatch):
+def test_canonical_user_principal_is_compact_and_provider_scoped():
+    from utils.group_acl import canonical_user_principal
+
+    principal = canonical_user_principal(
+        "gdrive",
+        "example.com",
+        "Owner@Example.com",
+    )
+
+    assert principal.startswith("u:gdrive:")
+    assert principal == canonical_user_principal(
+        "gdrive",
+        "EXAMPLE.COM",
+        "owner@example.com",
+    )
+
+
+def test_opensearch_jwt_does_not_include_connector_group_roles(monkeypatch):
     from session_manager import SessionManager, User
 
     monkeypatch.setenv("JWT_SIGNING_KEY", "unit-test-secret-with-32-bytes!!")
@@ -34,11 +51,7 @@ def test_opensearch_jwt_includes_group_roles(monkeypatch):
     manager = SessionManager("test")
     user = User(user_id="user-1", email="user@example.com", name="User")
 
-    token = manager.create_opensearch_jwt_token(
-        user,
-        group_roles=["g:m365:t:g1", "g:m365:t:g2"],
-        ttl_seconds=60,
-    )
+    token = manager.create_opensearch_jwt_token(user, ttl_seconds=60)
     payload = jwt.decode(
         token.removeprefix("Bearer "),
         "unit-test-secret-with-32-bytes!!",
@@ -46,7 +59,7 @@ def test_opensearch_jwt_includes_group_roles(monkeypatch):
         audience=["opensearch", "openrag"],
     )
 
-    assert payload["roles"] == ["openrag_user", "g:m365:t:g1", "g:m365:t:g2"]
+    assert payload["roles"] == ["openrag_user"]
     assert payload["sub"] == "user-1"
 
 
@@ -137,16 +150,185 @@ def test_group_acl_service_invalidation_drops_cache_and_locks():
     assert service._locks == {}
 
 
-def test_security_roles_include_group_acl_terms_query():
+def test_security_roles_include_acl_dls_queries():
     for rel_path in ("securityconfig/roles.yml", "cloud_securityconfig/roles.yml"):
         roles = yaml.safe_load((ROOT / rel_path).read_text())
-        dls = roles["openrag_user_role"]["index_permissions"][0]["dls"]
-        assert '{"terms":{"allowed_groups":[${user.roles}]}}' in dls
+        index_permissions = roles["openrag_user_role"]["index_permissions"]
+        dls = index_permissions[0]["dls"]
+        assert '{"term":{"owner":"${user.name}"}}' in dls
+        assert '{"term":{"owner":"${attr.jwt.email}"}}' in dls
+        assert '{"term":{"allowed_users":"${user.name}"}}' in dls
+        assert '{"term":{"allowed_users":"${attr.jwt.email}"}}' in dls
+        assert '{"terms":{"allowed_groups":[${user.roles}]}}' not in dls
+        assert (
+            '{"terms":{"allowed_principals":{"index":"openrag_dls_principals",'
+            '"id":"${user.name}","path":"principals"}}}' in dls
+        )
+        principal_permission = next(
+            permission
+            for permission in index_permissions
+            if "openrag_dls_principals" in permission["index_patterns"]
+        )
+        assert "crud" not in principal_permission["allowed_actions"]
+        assert "indices:data/write/index" not in principal_permission["allowed_actions"]
+        assert principal_permission["dls"] == '{"term":{"user_name":"${user.name}"}}\n'
+
+
+@pytest.mark.asyncio
+async def test_dls_principal_service_writes_user_lookup_rows():
+    from services.dls_principal_service import DLSPrincipalService
+    from session_manager import User
+
+    @dataclass
+    class Connection:
+        connection_id: str
+        connector_type: str
+        is_active: bool = True
+
+    class ConnectionManager:
+        async def list_connections(self, user_id=None):
+            assert user_id == "user-1"
+            return [
+                Connection("drive-1", "google_drive"),
+                Connection("inactive-1", "google_drive", is_active=False),
+            ]
+
+        def get_auth_user_principals(self, user):
+            assert user.email == "user@example.com"
+            return ["u:gdrive:example.com:user"]
+
+    class Connector:
+        async def get_current_user_principals(self):
+            return ["u:gdrive:t:user", "u:gdrive:t:user"]
+
+        async def get_current_user_group_roles(self):
+            return ["g:gdrive:t:engineering"]
+
+    class ConnectorService:
+        connection_manager = ConnectionManager()
+
+        async def get_connector(self, connection_id):
+            assert connection_id == "drive-1"
+            return Connector()
+
+    class Indices:
+        async def exists(self, index):
+            assert index == "openrag_dls_principals"
+            return False
+
+        async def create(self, index, body):
+            assert index == "openrag_dls_principals"
+            assert body["mappings"]["properties"]["principals"]["type"] == "keyword"
+
+    class OpenSearchClient:
+        indices = Indices()
+
+        def __init__(self):
+            self.index_calls = []
+
+        async def index(self, **kwargs):
+            self.index_calls.append(kwargs)
+
+    opensearch_client = OpenSearchClient()
+    service = DLSPrincipalService(ConnectorService(), opensearch_client=opensearch_client)
+
+    principals = await service.refresh_user_principals(
+        User(
+            user_id="user-1",
+            email="user@example.com",
+            name="User",
+            provider="google",
+            opensearch_username="ibmlhapikey_user-1",
+        ),
+        group_roles=["g:gdrive:t:engineering"],
+    )
+
+    assert principals[0] == "g:gdrive:t:engineering"
+    assert "u:gdrive:t:user" in principals
+    assert "u:gdrive:example.com:user" in principals
+    assert len(opensearch_client.index_calls) == 2
+    assert {call["id"] for call in opensearch_client.index_calls} == {
+        "ibmlhapikey_user-1",
+        "user-1",
+    }
+    for call in opensearch_client.index_calls:
+        assert call["index"] == "openrag_dls_principals"
+        assert call["refresh"] == "wait_for"
+        assert call["body"]["principals"] == principals
+
+
+def test_dls_principal_service_uses_basic_admin_client_in_ibm(monkeypatch):
+    from services.dls_principal_service import DLSPrincipalService
+
+    class Clients:
+        def __init__(self):
+            self.calls = []
+            self.opensearch = object()
+
+        def create_basic_opensearch_client(self, username, password):
+            self.calls.append((username, password))
+            return "admin-client"
+
+    clients = Clients()
+    monkeypatch.setattr("config.settings.IBM_AUTH_ENABLED", True)
+    monkeypatch.setattr("config.settings.OPENSEARCH_USERNAME", "admin-user")
+    monkeypatch.setattr("config.settings.OPENSEARCH_PASSWORD", "admin-pass")
+    monkeypatch.setattr("config.settings.clients", clients)
+
+    service = DLSPrincipalService(connector_service=None)
+
+    assert service._get_opensearch_client() == "admin-client"
+    assert service._get_opensearch_client() == "admin-client"
+    assert clients.calls == [("admin-user", "admin-pass")]
+
+
+@pytest.mark.asyncio
+async def test_opensearch_init_adds_missing_acl_keyword_mappings():
+    from utils.opensearch_init import _ensure_keyword_mappings
+
+    class Indices:
+        def __init__(self):
+            self.put_mapping_calls = []
+
+        async def get_mapping(self, index):
+            assert index == "documents"
+            return {
+                "documents": {
+                    "mappings": {
+                        "properties": {
+                            "allowed_users": {"type": "keyword"},
+                            "allowed_groups": {"type": "keyword"},
+                        }
+                    }
+                }
+            }
+
+        async def put_mapping(self, **kwargs):
+            self.put_mapping_calls.append(kwargs)
+
+    class OpenSearchClient:
+        def __init__(self):
+            self.indices = Indices()
+
+    opensearch_client = OpenSearchClient()
+
+    await _ensure_keyword_mappings(
+        opensearch_client,
+        "documents",
+        ["allowed_users", "allowed_groups", "allowed_principals"],
+    )
+
+    assert opensearch_client.indices.put_mapping_calls == [
+        {
+            "index": "documents",
+            "body": {"properties": {"allowed_principals": {"type": "keyword"}}},
+        }
+    ]
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("service_name", ["standard", "langflow"])
-async def test_connector_services_mint_group_jwt_when_session_user_is_missing(
+async def test_connector_services_mint_plain_jwt_when_session_user_is_missing(
     service_name,
     monkeypatch,
 ):
@@ -201,12 +383,12 @@ async def test_connector_services_mint_group_jwt_when_session_user_is_missing(
     )
 
     assert payload["sub"] == "stored-user-id"
-    assert payload["roles"] == ["openrag_user", "g:test:t:g1"]
+    assert payload["roles"] == ["openrag_user"]
 
 
 def test_google_drive_file_acl_group_is_canonicalized(tmp_path):
     from connectors.google_drive.connector import GoogleDriveConnector
-    from connectors.google_drive_acl import google_drive_group_role
+    from connectors.google_drive_acl import google_drive_group_role, google_drive_user_principal
 
     class Execute:
         def execute(self):
@@ -248,6 +430,27 @@ def test_google_drive_file_acl_group_is_canonicalized(tmp_path):
     assert acl.owner == "owner@example.com"
     assert acl.allowed_users == ["owner@example.com"]
     assert acl.allowed_groups == [google_drive_group_role("engineering@example.com")]
+    assert acl.allowed_principals == [
+        google_drive_group_role("engineering@example.com"),
+        google_drive_user_principal("owner@example.com"),
+    ]
+
+
+def test_connection_manager_resolves_auth_user_principals(tmp_path):
+    from connectors.connection_manager import ConnectionManager
+    from connectors.google_drive_acl import google_drive_user_principal
+    from session_manager import User
+
+    manager = ConnectionManager(connections_file=str(tmp_path / "connections.json"))
+
+    assert manager.get_auth_user_principals(
+        User(
+            user_id="google-subject",
+            email="user@example.com",
+            name="User",
+            provider="google",
+        )
+    ) == [google_drive_user_principal("user@example.com")]
 
 
 @pytest.mark.asyncio

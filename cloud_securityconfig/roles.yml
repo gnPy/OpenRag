@@ -32,10 +32,20 @@ openrag_user_role:
       dls: >
         {"bool":{"should":[
           {"term":{"owner":"${user.name}"}},
+          {"term":{"owner":"${attr.jwt.email}"}},
           {"term":{"allowed_users":"${user.name}"}},
-          {"terms":{"allowed_groups":[${user.roles}]}},
+          {"term":{"allowed_users":"${attr.jwt.email}"}},
+          {"terms":{"allowed_principals":{"index":"openrag_dls_principals","id":"${user.name}","path":"principals"}}},
           {"bool":{"must_not":{"exists":{"field":"owner"}}}}
         ],"minimum_should_match":1}}
+    - index_patterns: ["openrag_dls_principals", "openrag_dls_principals*"]
+      allowed_actions:
+        - read
+        - indices:admin/exists
+        - indices:data/read/get
+        - indices:data/read/search
+      dls: >
+        {"term":{"user_name":"${user.name}"}}
     - index_patterns: ["api_keys", "api_keys*"]
       allowed_actions:
         - crud

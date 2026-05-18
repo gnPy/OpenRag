@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import jwt
 
-from utils.group_acl import canonical_group_role, canonical_group_roles
+from utils.group_acl import canonical_group_role, canonical_group_roles, canonical_user_principal
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -47,6 +47,23 @@ def microsoft_group_role(
         MICROSOFT_GRAPH_GROUP_PROVIDER,
         resolved_tenant,
         group_id,
+    )
+
+
+def microsoft_user_principal(
+    user_identifier: str | None,
+    *,
+    access_token: str | None = None,
+    tenant_id: str | None = None,
+) -> str | None:
+    """Return the canonical DLS principal for a Microsoft Graph user identity."""
+    if not user_identifier:
+        return None
+    resolved_tenant = tenant_id_from_access_token(access_token, fallback=tenant_id)
+    return canonical_user_principal(
+        MICROSOFT_GRAPH_GROUP_PROVIDER,
+        resolved_tenant,
+        user_identifier,
     )
 
 
@@ -129,3 +146,93 @@ async def get_current_user_microsoft_group_roles(
         resolved_tenant,
         group_ids,
     )
+
+
+def _decode_microsoft_user_identifiers(access_token: str, tenant_id: str | None) -> list[str]:
+    raw_token = access_token.removeprefix("Bearer ").strip()
+    try:
+        claims = jwt.decode(
+            raw_token,
+            options={"verify_signature": False, "verify_aud": False},
+        )
+    except Exception as e:
+        logger.debug("Could not decode Microsoft access token user identifiers", error=str(e))
+        return []
+
+    identifiers: list[str] = []
+    for claim in ("oid", "preferred_username", "upn", "email", "unique_name"):
+        value = claims.get(claim)
+        if value:
+            identifiers.append(str(value))
+
+    # If tenant_id was not in the access token, the principal helper will use
+    # this fallback. Returning identifiers here keeps JWT-only aliases useful
+    # even if /me is unavailable.
+    if tenant_id and claims.get("sub"):
+        identifiers.append(str(claims["sub"]))
+    return identifiers
+
+
+async def get_current_user_microsoft_principals(
+    oauth: Any,
+    graph_base_url: str,
+    *,
+    tenant_id: str | None = None,
+    timeout_seconds: float = 10.0,
+) -> list[str]:
+    """Fetch canonical Microsoft user principals for the current OAuth user."""
+    if oauth is None:
+        return []
+
+    try:
+        access_token = await get_oauth_access_token(oauth)
+    except Exception as e:
+        logger.warning("Unable to get Microsoft Graph token for user ACL aliases", error=str(e))
+        return []
+
+    if not access_token:
+        return []
+
+    identifiers = _decode_microsoft_user_identifiers(access_token, tenant_id)
+    resolved_tenant = tenant_id_from_access_token(access_token, fallback=tenant_id)
+
+    headers = {"Authorization": f"Bearer {access_token}"}
+    url = f"{graph_base_url}/me"
+    params = {"$select": "id,userPrincipalName,mail"}
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            response = await client.get(url, headers=headers, params=params)
+        if response.status_code == 200:
+            data = response.json()
+            for key in ("id", "userPrincipalName", "mail"):
+                value = data.get(key)
+                if value:
+                    identifiers.append(str(value))
+        elif response.status_code in (401, 403):
+            logger.warning(
+                "Microsoft Graph user ACL alias lookup denied",
+                status_code=response.status_code,
+                response_text=response.text[:500],
+            )
+        else:
+            logger.warning(
+                "Microsoft Graph user ACL alias lookup failed",
+                status_code=response.status_code,
+                response_text=response.text[:500],
+            )
+    except Exception as e:
+        logger.warning("Microsoft Graph user ACL alias lookup errored", error=str(e))
+
+    principals: list[str] = []
+    seen: set[str] = set()
+    for identifier in identifiers:
+        principal = microsoft_user_principal(
+            identifier,
+            access_token=access_token,
+            tenant_id=resolved_tenant,
+        )
+        if principal and principal not in seen:
+            seen.add(principal)
+            principals.append(principal)
+    return principals

@@ -36,6 +36,14 @@ def canonical_group_role(provider_code: str, tenant_id: object, group_id: object
     return f"g:{provider}:{tenant}:{group}"
 
 
+def canonical_user_principal(provider_code: str, tenant_id: object, user_id: object) -> str:
+    """Build the provider-scoped principal used for connector user ACLs."""
+    provider = compact_acl_component(provider_code, max_length=16)
+    tenant = compact_acl_component(tenant_id or "global")
+    user = compact_acl_component(user_id)
+    return f"u:{provider}:{tenant}:{user}"
+
+
 def canonical_group_roles(
     provider_code: str,
     tenant_id: object,
@@ -53,3 +61,34 @@ def canonical_group_roles(
             seen.add(role)
             roles.append(role)
     return roles
+
+
+def canonical_user_principals(
+    provider_code: str,
+    tenant_id: object,
+    user_ids: Iterable[object],
+) -> list[str]:
+    """Canonicalize and deduplicate user IDs while preserving first-seen order."""
+    principals: list[str] = []
+    seen: set[str] = set()
+    for user_id in user_ids or ():
+        try:
+            principal = canonical_user_principal(provider_code, tenant_id, user_id)
+        except ValueError:
+            continue
+        if principal not in seen:
+            seen.add(principal)
+            principals.append(principal)
+    return principals
+
+
+def unique_acl_principals(principals: Iterable[object]) -> list[str]:
+    """Return non-empty ACL principals without duplicates, preserving order."""
+    unique: list[str] = []
+    seen: set[str] = set()
+    for principal in principals or ():
+        value = str(principal or "").strip()
+        if value and value not in seen:
+            seen.add(value)
+            unique.append(value)
+    return unique

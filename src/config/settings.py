@@ -261,12 +261,30 @@ INDEX_BODY = {
             "owner": {"type": "keyword"},
             "allowed_users": {"type": "keyword"},
             "allowed_groups": {"type": "keyword"},
+            "allowed_principals": {"type": "keyword"},
             "user_permissions": {"type": "object"},
             "group_permissions": {"type": "object"},
             "created_time": {"type": "date"},
             "modified_time": {"type": "date"},
             "indexed_time": {"type": "date"},
             "metadata": {"type": "object"},
+        }
+    },
+}
+
+DLS_PRINCIPAL_INDEX_NAME = "openrag_dls_principals"
+DLS_PRINCIPAL_INDEX_BODY = {
+    "settings": {
+        "index": {"number_of_replicas": 0, "number_of_shards": 1},
+    },
+    "mappings": {
+        "properties": {
+            "user_name": {"type": "keyword"},
+            "auth_user_id": {"type": "keyword"},
+            "auth_email": {"type": "keyword"},
+            "provider": {"type": "keyword"},
+            "principals": {"type": "keyword"},
+            "updated_at": {"type": "date"},
         }
     },
 }
@@ -963,6 +981,22 @@ class AppClients:
             headers=headers,
             http_compress=True,
             timeout=30,  # 30 second timeout
+            max_retries=3,
+            retry_on_timeout=True,
+        )
+
+    def create_basic_opensearch_client(self, username: str, password: str):
+        """Create an OpenSearch client with explicit basic credentials."""
+        return AsyncOpenSearch(
+            hosts=[{"host": OPENSEARCH_HOST, "port": OPENSEARCH_PORT}],
+            connection_class=AIOHttpConnection,
+            scheme="https",
+            use_ssl=True,
+            verify_certs=False,
+            ssl_assert_fingerprint=None,
+            http_auth=(username, password),
+            http_compress=True,
+            timeout=30,
             max_retries=3,
             retry_on_timeout=True,
         )

@@ -5,10 +5,11 @@ This module provides hash-based ACL change detection and bulk update operations
 to minimize write amplification when ACLs change.
 """
 
+import asyncio
 import hashlib
 import json
-import asyncio
-from typing import Dict, List, Tuple, Optional
+from typing import Any
+
 from src.connectors.base import DocumentACL
 from utils.logging_config import get_logger
 
@@ -29,17 +30,12 @@ def compute_acl_hash(acl: DocumentACL) -> str:
         "owner": acl.owner,
         "allowed_users": sorted(acl.allowed_users),
         "allowed_groups": sorted(acl.allowed_groups),
+        "allowed_principals": sorted(acl.allowed_principals),
     }
-    return hashlib.sha256(
-        json.dumps(acl_data, sort_keys=True).encode()
-    ).hexdigest()
+    return hashlib.sha256(json.dumps(acl_data, sort_keys=True).encode()).hexdigest()
 
 
-async def should_update_acl(
-    document_id: str,
-    new_acl: DocumentACL,
-    opensearch_client
-) -> bool:
+async def should_update_acl(document_id: str, new_acl: DocumentACL, opensearch_client) -> bool:
     """
     Check if ACL has changed by querying one chunk and comparing hashes.
 
@@ -65,8 +61,9 @@ async def should_update_acl(
                     "owner",
                     "allowed_users",
                     "allowed_groups",
-                ]
-            }
+                    "allowed_principals",
+                ],
+            },
         )
 
         if not response["hits"]["hits"]:
@@ -80,6 +77,7 @@ async def should_update_acl(
             owner=existing_chunk.get("owner"),
             allowed_users=existing_chunk.get("allowed_users", []),
             allowed_groups=existing_chunk.get("allowed_groups", []),
+            allowed_principals=existing_chunk.get("allowed_principals", []),
         )
 
         existing_hash = compute_acl_hash(existing_acl)
@@ -94,10 +92,8 @@ async def should_update_acl(
 
 
 async def update_document_acl(
-    document_id: str,
-    acl: DocumentACL,
-    opensearch_client
-) -> Dict[str, any]:
+    document_id: str, acl: DocumentACL, opensearch_client
+) -> dict[str, Any]:
     """
     Update ACL for all chunks of a document.
 
@@ -129,20 +125,19 @@ async def update_document_acl(
                         ctx._source.owner = params.owner;
                         ctx._source.allowed_users = params.allowed_users;
                         ctx._source.allowed_groups = params.allowed_groups;
+                        ctx._source.allowed_principals = params.allowed_principals;
                     """,
                     "params": {
                         "owner": acl.owner,
                         "allowed_users": acl.allowed_users,
                         "allowed_groups": acl.allowed_groups,
-                    }
-                }
-            }
+                        "allowed_principals": acl.allowed_principals,
+                    },
+                },
+            },
         )
 
-        return {
-            "status": "updated",
-            "chunks_updated": response.get("updated", 0)
-        }
+        return {"status": "updated", "chunks_updated": response.get("updated", 0)}
 
     except Exception as e:
         logger.error("[OPENSEARCH] ACL update failed", document_id=document_id, error=str(e))
@@ -150,9 +145,8 @@ async def update_document_acl(
 
 
 async def batch_update_acls(
-    acl_updates: List[Tuple[str, DocumentACL]],
-    opensearch_client
-) -> Dict[str, any]:
+    acl_updates: list[tuple[str, DocumentACL]], opensearch_client
+) -> dict[str, Any]:
     """
     Batch update ACLs for multiple documents.
 
@@ -172,16 +166,13 @@ async def batch_update_acls(
         return {"status": "no_updates", "documents_updated": 0, "chunks_updated": 0}
 
     # Filter to only changed ACLs (parallel chunk queries)
-    check_tasks = [
-        should_update_acl(doc_id, acl, opensearch_client)
-        for doc_id, acl in acl_updates
-    ]
+    check_tasks = [should_update_acl(doc_id, acl, opensearch_client) for doc_id, acl in acl_updates]
     should_update_flags = await asyncio.gather(*check_tasks)
 
     # Filter to documents with changed ACLs
     changed = [
         (doc_id, acl)
-        for (doc_id, acl), should_update in zip(acl_updates, should_update_flags)
+        for (doc_id, acl), should_update in zip(acl_updates, should_update_flags, strict=False)
         if should_update
     ]
 
@@ -190,7 +181,7 @@ async def batch_update_acls(
             "status": "no_changes",
             "documents_updated": 0,
             "chunks_updated": 0,
-            "skipped": len(acl_updates)
+            "skipped": len(acl_updates),
         }
 
     # Bulk update chunks for each document (parallelized)
@@ -204,14 +195,16 @@ async def batch_update_acls(
                         ctx._source.owner = params.owner;
                         ctx._source.allowed_users = params.allowed_users;
                         ctx._source.allowed_groups = params.allowed_groups;
+                        ctx._source.allowed_principals = params.allowed_principals;
                     """,
                     "params": {
                         "owner": acl.owner,
                         "allowed_users": acl.allowed_users,
                         "allowed_groups": acl.allowed_groups,
-                    }
-                }
-            }
+                        "allowed_principals": acl.allowed_principals,
+                    },
+                },
+            },
         )
         for doc_id, acl in changed
     ]
@@ -222,8 +215,8 @@ async def batch_update_acls(
         # Count successful updates
         total_chunks_updated = 0
         errors = []
-        for i, result in enumerate(results):
-            if isinstance(result, Exception):
+        for result in results:
+            if isinstance(result, BaseException):
                 errors.append(str(result))
             else:
                 total_chunks_updated += result.get("updated", 0)
@@ -233,13 +226,8 @@ async def batch_update_acls(
             "documents_updated": len(changed) - len(errors),
             "chunks_updated": total_chunks_updated,
             "skipped": len(acl_updates) - len(changed),
-            "errors": errors if errors else None
+            "errors": errors if errors else None,
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "documents_updated": 0,
-            "chunks_updated": 0,
-            "error": str(e)
-        }
+        return {"status": "error", "documents_updated": 0, "chunks_updated": 0, "error": str(e)}

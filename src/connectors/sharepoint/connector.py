@@ -10,7 +10,10 @@ from utils.logging_config import get_logger
 from ..base import BaseConnector, ConnectorDocument, DocumentACL
 from ..microsoft_graph_acl import (
     get_current_user_microsoft_group_roles,
+    get_current_user_microsoft_principals,
+    get_oauth_access_token,
     microsoft_group_role,
+    microsoft_user_principal,
 )
 from .oauth import SharePointOAuth
 
@@ -152,6 +155,14 @@ class SharePointConnector(BaseConnector):
     async def get_current_user_group_roles(self) -> list[str]:
         """Return canonical group ACL roles for the connected Microsoft user."""
         return await get_current_user_microsoft_group_roles(
+            self.oauth,
+            self._graph_base_url,
+            tenant_id=self.tenant_id,
+        )
+
+    async def get_current_user_principals(self) -> list[str]:
+        """Return canonical user ACL principals for the connected Microsoft user."""
+        return await get_current_user_microsoft_principals(
             self.oauth,
             self._graph_base_url,
             tenant_id=self.tenant_id,
@@ -500,7 +511,7 @@ class SharePointConnector(BaseConnector):
         """
         try:
             # Get access token - use same approach as _make_graph_request
-            access_token = self.oauth.get_access_token()
+            access_token = await get_oauth_access_token(self.oauth)
 
             if not access_token:
                 logger.warning(f"No access token available for ACL extraction: {file_id}")
@@ -529,6 +540,7 @@ class SharePointConnector(BaseConnector):
 
             allowed_users = []
             allowed_groups = []
+            allowed_principals = []
             owner = None
 
             for perm in permissions_data.get("value", []):
@@ -545,6 +557,18 @@ class SharePointConnector(BaseConnector):
                         allowed_users.append(user_identifier)
                         if "owner" in roles:
                             owner = user_identifier
+                    for identifier in (
+                        user_info.get("id"),
+                        user_info.get("userPrincipalName"),
+                        email,
+                    ):
+                        user_principal = microsoft_user_principal(
+                            identifier,
+                            access_token=access_token,
+                            tenant_id=self.tenant_id,
+                        )
+                        if user_principal:
+                            allowed_principals.append(user_principal)
                     group_info = granted_to.get("group", {})
                     group_role = microsoft_group_role(
                         group_info.get("id"),
@@ -553,6 +577,7 @@ class SharePointConnector(BaseConnector):
                     )
                     if group_role:
                         allowed_groups.append(group_role)
+                        allowed_principals.append(group_role)
 
                 # Granted to identities (can include users and groups)
                 if "grantedToIdentitiesV2" in perm or "grantedToIdentities" in perm:
@@ -570,6 +595,18 @@ class SharePointConnector(BaseConnector):
                                 allowed_users.append(user_identifier)
                                 if "owner" in roles:
                                     owner = user_identifier
+                            for identifier in (
+                                user_info.get("id"),
+                                user_info.get("userPrincipalName"),
+                                email,
+                            ):
+                                user_principal = microsoft_user_principal(
+                                    identifier,
+                                    access_token=access_token,
+                                    tenant_id=self.tenant_id,
+                                )
+                                if user_principal:
+                                    allowed_principals.append(user_principal)
 
                         # Group
                         if "group" in identity:
@@ -582,11 +619,13 @@ class SharePointConnector(BaseConnector):
                             )
                             if group_role:
                                 allowed_groups.append(group_role)
+                                allowed_principals.append(group_role)
 
             return DocumentACL(
                 owner=owner,
                 allowed_users=allowed_users,
                 allowed_groups=allowed_groups,
+                allowed_principals=allowed_principals,
             )
 
         except Exception as e:

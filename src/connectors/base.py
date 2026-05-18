@@ -12,12 +12,15 @@ class DocumentACL:
     owner: str = None
     allowed_users: list[str] = None
     allowed_groups: list[str] = None
+    allowed_principals: list[str] = None
 
     def __post_init__(self):
         if self.allowed_users is None:
             self.allowed_users = []
         if self.allowed_groups is None:
             self.allowed_groups = []
+        if self.allowed_principals is None:
+            self.allowed_principals = []
 
 
 @dataclass
@@ -146,5 +149,25 @@ class BaseConnector(ABC):
         Connectors that support upstream group ACLs can override this hook.
         The core ACL service calls it generically so new connectors only need
         to implement their own provider-specific group lookup.
+        """
+        return []
+
+    async def get_current_user_principals(self) -> list[str]:
+        """Return provider-scoped ACL principals for the current connector user.
+
+        Connectors that store user ACLs in provider-specific identity spaces can
+        override this hook. The DLS principal service calls it generically so new
+        connectors only need to provide their own alias resolution.
+        """
+        return []
+
+    @classmethod
+    def get_auth_user_principals(cls, user: Any) -> list[str]:
+        """Return connector principals derivable from the OpenRAG auth user.
+
+        This hook covers cases where a document ACL names a provider user alias
+        but the current OpenRAG user has no saved connector connection to query.
+        Connectors should only return aliases when the auth provider gives enough
+        information to construct the same principal used during ingestion.
         """
         return []

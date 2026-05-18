@@ -782,7 +782,7 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
                 metadata = {**metadata, "embedding_dimensions": vector_dimensions}
 
             # Normalize ACL fields that may arrive as JSON strings from flows
-            for key in ("allowed_users", "allowed_groups"):
+            for key in ("allowed_users", "allowed_groups", "allowed_principals"):
                 value = metadata.get(key)
                 if isinstance(value, str):
                     try:
@@ -1854,6 +1854,7 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
                 "embedding_model",
                 "allowed_users",
                 "allowed_groups",
+                "allowed_principals",
             ],
             "size": limit,
         }

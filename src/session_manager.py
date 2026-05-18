@@ -1,5 +1,4 @@
 import os
-from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Any
@@ -195,26 +194,15 @@ class SessionManager:
             oidc_issuer = f"http://{OPENRAG_FQDN}:8000"
         return oidc_issuer
 
-    def _normalize_backend_roles(self, extra_roles: Iterable[str] | None = None) -> list[str]:
-        roles = ["openrag_user"]
-        seen = {"openrag_user"}
-        for role in extra_roles or ():
-            role = str(role).strip()
-            if role and role not in seen:
-                seen.add(role)
-                roles.append(role)
-        return roles
-
     def _create_signed_jwt_token(
         self,
         user: User,
         *,
         expires_delta: timedelta,
-        backend_roles: Iterable[str] | None = None,
     ) -> str:
         # Create JWT token with OIDC-compliant claims
         now = datetime.utcnow()
-        roles = self._normalize_backend_roles(backend_roles)
+        roles = ["openrag_user"]
         token_payload = {
             # OIDC standard claims
             "iss": self._get_oidc_issuer(),  # Fixed issuer for OpenSearch OIDC
@@ -249,10 +237,9 @@ class SessionManager:
     def create_opensearch_jwt_token(
         self,
         user: User,
-        group_roles: Iterable[str] | None = None,
         ttl_seconds: int | None = None,
     ) -> str:
-        """Create a short-lived OpenSearch JWT with current connector groups."""
+        """Create a short-lived OpenSearch JWT for user-scoped OpenSearch requests."""
         if ttl_seconds is None:
             from config.settings import get_opensearch_jwt_ttl_seconds
 
@@ -260,7 +247,6 @@ class SessionManager:
         return self._create_signed_jwt_token(
             user,
             expires_delta=timedelta(seconds=max(ttl_seconds, 1)),
-            backend_roles=group_roles,
         )
 
     def verify_token(self, token: str) -> dict[str, Any] | None:

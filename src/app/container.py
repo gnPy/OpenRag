@@ -20,6 +20,7 @@ from connectors.service import ConnectorService
 from services.api_key_service import APIKeyService
 from services.auth_service import AuthService
 from services.chat_service import ChatService
+from services.dls_principal_service import DLSPrincipalService
 from services.docling_polling_service import DoclingPollingService
 from services.document_service import DocumentService
 from services.flows_service import FlowsService
@@ -123,6 +124,7 @@ async def initialize_services():
         openrag_connector_service=openrag_connector_service,
     )
     group_acl_service = GroupACLService(connector_service)
+    dls_principal_service = DLSPrincipalService(connector_service)
 
     auth_service = AuthService(
         session_manager,
@@ -208,6 +210,7 @@ async def initialize_services():
         "auth_service": auth_service,
         "connector_service": connector_service,
         "group_acl_service": group_acl_service,
+        "dls_principal_service": dls_principal_service,
         "knowledge_filter_service": knowledge_filter_service,
         "models_service": models_service,
         "monitor_service": monitor_service,

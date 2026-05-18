@@ -22,6 +22,7 @@ _RELOAD_MODULES = [
     "api.settings.langflow_sync",
     "api.settings",
     "api",
+    "app.container",
     "app.routes.internal",
     "app.routes.public_v1",
     "app.routes",

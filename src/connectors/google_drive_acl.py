@@ -9,7 +9,7 @@ import jwt
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
-from utils.group_acl import canonical_group_role
+from utils.group_acl import canonical_group_role, canonical_user_principal
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -32,6 +32,20 @@ def google_drive_group_role(group_email: str | None) -> str | None:
     if not email:
         return None
     return canonical_group_role(
+        GOOGLE_DRIVE_GROUP_PROVIDER,
+        _group_tenant(email),
+        email,
+    )
+
+
+def google_drive_user_principal(user_email: str | None) -> str | None:
+    """Return the canonical DLS principal for a Google Drive user email."""
+    if not user_email:
+        return None
+    email = user_email.strip().lower()
+    if not email:
+        return None
+    return canonical_user_principal(
         GOOGLE_DRIVE_GROUP_PROVIDER,
         _group_tenant(email),
         email,
@@ -215,3 +229,16 @@ async def get_current_user_google_group_roles(
         return []
 
     return roles
+
+
+async def get_current_user_google_principals(
+    drive_service: Any,
+    credentials: Any,
+) -> list[str]:
+    """Fetch canonical Google Drive user principals for the connected user."""
+    if credentials is None:
+        return []
+
+    user_email = await _get_drive_user_email(drive_service, credentials)
+    principal = google_drive_user_principal(user_email)
+    return [principal] if principal else []

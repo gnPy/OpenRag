@@ -341,11 +341,13 @@ class TaskProcessor:
                 chunk_doc["owner"] = acl.owner if acl.owner else owner_user_id
                 chunk_doc["allowed_users"] = acl.allowed_users
                 chunk_doc["allowed_groups"] = acl.allowed_groups
+                chunk_doc["allowed_principals"] = acl.allowed_principals
             else:
                 # Fallback to owner_user_id if no ACL (local uploads)
                 chunk_doc["owner"] = owner_user_id
                 chunk_doc["allowed_users"] = []
                 chunk_doc["allowed_groups"] = []
+                chunk_doc["allowed_principals"] = []
 
             # Set owner metadata fields (for display)
             if owner_name is not None:
@@ -735,9 +737,6 @@ class S3FileProcessor(TaskProcessor):
     async def process_item(self, upload_task: UploadTask, item: str, file_task: FileTask) -> None:
         """Download an S3 object and process it using DocumentService"""
         import time
-        import asyncio
-        import datetime
-        from config.settings import clients, get_embedding_model, get_index_name
 
         from models.tasks import TaskStatus
 
