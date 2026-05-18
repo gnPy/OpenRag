@@ -226,7 +226,7 @@ async def test_upload_and_search_endpoint(tmp_path: Path, disable_langflow_inges
             }
             upload_resp = await client.post("/router/upload_ingest", files=files)
             body = upload_resp.json()
-            assert upload_resp.status_code in (201, 202), upload_resp.text
+            assert upload_resp.status_code == 202, upload_resp.text
 
             # Traditional OpenRAG and Langflow upload both use task-based ingestion (202)
             task_id = body.get("task_id")

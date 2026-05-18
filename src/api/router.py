@@ -1,7 +1,6 @@
 """Router endpoints that automatically route based on configuration settings."""
 
 import json
-import os
 import tempfile
 
 from fastapi import Depends, File, Form, UploadFile
@@ -94,13 +93,13 @@ async def _traditional_upload_ingest_task(
         original_filenames = []
 
         try:
-            temp_dir = tempfile.gettempdir()
-
             for upload_file in upload_files:
                 content = await upload_file.read()
                 original_filenames.append(upload_file.filename)
-                safe_filename = upload_file.filename.replace(" ", "_").replace("/", "_")
-                temp_path = os.path.join(temp_dir, safe_filename)
+                # Generate unique temp file to avoid collisions
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
+                temp_path = temp_file.name
+                temp_file.close()
                 with open(temp_path, "wb") as f:
                     f.write(content)
                 temp_file_paths.append(temp_path)
@@ -123,6 +122,19 @@ async def _traditional_upload_ingest_task(
                 original_filenames=file_path_to_original_filename,
                 replace_duplicates=replace_duplicates,
             )
+
+            # Clean up temp files after task is created
+            from utils.file_utils import safe_unlink
+
+            for temp_path in temp_file_paths:
+                try:
+                    safe_unlink(temp_path)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        "Failed to clean up temp file after task creation",
+                        temp_path=temp_path,
+                        error=str(cleanup_error),
+                    )
 
             return JSONResponse(
                 {
@@ -194,13 +206,13 @@ async def _langflow_upload_ingest_task(
         original_filenames = []
 
         try:
-            temp_dir = tempfile.gettempdir()
-
             for upload_file in upload_files:
                 content = await upload_file.read()
                 original_filenames.append(upload_file.filename)
-                safe_filename = upload_file.filename.replace(" ", "_").replace("/", "_")
-                temp_path = os.path.join(temp_dir, safe_filename)
+                # Generate unique temp file to avoid collisions
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
+                temp_path = temp_file.name
+                temp_file.close()
                 with open(temp_path, "wb") as f:
                     f.write(content)
                 temp_file_paths.append(temp_path)
@@ -223,6 +235,19 @@ async def _langflow_upload_ingest_task(
                 settings=settings,
                 replace_duplicates=replace_duplicates,
             )
+
+            # Clean up temp files after task is created
+            from utils.file_utils import safe_unlink
+
+            for temp_path in temp_file_paths:
+                try:
+                    safe_unlink(temp_path)
+                except Exception as cleanup_error:
+                    logger.warning(
+                        "Failed to clean up temp file after task creation",
+                        temp_path=temp_path,
+                        error=str(cleanup_error),
+                    )
 
             return JSONResponse(
                 {
