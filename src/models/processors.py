@@ -402,6 +402,8 @@ class DocumentFileProcessor(TaskProcessor):
         is_sample_data: bool = False,
         connector_type: str = "local",
         docling_service=None,
+        replace_duplicates: bool = False,
+        session_manager=None,
     ):
         super().__init__(
             document_service,
@@ -415,6 +417,12 @@ class DocumentFileProcessor(TaskProcessor):
         self.owner_email = owner_email
         self.is_sample_data = is_sample_data
         self.connector_type = connector_type
+        self.replace_duplicates = replace_duplicates
+        self.session_manager = session_manager or (
+            document_service.session_manager if document_service else None
+        )
+        if self.session_manager is None:
+            raise ValueError("session_manager is required for DocumentFileProcessor")
 
     async def process_item(self, upload_task: UploadTask, item: str, file_task: FileTask) -> None:
         """Process a regular file path using consolidated methods"""
@@ -428,6 +436,31 @@ class DocumentFileProcessor(TaskProcessor):
         file_task.updated_at = time.time()
 
         try:
+            # Use the ORIGINAL filename stored in file_task (not the transformed temp path)
+            # This ensures we check/store the original filename with spaces, etc.
+            original_filename = file_task.filename or os.path.basename(item)
+
+            # Check if document with same filename already exists
+            if self.session_manager is None:
+                raise ValueError("session_manager is required to get OpenSearch client")
+            opensearch_client = self.session_manager.get_user_opensearch_client(
+                self.owner_user_id, self.jwt_token
+            )
+
+            filename_exists = await self.check_filename_exists(original_filename, opensearch_client)
+
+            if filename_exists and not self.replace_duplicates:
+                # Duplicate exists and user hasn't confirmed replacement
+                file_task.status = TaskStatus.FAILED
+                file_task.error = f"File with name '{original_filename}' already exists"
+                file_task.updated_at = time.time()
+                upload_task.failed_files += 1
+                return
+            elif filename_exists and self.replace_duplicates:
+                # Delete existing document before uploading new one
+                logger.info(f"Replacing existing document: {original_filename}")
+                await self.delete_document_by_filename(original_filename, opensearch_client)
+
             # Compute hash
             file_hash = hash_id(item)
 
@@ -442,7 +475,7 @@ class DocumentFileProcessor(TaskProcessor):
                 file_path=item,
                 file_hash=file_hash,
                 owner_user_id=self.owner_user_id,
-                original_filename=os.path.basename(item),
+                original_filename=original_filename,
                 jwt_token=self.jwt_token,
                 owner_name=self.owner_name,
                 owner_email=self.owner_email,
@@ -735,9 +768,6 @@ class S3FileProcessor(TaskProcessor):
     async def process_item(self, upload_task: UploadTask, item: str, file_task: FileTask) -> None:
         """Download an S3 object and process it using DocumentService"""
         import time
-        import asyncio
-        import datetime
-        from config.settings import clients, get_embedding_model, get_index_name
 
         from models.tasks import TaskStatus
 

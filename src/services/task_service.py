@@ -1,16 +1,17 @@
-import traceback
 import asyncio
 import os
 import random
 import time
+import traceback
 import uuid
-from typing import Any, Coroutine, TypeVar
+from collections.abc import Coroutine
+from typing import Any, TypeVar
 
 from models.tasks import FileTask, TaskStatus, UploadTask
 from session_manager import AnonymousUser
 from utils.gpu_detection import get_worker_count
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 T = TypeVar("T")
 
@@ -34,10 +35,12 @@ class TaskService:
         ingestion_timeout=3600,
         docling_service=None,
         docling_polling_service=None,
+        session_manager=None,
     ):
         self.document_service = document_service
         self.models_service = models_service
         self.docling_service = docling_service
+        self.session_manager = session_manager
         # Backend-side Docling polling coordinator. Injected by the container
         # so LangflowFileProcessor receives it from the established DI chain
         # rather than constructing it inline. None disables the two-phase
@@ -112,7 +115,7 @@ class TaskService:
         timeout: int = timeout_seconds or self.ingestion_timeout
         try:
             return await asyncio.wait_for(coro, timeout=timeout)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             raise IngestionTimeoutError(
                 f"File processing timed out after {timeout} seconds."
             ) from None
@@ -124,6 +127,8 @@ class TaskService:
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        original_filenames: dict | None = None,
+        replace_duplicates: bool = False,
     ) -> str:
         """Create a new upload task for bulk file processing"""
         # Use default DocumentFileProcessor with user context
@@ -137,8 +142,12 @@ class TaskService:
             owner_name=owner_name,
             owner_email=owner_email,
             docling_service=self.docling_service,
+            replace_duplicates=replace_duplicates,
+            session_manager=self.session_manager,
         )
-        return await self.create_custom_task(user_id, file_paths, processor)
+        return await self.create_custom_task(
+            user_id, file_paths, processor, original_filenames=original_filenames
+        )
 
     async def create_langflow_upload_task(
         self,
@@ -824,7 +833,7 @@ class TaskService:
         if self.background_tasks:
             results = await asyncio.gather(*self.background_tasks, return_exceptions=True)
             # Log any unexpected errors (not CancelledError)
-            for i, result in enumerate(results):
+            for result in results:
                 if isinstance(result, Exception) and not isinstance(result, asyncio.CancelledError):
                     logger.warning(
                         "Background task raised exception during shutdown", error=str(result)
