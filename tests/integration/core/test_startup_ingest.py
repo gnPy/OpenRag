@@ -7,6 +7,35 @@ import pytest
 
 # Files to exclude from ingestion (should match src/main.py)
 EXCLUDED_INGESTION_FILES = {"warmup_ocr.pdf"}
+_RELOAD_MODULES = [
+    "api",
+    "api.router",
+    "api.connector_router",
+    "app",
+    "app.container",
+    "app.factory",
+    "app.lifespan",
+    "app.routes",
+    "app.routes.internal",
+    "config.settings",
+    "dependencies",
+    "auth_middleware",
+    "main",
+    "services",
+    "services.default_docs_service",
+    "services.search_service",
+    "services.startup_orchestrator",
+    "utils.opensearch_init",
+]
+_RELOAD_PREFIXES = ("api.", "app.", "services.")
+
+
+def _purge_reloaded_modules() -> None:
+    import sys
+
+    for mod in list(sys.modules):
+        if mod in _RELOAD_MODULES or mod.startswith(_RELOAD_PREFIXES):
+            sys.modules.pop(mod, None)
 
 
 async def wait_for_ready(client: httpx.AsyncClient, timeout_s: float = 30.0):
@@ -48,28 +77,7 @@ async def test_startup_ingest_creates_task(disable_langflow_ingest: bool):
     os.environ["GOOGLE_OAUTH_CLIENT_SECRET"] = ""
 
     # Reload settings to pick up env for this test run
-    import sys
-
-    for mod in [
-        "api.router",
-        "api.connector_router",
-        "api",
-        "app.container",
-        "app.factory",
-        "app.lifespan",
-        "app.routes",
-        "app.routes.internal",
-        "config.settings",
-        "dependencies",
-        "auth_middleware",
-        "main",
-        "services",
-        "services.default_docs_service",
-        "services.search_service",
-        "services.startup_orchestrator",
-        "utils.opensearch_init",
-    ]:
-        sys.modules.pop(mod, None)
+    _purge_reloaded_modules()
 
     from config.settings import clients, get_index_name
     from main import create_app

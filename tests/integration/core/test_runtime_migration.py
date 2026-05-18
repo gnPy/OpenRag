@@ -36,6 +36,14 @@ _RELOAD_MODULES = [
     "utils.opensearch_init",
 ]
 
+_RELOAD_PREFIXES = ("api.", "app.", "services.")
+
+
+def _purge_reloaded_modules() -> None:
+    for mod in list(sys.modules):
+        if mod in _RELOAD_MODULES or mod.startswith(_RELOAD_PREFIXES):
+            sys.modules.pop(mod, None)
+
 
 @pytest_asyncio.fixture
 async def legacy_migration_workspace(tmp_path: Path, monkeypatch):
@@ -62,8 +70,7 @@ async def legacy_migration_workspace(tmp_path: Path, monkeypatch):
     from db.engine import dispose_engine as dispose_existing_engine
 
     await dispose_existing_engine()
-    for mod in _RELOAD_MODULES:
-        sys.modules.pop(mod, None)
+    _purge_reloaded_modules()
 
     from config.config_manager import config_manager
     from db.engine import dispose_engine
@@ -110,8 +117,7 @@ async def legacy_migration_workspace(tmp_path: Path, monkeypatch):
         session_ownership_service.ownership_file = old_ownership_file
         session_ownership_service.ownership_data = old_ownership_data
         session_ownership_service._session_factory = old_ownership_session_factory
-        for mod in _RELOAD_MODULES:
-            sys.modules.pop(mod, None)
+        _purge_reloaded_modules()
 
 
 def _write_legacy_files(*, config_dir: Path, data_dir: Path) -> None:
