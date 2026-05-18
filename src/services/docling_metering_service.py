@@ -37,13 +37,13 @@ class DoclingMeterRecord:
     size_bytes: int
     mimetype: str
     owner_user_id: Optional[str]
-    submitted_at: str       # ISO-8601 UTC timestamp
-    terminal_at: str        # ISO-8601 UTC timestamp
+    submitted_at: str  # ISO-8601 UTC timestamp
+    terminal_at: str  # ISO-8601 UTC timestamp
     elapsed_seconds: float  # wall-clock from submission to terminal
-    outcome: str            # "success" | "failed" | "expired" | "timeout" | "submit_failed"
+    outcome: str  # "success" | "failed" | "expired" | "timeout" | "submit_failed"
     failure_detail: Optional[str]
-    poll_count: int         # status-check calls made; 0 for legacy (Langflow-polling) path
-    deployment_mode: str    # "direct" | "rq"
+    poll_count: int  # status-check calls made; 0 for legacy (Langflow-polling) path
+    deployment_mode: str  # "direct" | "rq"
 
 
 def _utc_now_iso() -> str:
