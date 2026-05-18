@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from datetime import UTC, datetime
 from typing import Any
 
@@ -22,12 +23,24 @@ class DLSPrincipalService:
     row's ``principals`` array.
     """
 
-    def __init__(self, connector_service: Any, opensearch_client: Any | None = None):
+    def __init__(
+        self,
+        connector_service: Any,
+        opensearch_client: Any | None = None,
+        refresh_ttl_seconds: int | None = None,
+    ):
         self.connector_service = connector_service
         self.opensearch_client = opensearch_client
+        if refresh_ttl_seconds is None:
+            from config.settings import DLS_PRINCIPAL_REFRESH_TTL_SECONDS
+
+            refresh_ttl_seconds = DLS_PRINCIPAL_REFRESH_TTL_SECONDS
+        self.refresh_ttl_seconds = max(refresh_ttl_seconds, 0)
         self._admin_opensearch_client: Any | None = None
         self._ensure_lock = asyncio.Lock()
         self._index_checked = False
+        self._cache: dict[str, tuple[float, list[str]]] = {}
+        self._locks: dict[str, asyncio.Lock] = {}
 
     async def refresh_user_principals(
         self,
@@ -37,6 +50,52 @@ class DLSPrincipalService:
     ) -> list[str]:
         """Resolve and persist current DLS principals for this request user."""
         if user is None or not user.user_id:
+            return []
+
+        cache_key = self._refresh_cache_key(user, group_roles)
+        if self.refresh_ttl_seconds > 0:
+            cached = self._cache.get(cache_key)
+            now = time.monotonic()
+            if cached and cached[0] > now:
+                return list(cached[1])
+
+        lock = self._locks.setdefault(cache_key, asyncio.Lock())
+        async with lock:
+            if self.refresh_ttl_seconds > 0:
+                cached = self._cache.get(cache_key)
+                now = time.monotonic()
+                if cached and cached[0] > now:
+                    return list(cached[1])
+
+            return await self._refresh_user_principals_uncached(user, group_roles=group_roles)
+
+    async def _refresh_user_principals_uncached(
+        self,
+        user: User,
+        *,
+        group_roles: list[str] | None,
+    ) -> list[str]:
+        user_names = self._opensearch_user_names(user)
+        if not user_names:
+            return []
+
+        client = self._get_opensearch_client()
+        if client is None:
+            logger.warning(
+                "Unable to refresh DLS principals: OpenSearch client is unavailable",
+                user_id=user.user_id,
+            )
+            return []
+
+        try:
+            await self.ensure_index(client)
+        except Exception as e:
+            logger.warning(
+                "Failed to prepare DLS principal lookup index",
+                user_id=user.user_id,
+                user_names=user_names,
+                error=str(e),
+            )
             return []
 
         principals = unique_acl_principals(
@@ -50,20 +109,7 @@ class DLSPrincipalService:
             ]
         )
 
-        user_names = self._opensearch_user_names(user)
-        if not user_names:
-            return principals
-
-        client = self._get_opensearch_client()
-        if client is None:
-            logger.warning(
-                "Unable to refresh DLS principals: OpenSearch client is unavailable",
-                user_id=user.user_id,
-            )
-            return principals
-
         try:
-            await self.ensure_index(client)
             updated_at = datetime.now(UTC).isoformat()
             for user_name in user_names:
                 await client.index(
@@ -79,6 +125,7 @@ class DLSPrincipalService:
                     },
                     refresh="wait_for",
                 )
+            self._cache_principals(user, group_roles, principals)
         except Exception as e:
             logger.warning(
                 "Failed to refresh DLS principal lookup row",
@@ -89,6 +136,42 @@ class DLSPrincipalService:
             )
 
         return principals
+
+    def invalidate_user(self, user: User | str) -> None:
+        """Drop cached DLS principals for one auth user or OpenSearch user name."""
+        user_id = user.user_id if isinstance(user, User) else user
+        keys = [key for key in self._cache if user_id in key.split("\x1f")]
+        for key in keys:
+            self._cache.pop(key, None)
+            self._locks.pop(key, None)
+
+    def clear(self) -> None:
+        self._cache.clear()
+        self._locks.clear()
+
+    def _cache_principals(
+        self,
+        user: User,
+        group_roles: list[str] | None,
+        principals: list[str],
+    ) -> None:
+        if self.refresh_ttl_seconds <= 0:
+            return
+        self._cache[self._refresh_cache_key(user, group_roles)] = (
+            time.monotonic() + self.refresh_ttl_seconds,
+            list(principals),
+        )
+
+    def _refresh_cache_key(self, user: User, group_roles: list[str] | None) -> str:
+        key_parts = [
+            user.user_id,
+            user.opensearch_username,
+            user.email,
+            user.provider,
+        ]
+        if group_roles is not None:
+            key_parts.extend(sorted(group_roles))
+        return "\x1f".join(str(part) for part in key_parts if part)
 
     @property
     def index_name(self) -> str:

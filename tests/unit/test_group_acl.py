@@ -257,6 +257,124 @@ async def test_dls_principal_service_writes_user_lookup_rows():
         assert call["body"]["principals"] == principals
 
 
+@pytest.mark.asyncio
+async def test_dls_principal_service_caches_and_coalesces_lookup_refreshes():
+    from services.dls_principal_service import DLSPrincipalService
+    from session_manager import User
+
+    @dataclass
+    class Connection:
+        connection_id: str
+        connector_type: str
+        is_active: bool = True
+
+    class ConnectionManager:
+        def __init__(self):
+            self.list_calls = 0
+
+        async def list_connections(self, user_id=None):
+            assert user_id == "user-1"
+            self.list_calls += 1
+            await asyncio.sleep(0.01)
+            return [Connection("drive-1", "google_drive")]
+
+        def get_auth_user_principals(self, user):
+            assert user.email == "user@example.com"
+            return ["u:gdrive:example.com:user"]
+
+    class Connector:
+        async def get_current_user_principals(self):
+            return ["u:gdrive:t:user"]
+
+        async def get_current_user_group_roles(self):
+            return ["g:gdrive:t:engineering"]
+
+    class ConnectorService:
+        def __init__(self, connection_manager):
+            self.connection_manager = connection_manager
+
+        async def get_connector(self, connection_id):
+            assert connection_id == "drive-1"
+            return Connector()
+
+    class Indices:
+        async def exists(self, index):
+            assert index == "openrag_dls_principals"
+            return True
+
+    class OpenSearchClient:
+        indices = Indices()
+
+        def __init__(self):
+            self.index_calls = []
+
+        async def index(self, **kwargs):
+            self.index_calls.append(kwargs)
+
+    connection_manager = ConnectionManager()
+    opensearch_client = OpenSearchClient()
+    service = DLSPrincipalService(
+        ConnectorService(connection_manager),
+        opensearch_client=opensearch_client,
+        refresh_ttl_seconds=60,
+    )
+    user = User(
+        user_id="user-1",
+        email="user@example.com",
+        name="User",
+        provider="google",
+        opensearch_username="ibmlhapikey_user-1",
+    )
+
+    first, second = await asyncio.gather(
+        service.refresh_user_principals(user),
+        service.refresh_user_principals(user),
+    )
+    third = await service.refresh_user_principals(user)
+
+    assert first == second == third
+    assert "g:gdrive:t:engineering" in first
+    assert connection_manager.list_calls == 1
+    assert len(opensearch_client.index_calls) == 2
+    assert {call["id"] for call in opensearch_client.index_calls} == {
+        "ibmlhapikey_user-1",
+        "user-1",
+    }
+
+
+@pytest.mark.asyncio
+async def test_dls_principal_service_skips_connector_lookup_without_opensearch_client(monkeypatch):
+    from services.dls_principal_service import DLSPrincipalService
+    from session_manager import User
+
+    monkeypatch.setattr("config.settings.IBM_AUTH_ENABLED", True)
+    monkeypatch.setattr("config.settings.OPENSEARCH_PASSWORD", "")
+
+    class ConnectionManager:
+        async def list_connections(self, user_id=None):
+            raise AssertionError("connector lookup should not run without an OpenSearch client")
+
+    class ConnectorService:
+        connection_manager = ConnectionManager()
+
+    service = DLSPrincipalService(
+        ConnectorService(),
+        opensearch_client=None,
+        refresh_ttl_seconds=60,
+    )
+
+    principals = await service.refresh_user_principals(
+        User(
+            user_id="user-1",
+            email="user@example.com",
+            name="User",
+            provider="google",
+        )
+    )
+
+    assert principals == []
+
+
 def test_dls_principal_service_uses_basic_admin_client_in_ibm(monkeypatch):
     from services.dls_principal_service import DLSPrincipalService
 

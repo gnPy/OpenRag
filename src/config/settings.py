@@ -147,6 +147,12 @@ RBAC_PERMISSION_CACHE_TTL_SECONDS = get_env_int("OPENRAG_PERM_CACHE_TTL", 60)
 # request unless an operator explicitly accepts bounded staleness.
 GROUP_ACL_CACHE_TTL_SECONDS = get_env_int("OPENRAG_GROUP_ACL_CACHE_TTL", 0)
 
+# Minimum interval (seconds) between DLS principal lookup-index refreshes for
+# the same effective OpenSearch user. This bounds connector directory calls and
+# lookup-index writes on authenticated request paths. Group/alias changes can be
+# stale for up to this many seconds; set to 0 for strict per-request refresh.
+DLS_PRINCIPAL_REFRESH_TTL_SECONDS = get_env_int("OPENRAG_DLS_PRINCIPAL_REFRESH_TTL", 60)
+
 # Docling service URL configuration
 # Priority:
 # 1. DOCLING_SERVE_URL environment variable
