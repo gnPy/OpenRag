@@ -1,9 +1,11 @@
 """Unit tests for duplicate filename handling in DocumentFileProcessor."""
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from models.processors import DocumentFileProcessor
-from models.tasks import UploadTask, FileTask, TaskStatus
+from models.tasks import FileTask, TaskStatus, UploadTask
 
 
 @pytest.mark.asyncio

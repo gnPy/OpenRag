@@ -1,22 +1,24 @@
+import asyncio
+import json
+import os
+from datetime import datetime
+
+from cachetools import LRUCache
+
 from config.settings import (
     AGENT_COMPONENT_DISPLAY_NAME,
-    LANGFLOW_URL_INGEST_FLOW_ID,
-    NUDGES_FLOW_ID,
-    LANGFLOW_URL,
     LANGFLOW_CHAT_FLOW_ID,
     LANGFLOW_INGEST_FLOW_ID,
+    LANGFLOW_URL,
+    LANGFLOW_URL_INGEST_FLOW_ID,
+    NUDGES_FLOW_ID,
     OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME,
     OPENAI_LLM_COMPONENT_DISPLAY_NAME,
     clients,
     get_openrag_config,
 )
-import json
-import os
-from datetime import datetime
 from utils.logging_config import get_logger
-from utils.telemetry import TelemetryClient, Category, MessageId
-import asyncio
-from cachetools import LRUCache
+from utils.telemetry import Category, MessageId, TelemetryClient
 
 logger = get_logger(__name__)
 
@@ -29,9 +31,9 @@ class FlowsService:
         config = config_manager.get_config()
 
         from utils.container_utils import (
+            get_container_host,
             is_localhost_url,
             replace_localhost_patterns,
-            get_container_host,
             transform_localhost_url,
         )
 
@@ -244,7 +246,7 @@ class FlowsService:
                 # Check if we need to backup (only if changed)
                 if only_if_changed and has_backups:
                     try:
-                        with open(latest_backup_path, "r") as f:
+                        with open(latest_backup_path) as f:
                             latest_backup = json.load(f)
 
                         # Compare flows
@@ -411,7 +413,7 @@ class FlowsService:
                 file_path = os.path.join(flows_dir, filename)
 
                 try:
-                    with open(file_path, "r") as f:
+                    with open(file_path) as f:
                         flow_data = json.load(f)
 
                     # Check if this file contains the flow we're looking for
@@ -468,15 +470,15 @@ class FlowsService:
 
         # Load flow JSON file
         try:
-            with open(flow_path, "r") as f:
+            with open(flow_path) as f:
                 flow_data = json.load(f)
             logger.info(
                 f"Successfully loaded flow data for {flow_type} from {os.path.basename(flow_path)}"
             )
         except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in flow file {flow_path}: {e}")
-        except FileNotFoundError:
-            raise ValueError(f"Flow file not found: {flow_path}")
+            raise ValueError(f"Invalid JSON in flow file {flow_path}: {e}") from e
+        except FileNotFoundError as e:
+            raise ValueError(f"Flow file not found: {flow_path}") from e
 
         # Make PATCH request to Langflow API to update the flow using shared client
         try:
@@ -485,7 +487,6 @@ class FlowsService:
             )
 
             if response.status_code == 200:
-                result = response.json()
                 logger.info(
                     f"Successfully reset {flow_type} flow",
                     flow_id=flow_id,
@@ -835,7 +836,7 @@ class FlowsService:
                 logger.warning(f"Flow file not found for flow ID: {flow_id}")
                 return False
 
-            with open(flow_path, "r") as f:
+            with open(flow_path) as f:
                 file_flow = json.load(f)
 
             # Normalize both flows for comparison
@@ -925,7 +926,7 @@ class FlowsService:
                     )
                     return None
 
-                with open(flow_path, "r") as f:
+                with open(flow_path) as f:
                     flow_data = json.load(f)
 
                 response = await clients.langflow_request(
@@ -1127,7 +1128,7 @@ class FlowsService:
                     logger.info(
                         f"Found {len(matched_nodes)} nodes already configured for provider '{provider}'"
                     )
-                    for node, idx in matched_nodes:
+                    for node, _idx in matched_nodes:
                         node_tasks.append(
                             wrap_node_update(
                                 node,
@@ -1426,12 +1427,12 @@ class FlowsService:
     def _get_provider_component_ids(self, provider: str):
         """Helper to get component display names for various providers."""
         from config.settings import (
+            OLLAMA_EMBEDDING_COMPONENT_DISPLAY_NAME,
+            OLLAMA_LLM_COMPONENT_DISPLAY_NAME,
             OPENAI_EMBEDDING_COMPONENT_DISPLAY_NAME,
             OPENAI_LLM_COMPONENT_DISPLAY_NAME,
             WATSONX_EMBEDDING_COMPONENT_DISPLAY_NAME,
             WATSONX_LLM_COMPONENT_DISPLAY_NAME,
-            OLLAMA_EMBEDDING_COMPONENT_DISPLAY_NAME,
-            OLLAMA_LLM_COMPONENT_DISPLAY_NAME,
         )
 
         if provider == "openai":

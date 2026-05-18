@@ -1,12 +1,11 @@
 """Unit tests for the disable_ingest_with_langflow configuration setting."""
 
-import os
 import tempfile
 from pathlib import Path
+
 import pytest
 
 from config.config_manager import ConfigManager
-from config.settings import get_embedding_model, OPENAI_DEFAULT_EMBEDDING_MODEL
 
 
 def test_disable_ingest_default(monkeypatch):
@@ -71,10 +70,12 @@ def test_disable_ingest_preserves_on_save(monkeypatch):
 @pytest.mark.asyncio
 async def test_traditional_upload_ingest_task(monkeypatch):
     """Verify that traditional ingestion invokes task_service.create_upload_task and returns 202."""
+    from unittest.mock import AsyncMock, MagicMock
+
     from fastapi import UploadFile
+
     from api.router import _traditional_upload_ingest_task
     from session_manager import User
-    from unittest.mock import AsyncMock, MagicMock
 
     mock_file = MagicMock(spec=UploadFile)
     mock_file.filename = "test_document.txt"

@@ -1,10 +1,12 @@
 """Configuration management for OpenRAG."""
 
 import os
-import yaml
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, Any, Optional
-from dataclasses import dataclass, asdict, field
+from typing import Any, Optional
+
+import yaml
+
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -102,14 +104,14 @@ class OnboardingState:
     """Onboarding state configuration."""
 
     current_step: int = 0
-    assistant_message: Optional[Dict[str, Any]] = field(default=None)
-    selected_nudge: Optional[str] = field(default=None)
-    card_steps: Optional[Dict[str, Any]] = field(default=None)
-    upload_steps: Optional[Dict[str, Any]] = field(default=None)
-    openrag_docs_filter_id: Optional[str] = field(default=None)
-    user_doc_filter_id: Optional[str] = field(default=None)
-    openrag_docs_ingested_version: Optional[str] = field(default=None)
-    openrag_docs_remote_signature: Optional[str] = field(default=None)
+    assistant_message: dict[str, Any] | None = field(default=None)
+    selected_nudge: str | None = field(default=None)
+    card_steps: dict[str, Any] | None = field(default=None)
+    upload_steps: dict[str, Any] | None = field(default=None)
+    openrag_docs_filter_id: str | None = field(default=None)
+    user_doc_filter_id: str | None = field(default=None)
+    openrag_docs_ingested_version: str | None = field(default=None)
+    openrag_docs_remote_signature: str | None = field(default=None)
 
 
 @dataclass
@@ -123,7 +125,7 @@ class OpenRAGConfig:
     edited: bool = False  # Track if manually edited
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "OpenRAGConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "OpenRAGConfig":
         """Create config from dictionary."""
         providers_data = data.get("providers", {})
 
@@ -149,7 +151,7 @@ class OpenRAGConfig:
             edited=data.get("edited", False),
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert config to dictionary."""
         return asdict(self)
 
@@ -165,7 +167,7 @@ class OpenRAGConfig:
 class ConfigManager:
     """Manages OpenRAG configuration from multiple sources."""
 
-    def __init__(self, config_file: Optional[str] = None):
+    def __init__(self, config_file: str | None = None):
         """Initialize configuration manager.
 
         Args:
@@ -177,7 +179,7 @@ class ConfigManager:
             from config.paths import get_config_file_path
 
             self.config_file = Path(get_config_file_path())
-        self._config: Optional[OpenRAGConfig] = None
+        self._config: OpenRAGConfig | None = None
 
     def load_config(self) -> OpenRAGConfig:
         """Load configuration from environment variables and config file.
@@ -209,7 +211,7 @@ class ConfigManager:
         # Load from config file if it exists
         if self.config_file.exists():
             try:
-                with open(self.config_file, "r") as f:
+                with open(self.config_file) as f:
                     file_config = yaml.safe_load(f) or {}
 
                 # Merge file config
@@ -253,7 +255,7 @@ class ConfigManager:
         return self._config
 
     def _load_env_overrides(
-        self, config_data: Dict[str, Any], temp_config: Optional["OpenRAGConfig"] = None
+        self, config_data: dict[str, Any], temp_config: Optional["OpenRAGConfig"] = None
     ) -> None:
         """Load environment variable overrides, respecting edited flag."""
 
@@ -328,7 +330,7 @@ class ConfigManager:
         return self.load_config()
 
     def save_config_file(
-        self, config: Optional[OpenRAGConfig] = None, preserve_edited: bool = False
+        self, config: OpenRAGConfig | None = None, preserve_edited: bool = False
     ) -> bool:
         """Save configuration to file.
 
@@ -356,7 +358,7 @@ class ConfigManager:
             from utils.encryption import encrypt_secret
 
             providers = config_dict.get("providers", {})
-            for provider_name, provider_config in providers.items():
+            for _provider_name, provider_config in providers.items():
                 if "api_key" in provider_config:
                     provider_config["api_key"] = encrypt_secret(provider_config["api_key"])
 
