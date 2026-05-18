@@ -123,19 +123,6 @@ async def _traditional_upload_ingest_task(
                 replace_duplicates=replace_duplicates,
             )
 
-            # Clean up temp files after task is created
-            from utils.file_utils import safe_unlink
-
-            for temp_path in temp_file_paths:
-                try:
-                    safe_unlink(temp_path)
-                except Exception as cleanup_error:
-                    logger.warning(
-                        "Failed to clean up temp file after task creation",
-                        temp_path=temp_path,
-                        error=str(cleanup_error),
-                    )
-
             return JSONResponse(
                 {
                     "task_id": task_id,
@@ -235,19 +222,6 @@ async def _langflow_upload_ingest_task(
                 settings=settings,
                 replace_duplicates=replace_duplicates,
             )
-
-            # Clean up temp files after task is created
-            from utils.file_utils import safe_unlink
-
-            for temp_path in temp_file_paths:
-                try:
-                    safe_unlink(temp_path)
-                except Exception as cleanup_error:
-                    logger.warning(
-                        "Failed to clean up temp file after task creation",
-                        temp_path=temp_path,
-                        error=str(cleanup_error),
-                    )
 
             return JSONResponse(
                 {
