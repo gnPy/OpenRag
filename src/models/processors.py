@@ -312,13 +312,15 @@ class TaskProcessor:
 
         dimensions = len(embeddings[0])
 
-        # Mapping updates are index-admin operations and fail under document-level
-        # security when attempted with a user-scoped OpenSearch client.
-        mapping_client = clients.opensearch or opensearch_client
+        # Mapping and write operations are index-admin operations and fail under
+        # document-level security when attempted with a user-scoped OpenSearch
+        # client. Reads still use the scoped client above so duplicate checks
+        # respect the caller's visibility.
+        write_client = clients.opensearch or opensearch_client
 
         # Ensure the embedding field exists for this model
         embedding_field_name = await ensure_embedding_field_exists(
-            mapping_client, embedding_model, get_index_name(), dimensions
+            write_client, embedding_model, get_index_name(), dimensions
         )
 
         # Index each chunk as a separate document
@@ -364,7 +366,7 @@ class TaskProcessor:
                 chunk_doc["is_sample_data"] = "true"
             chunk_id = f"{file_hash}_{i}"
             try:
-                await opensearch_client.index(index=get_index_name(), id=chunk_id, body=chunk_doc)
+                await write_client.index(index=get_index_name(), id=chunk_id, body=chunk_doc)
             except Exception as e:
                 logger.error(
                     "OpenSearch indexing failed for chunk",

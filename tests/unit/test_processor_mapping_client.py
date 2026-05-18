@@ -6,7 +6,7 @@ from models.processors import TaskProcessor
 
 
 @pytest.mark.asyncio
-async def test_standard_processor_uses_admin_client_for_embedding_mapping(
+async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_writes(
     tmp_path,
     monkeypatch,
 ):
@@ -14,7 +14,7 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping(
         exists_calls=[],
         index_calls=[],
     )
-    admin_client = object()
+    admin_client = SimpleNamespace(index_calls=[])
     mapping_clients = []
 
     async def exists(*, index, id):
@@ -24,8 +24,12 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping(
     async def index(**kwargs):
         user_client.index_calls.append(kwargs)
 
+    async def admin_index(**kwargs):
+        admin_client.index_calls.append(kwargs)
+
     user_client.exists = exists
     user_client.index = index
+    admin_client.index = admin_index
 
     class SessionManager:
         def get_user_opensearch_client(self, user_id, jwt_token):
@@ -91,4 +95,5 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping(
     assert result == {"status": "indexed", "id": "file-1"}
     assert mapping_clients == [admin_client]
     assert user_client.exists_calls == [{"index": "documents", "id": "file-1"}]
-    assert user_client.index_calls
+    assert user_client.index_calls == []
+    assert admin_client.index_calls
