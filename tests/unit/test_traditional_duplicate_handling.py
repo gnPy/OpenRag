@@ -41,7 +41,9 @@ async def test_traditional_processor_duplicate_exists_no_replace():
 
     processor.check_filename_exists.assert_called_once()
     processor.delete_document_by_filename.assert_not_called()
-    mock_session_manager.get_user_opensearch_client.assert_called_once_with("user-123", "mock-token")
+    mock_session_manager.get_user_opensearch_client.assert_called_once_with(
+        "user-123", "mock-token"
+    )
 
 
 @pytest.mark.asyncio
@@ -71,7 +73,10 @@ async def test_traditional_processor_duplicate_exists_with_replace():
     upload_task = UploadTask(task_id="task-123", total_files=1)
     file_task = FileTask(file_path="/tmp/test.txt", filename="test.txt")
 
-    with patch("os.path.getsize", return_value=1234), patch("utils.hash_utils.hash_id", return_value="dummy-hash"):
+    with (
+        patch("os.path.getsize", return_value=1234),
+        patch("utils.hash_utils.hash_id", return_value="dummy-hash"),
+    ):
         await processor.process_item(upload_task, "/tmp/test.txt", file_task)
 
     assert file_task.status == TaskStatus.COMPLETED
@@ -82,4 +87,6 @@ async def test_traditional_processor_duplicate_exists_with_replace():
     processor.check_filename_exists.assert_called_once()
     processor.delete_document_by_filename.assert_called_once()
     processor.process_document_standard.assert_called_once()
-    mock_session_manager.get_user_opensearch_client.assert_called_once_with("user-123", "mock-token")
+    mock_session_manager.get_user_opensearch_client.assert_called_once_with(
+        "user-123", "mock-token"
+    )

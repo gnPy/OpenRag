@@ -462,9 +462,13 @@ async def update_settings(
                 logger.error(f"Failed to update docling settings in flow: {str(e)}")
 
         if body.disable_ingest_with_langflow is not None:
-            current_config.knowledge.disable_ingest_with_langflow = body.disable_ingest_with_langflow
+            current_config.knowledge.disable_ingest_with_langflow = (
+                body.disable_ingest_with_langflow
+            )
             config_updated = True
-            logger.info(f"Disable Langflow ingestion changed to {body.disable_ingest_with_langflow}")
+            logger.info(
+                f"Disable Langflow ingestion changed to {body.disable_ingest_with_langflow}"
+            )
 
         if body.chunk_size is not None:
             effective_overlap = (

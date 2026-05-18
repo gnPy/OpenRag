@@ -111,6 +111,7 @@ async def _traditional_upload_ingest_task(
 
             # Ensure the search index exists before creating the upload task
             from api.documents import _ensure_index_exists
+
             await _ensure_index_exists(jwt_token)
 
             task_id = await task_service.create_upload_task(

@@ -106,6 +106,7 @@ async def test_traditional_upload_ingest_task(monkeypatch):
 
     assert response.status_code == 202
     import json
+
     data = json.loads(response.body.decode())
     assert data["task_id"] == "traditional-task-123"
     assert data["file_count"] == 1
