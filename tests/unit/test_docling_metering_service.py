@@ -242,7 +242,6 @@ async def test_poll_count_zero_for_legacy_path(
     assert build_kwargs["outcome"] == "success"
 
 
-# shared fixture reused from conftest scope
 @pytest.fixture
 def mock_polling_service():
     return AsyncMock()

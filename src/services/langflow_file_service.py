@@ -600,7 +600,7 @@ class LangflowFileService:
             file_task.phase = IngestionPhase.DOCLING
             file_task.docling_status = DoclingPhaseStatus.PENDING
 
-        task_id = await self.submit_to_docling(filename, content, jwt_token=jwt_token, owner=owner)
+        task_id = await self.submit_to_docling(filename, content, owner=owner, jwt_token=jwt_token)
         submitted_at = datetime.now(timezone.utc).isoformat()
         _submit_wall = time.monotonic()
 
