@@ -149,8 +149,8 @@ async def _traditional_upload_ingest_task(
         logger.error("Full traceback", traceback=traceback.format_exc())
         error_msg = str(e)
         if "AuthenticationException" in error_msg or "access denied" in error_msg.lower():
-            return JSONResponse({"error": error_msg}, status_code=403)
-        return JSONResponse({"error": error_msg}, status_code=500)
+            return JSONResponse({"error": "Access denied"}, status_code=403)
+        return JSONResponse({"error": "An internal error has occurred."}, status_code=500)
 
 
 async def _langflow_upload_ingest_task(
