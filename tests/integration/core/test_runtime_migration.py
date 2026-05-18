@@ -24,8 +24,6 @@ _RELOAD_MODULES = [
     "app.routes.internal",
     "auth_middleware",
     "config.settings",
-    "db.engine",
-    "db.migrations_runtime",
     "dependencies",
     "main",
     "services",

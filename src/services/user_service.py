@@ -14,7 +14,6 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Optional
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,6 +57,7 @@ async def ensure_user_row(session: AsyncSession, user: User) -> UserRow:
     existing = await user_repo.get_by_oauth(provider, subject)
     if existing:
         await user_repo.update_last_login(existing.id)
+        await _assign_default_role_if_missing(session, role_repo, audit_repo, existing.id)
         return existing
 
     # Possible legacy row (oauth_provider='legacy', oauth_subject==user_id)
@@ -201,6 +201,18 @@ async def _assign_bootstrap_or_default(
     )
 
 
+async def _assign_default_role_if_missing(
+    session: AsyncSession,
+    role_repo: RoleRepo,
+    audit_repo: AuditRepo,
+    user_id: str,
+) -> None:
+    roles = await role_repo.list_user_roles(user_id)
+    if roles:
+        return
+    await _assign_bootstrap_or_default(session, role_repo, audit_repo, user_id)
+
+
 async def get_effective_provider_keys(session: AsyncSession, user_id: str) -> dict:
     """Phase-4 helper. Returns a dict of provider -> overrides for this user.
 
@@ -211,6 +223,6 @@ async def get_effective_provider_keys(session: AsyncSession, user_id: str) -> di
     return {}
 
 
-async def get_effective_agent_config(session: AsyncSession, user_id: str) -> Optional[dict]:
+async def get_effective_agent_config(session: AsyncSession, user_id: str) -> dict | None:
     """Phase-4 helper. Returns the per-user agent config overlay (or None)."""
     return None
