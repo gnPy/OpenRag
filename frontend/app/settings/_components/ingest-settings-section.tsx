@@ -263,7 +263,10 @@ export function IngestSettingsSection() {
             <div className="flex gap-2">
               <ConfirmationDialog
                 trigger={
-                  <Button ignoreTitleCase={true} variant="tertiary">
+                  <Button
+                    ignoreTitleCase={true}
+                    variant={isCloudBrand ? "tertiary" : "ghost"}
+                  >
                     Restore flow
                   </Button>
                 }
