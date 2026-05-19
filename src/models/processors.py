@@ -484,13 +484,16 @@ class DocumentFileProcessor(TaskProcessor):
 
             # Parse ACL from settings if present
             from connectors.base import DocumentACL
-            
+
             acl = None
-            if self.settings and (self.settings.get("allowed_users") is not None or self.settings.get("allowed_groups") is not None):
+            if self.settings and (
+                self.settings.get("allowed_users") is not None
+                or self.settings.get("allowed_groups") is not None
+            ):
                 acl = DocumentACL(
                     owner=self.owner_user_id,
                     allowed_users=self.settings.get("allowed_users", []),
-                    allowed_groups=self.settings.get("allowed_groups", [])
+                    allowed_groups=self.settings.get("allowed_groups", []),
                 )
 
             # Use consolidated standard processing
