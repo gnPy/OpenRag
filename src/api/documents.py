@@ -1,10 +1,10 @@
 from fastapi import Depends
-from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-from utils.logging_config import get_logger
+from pydantic import BaseModel
 
-from dependencies import get_session_manager, get_current_user, require_permission
+from dependencies import get_current_user, get_session_manager, require_permission
 from session_manager import User
+from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -21,7 +21,8 @@ async def delete_documents_by_filename_core(
 ):
     """Shared delete-by-filename logic for v1 and non-v1 endpoints."""
     from config.settings import get_index_name
-    from utils.opensearch_queries import build_filename_delete_body
+    from utils.opensearch_delete import bulk_delete_document_ids, collect_visible_document_ids
+    from utils.opensearch_queries import build_filename_query, build_owned_filename_query
 
     normalized_filename = (filename or "").strip()
     if not normalized_filename:
@@ -38,20 +39,24 @@ async def delete_documents_by_filename_core(
 
     try:
         opensearch_client = session_manager.get_user_opensearch_client(user_id, jwt_token)
+        index_name = get_index_name()
 
-        # Owner check: only the document owner may delete
-        check = await opensearch_client.search(
-            index=get_index_name(),
-            body={
-                "query": {"term": {"filename": normalized_filename}},
-                "size": 1,
-                "_source": ["owner"],
-            },
+        owned_document_ids = await collect_visible_document_ids(
+            opensearch_client,
+            index=index_name,
+            query=build_owned_filename_query(normalized_filename, user_id),
         )
-        hits = check.get("hits", {}).get("hits", [])
-        if hits:
-            doc_owner = hits[0]["_source"].get("owner")
-            if doc_owner and doc_owner != user_id:
+
+        if not owned_document_ids:
+            visible_check = await opensearch_client.search(
+                index=index_name,
+                body={
+                    "query": build_filename_query(normalized_filename),
+                    "size": 1,
+                    "_source": ["owner"],
+                },
+            )
+            if visible_check.get("hits", {}).get("hits", []):
                 return (
                     {
                         "success": False,
@@ -63,14 +68,22 @@ async def delete_documents_by_filename_core(
                     403,
                 )
 
-        delete_query = build_filename_delete_body(normalized_filename)
-        result = await opensearch_client.delete_by_query(
-            index=get_index_name(),
-            body=delete_query,
-            conflicts="proceed",
-        )
+            return (
+                {
+                    "success": False,
+                    "deleted_chunks": 0,
+                    "filename": normalized_filename,
+                    "message": None,
+                    "error": "No matching document chunks were deleted. The file may be missing or not deletable in the current user context.",
+                },
+                404,
+            )
 
-        deleted_count = result.get("deleted", 0)
+        deleted_count = await bulk_delete_document_ids(
+            opensearch_client,
+            index=index_name,
+            document_ids=owned_document_ids,
+        )
         logger.info(
             f"Deleted {deleted_count} chunks for filename {normalized_filename}",
             user_id=user_id,
@@ -124,8 +137,9 @@ async def delete_documents_by_filename_core(
 
 async def _ensure_index_exists(jwt_token: str = None):
     """Create the OpenSearch index if it doesn't exist yet."""
+    from config.settings import IBM_AUTH_ENABLED
+    from config.settings import clients as app_clients
     from main import init_index
-    from config.settings import IBM_AUTH_ENABLED, clients as app_clients
 
     opensearch_client = None
     if IBM_AUTH_ENABLED and jwt_token:
@@ -147,8 +161,8 @@ async def check_filename_exists(
     try:
         opensearch_client = session_manager.get_user_opensearch_client(user.user_id, jwt_token)
 
-        from utils.opensearch_queries import build_filename_search_body
         from utils.file_utils import get_filename_aliases
+        from utils.opensearch_queries import build_filename_search_body
 
         candidate_filenames = get_filename_aliases(filename)
         if not candidate_filenames:

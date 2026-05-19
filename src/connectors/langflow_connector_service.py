@@ -114,15 +114,26 @@ class LangflowConnectorService:
             if self.session_manager:
                 try:
                     from config.settings import get_index_name
+                    from utils.opensearch_delete import (
+                        bulk_delete_document_ids,
+                        collect_visible_document_ids,
+                    )
+                    from utils.opensearch_queries import build_owned_filename_query
 
                     opensearch_client = self.session_manager.get_user_opensearch_client(
                         owner_user_id, jwt_token
                     )
-                    delete_body = {"query": {"term": {"filename": processed_filename}}}
-                    delete_result = await opensearch_client.delete_by_query(
-                        index=get_index_name(), body=delete_body
+                    index_name = get_index_name()
+                    document_ids = await collect_visible_document_ids(
+                        opensearch_client,
+                        index=index_name,
+                        query=build_owned_filename_query(processed_filename, owner_user_id),
                     )
-                    deleted_count = delete_result.get("deleted", 0)
+                    deleted_count = await bulk_delete_document_ids(
+                        opensearch_client,
+                        index=index_name,
+                        document_ids=document_ids,
+                    )
                     logger.info(
                         "Deleted existing chunks before re-ingestion",
                         filename=processed_filename,

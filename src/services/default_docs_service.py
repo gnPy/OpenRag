@@ -369,6 +369,7 @@ async def _ingest_default_documents_url(
 async def _delete_existing_default_docs(session_manager, connector_type: str):
     """Delete previously ingested default OpenRAG docs before reingestion."""
     from session_manager import AnonymousUser
+    from utils.opensearch_delete import bulk_delete_document_ids, collect_visible_document_ids
 
     if session_manager is None:
         logger.warning(
@@ -405,14 +406,20 @@ async def _delete_existing_default_docs(session_manager, connector_type: str):
             }
         }
     }
-    result = await opensearch_client.delete_by_query(
-        index=get_index_name(),
-        body=delete_query,
-        conflicts="proceed",
+    index_name = get_index_name()
+    document_ids = await collect_visible_document_ids(
+        opensearch_client,
+        index=index_name,
+        query=delete_query["query"],
+    )
+    deleted_chunks = await bulk_delete_document_ids(
+        opensearch_client,
+        index=index_name,
+        document_ids=document_ids,
     )
     logger.info(
         "Deleted existing default OpenRAG docs before reingestion",
-        deleted_chunks=result.get("deleted", 0),
+        deleted_chunks=deleted_chunks,
     )
 
 

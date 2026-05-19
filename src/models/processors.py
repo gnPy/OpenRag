@@ -145,28 +145,42 @@ class TaskProcessor:
         self,
         filename: str,
         opensearch_client,
+        owner_user_id: str | None = None,
     ) -> None:
         """
         Delete all chunks of a document with the given filename from OpenSearch.
         """
         from config.settings import get_index_name
-        from utils.opensearch_queries import build_filename_delete_body
+        from utils.opensearch_delete import bulk_delete_document_ids, collect_visible_document_ids
+        from utils.opensearch_queries import build_owned_filename_query
 
         try:
             deleted_count = 0
+            if not owner_user_id:
+                logger.warning(
+                    "Skipped delete_by_filename because owner_user_id is missing",
+                    filename=filename,
+                )
+                return
+
             candidate_filenames = get_filename_aliases(filename)
             if not candidate_filenames:
                 logger.info(
-                    "Skipped delete_by_filename due to empty filename input",
+                    "Skipped delete_by_filename because filename input is empty",
                     filename=filename,
                 )
                 return
             for candidate in candidate_filenames:
-                delete_body = build_filename_delete_body(candidate)
-                response = await opensearch_client.delete_by_query(
-                    index=get_index_name(), body=delete_body
+                document_ids = await collect_visible_document_ids(
+                    opensearch_client,
+                    index=get_index_name(),
+                    query=build_owned_filename_query(candidate, owner_user_id),
                 )
-                deleted_count += response.get("deleted", 0)
+                deleted_count += await bulk_delete_document_ids(
+                    opensearch_client,
+                    index=get_index_name(),
+                    document_ids=document_ids,
+                )
             logger.info(
                 "Deleted existing document chunks", filename=filename, deleted_count=deleted_count
             )
@@ -864,7 +878,11 @@ class LangflowFileProcessor(TaskProcessor):
             elif filename_exists and self.replace_duplicates:
                 # Delete existing document before uploading new one
                 logger.info(f"Replacing existing document: {original_filename}")
-                await self.delete_document_by_filename(original_filename, opensearch_client)
+                await self.delete_document_by_filename(
+                    original_filename,
+                    opensearch_client,
+                    owner_user_id=self.owner_user_id,
+                )
 
             # Read file content for processing
             with open(item, "rb") as f:
