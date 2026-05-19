@@ -243,7 +243,7 @@ export function ChatRenderer({
   };
 
   // List of paths with smaller max-width
-  const smallWidthPaths = ["/settings", "/upload"];
+  const smallWidthPaths = isCloudBrand ? ["/upload"] : ["/upload", "/settings"];
   const isSmallWidthPath = smallWidthPaths.some((path) =>
     pathname.startsWith(path),
   );

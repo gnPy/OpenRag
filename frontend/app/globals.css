@@ -234,6 +234,8 @@
     --text-text-01: 0 0% 9%;
     --link-primary: 217 100% 45%;
     --button-tertiary: 217 100% 45%;
+    --border-border-interactive: #4589ff;
+    --border-subtle-contextual: #525252;
 
     --badge: 0 0% 22.4%; /* #393939 */
     --badge-foreground: 0 0% 96%; /* #F4F4F4 */
@@ -324,6 +326,8 @@
     --text-text-01: 0 0% 96%;
     --link-primary: 217 100% 74%;
     --button-tertiary: 217 100% 74%;
+    --border-border-interactive: #4589ff;
+    --border-subtle-contextual: #525252;
 
     --badge: 0 0% 32%; /* #525252 */
     --badge-foreground: 0 0% 96%; /* #F4F4F4 */
@@ -360,6 +364,27 @@
     letter-spacing: 0.16px;
   }
 
+  /* IBM: 2px bottom border — transparent default, interactive blue on hover/active */
+  [data-theme="ibm"] .ibm-tab-underline {
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    background-blend-mode: multiply;
+  }
+
+  [data-theme="ibm"] .ibm-tab-underline--previous {
+    border-bottom-color: var(--border-subtle-contextual);
+  }
+
+  [data-theme="ibm"] .ibm-tab-underline:hover {
+    border-bottom-color: var(--border-border-interactive);
+  }
+
+  [data-theme="ibm"] .ibm-tab-underline.ibm-body-compact[data-state="active"] {
+    border-bottom-color: var(--border-border-interactive);
+    font-weight: 600 !important;
+  }
+
   /* IBM Settings: inline links (Link/link-primary) */
   [data-theme="ibm"] .ibm-settings-page a[href] {
     color: hsl(var(--link-primary));
@@ -368,6 +393,50 @@
   [data-theme="ibm"] .ibm-settings-page a[href]:hover {
     text-decoration: underline;
     text-underline-offset: 2px;
+  }
+
+  /* IBM Settings: text actions — no resting border; blue border on hover/active */
+  [data-theme="ibm"] .ibm-settings-page .ibm-tab-underline.ibm-text-action {
+    min-height: 0;
+    padding: 3px 16px;
+    color: var(--border-border-interactive);
+    font-weight: 400;
+    letter-spacing: 0.16px;
+    border-bottom-width: 0;
+    border-bottom-color: transparent;
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action:hover:not(:disabled),
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action:active:not(:disabled),
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action[data-state="open"] {
+    border-bottom-width: 2px;
+    border-bottom-color: var(--border-border-interactive);
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action:hover:not(:disabled) {
+    color: var(--border-border-interactive);
+    text-decoration: none;
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action:focus-visible {
+    outline: 2px solid var(--border-border-interactive);
+    outline-offset: 2px;
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-tab-underline.ibm-text-action:disabled {
+    opacity: 0.5;
   }
 
   /* IBM Carbon Design System: Input fields styling */
@@ -383,11 +452,11 @@
   }
 
   [data-theme="ibm"] .primary-input:hover {
-    border-bottom-color: hsl(var(--foreground));
+    border-bottom-color: var(--border-border-interactive);
   }
 
   [data-theme="ibm"] .primary-input:focus {
-    border-bottom-color: hsl(var(--primary));
+    border-bottom-color: var(--border-border-interactive);
   }
 
   /* IBM Carbon Design System: Placeholder text uses secondary color #C6C6C6 */
@@ -395,8 +464,98 @@
     color: hsl(var(--muted-foreground));
   }
 
-  /* IBM Carbon Design System: Select/Combobox styling (ModelSelector buttons) */
-  [data-theme="ibm"] .ibm-settings-page button[role="combobox"] {
+  /* IBM settings toolbar — same contained h-12 bar as Knowledge (SaaS) */
+  [data-theme="ibm"] .ibm-settings-page .ibm-settings-toolbar {
+    display: flex;
+    width: 100%;
+    height: 3rem;
+    align-items: stretch;
+    justify-content: flex-end;
+    overflow: hidden;
+    border: 1px solid hsl(var(--border));
+    background-color: hsl(var(--card));
+  }
+
+  [data-theme="ibm"] .ibm-settings-page .ibm-settings-toolbar-search {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+  }
+
+  [data-theme="ibm"] .ibm-settings-page .ibm-settings-toolbar-search input {
+    height: 100%;
+    width: 100%;
+    border: none;
+    border-radius: 0;
+    border-bottom: none;
+    background: transparent;
+    box-shadow: none;
+    padding-top: 0;
+    padding-bottom: 0;
+    font-size: 0.875rem;
+    line-height: 1.125rem;
+    letter-spacing: 0.16px;
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-settings-toolbar-search
+    input:focus {
+    outline: none;
+    border-bottom: none;
+    box-shadow: none;
+  }
+
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-settings-toolbar-search
+    input::placeholder {
+    color: hsl(var(--placeholder));
+  }
+
+  /* IBM Carbon ComboButton (primary) — right segment inside toolbar */
+  [data-theme="ibm"]
+    .ibm-settings-page
+    .ibm-settings-toolbar
+    .ibm-combo-button {
+    height: 100%;
+    min-height: 0;
+    flex-shrink: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+    padding-left: 1rem;
+    padding-right: 1rem;
+    border: none;
+    border-left: 1px solid hsl(var(--border));
+    border-radius: 0;
+    background-color: hsl(var(--primary));
+    color: hsl(var(--primary-foreground));
+    box-shadow: none;
+  }
+
+  [data-theme="ibm"] .ibm-settings-page .ibm-combo-button:hover:not(:disabled),
+  [data-theme="ibm"] .ibm-settings-page .ibm-combo-button[data-state="open"] {
+    background-color: hsl(var(--primary-hover));
+    border-bottom-color: transparent;
+    color: hsl(var(--primary-foreground));
+  }
+
+  [data-theme="ibm"] .ibm-settings-page .ibm-combo-button:focus-visible {
+    border-bottom-color: transparent;
+    outline: 2px solid var(--border-border-interactive);
+    outline-offset: -2px;
+  }
+
+  [data-theme="ibm"] .ibm-settings-page .ibm-combo-button svg {
+    color: hsl(var(--primary-foreground));
+    opacity: 1;
+  }
+
+  /* IBM Carbon: underline selects (not ComboButton) */
+  [data-theme="ibm"]
+    .ibm-settings-page
+    button[role="combobox"]:not(.ibm-combo-button) {
     border: none;
     border-radius: 0;
     border-bottom: 2px solid hsl(var(--input));
@@ -405,17 +564,20 @@
 
   [data-theme="ibm"]
     .ibm-settings-page
-    button[role="combobox"]:hover:not(:disabled) {
-    border-bottom-color: hsl(var(--foreground));
+    button[role="combobox"]:not(.ibm-combo-button):hover:not(:disabled) {
+    border-bottom-color: var(--border-border-interactive);
     background-color: hsl(var(--layer-contextual));
   }
 
-  [data-theme="ibm"] .ibm-settings-page button[role="combobox"]:focus {
-    border-bottom-color: hsl(var(--primary));
+  [data-theme="ibm"]
+    .ibm-settings-page
+    button[role="combobox"]:not(.ibm-combo-button):focus {
+    border-bottom-color: var(--border-border-interactive);
   }
 
-  /* IBM Carbon Design System: Regular Select trigger styling */
-  [data-theme="ibm"] .ibm-settings-page [data-radix-select-trigger] {
+  [data-theme="ibm"]
+    .ibm-settings-page
+    [data-radix-select-trigger]:not(.ibm-combo-button) {
     border: none;
     border-radius: 0;
     border-bottom: 2px solid hsl(var(--input));
@@ -424,13 +586,22 @@
 
   [data-theme="ibm"]
     .ibm-settings-page
-    [data-radix-select-trigger]:hover:not(:disabled) {
-    border-bottom-color: hsl(var(--foreground));
+    [data-radix-select-trigger]:not(.ibm-combo-button):hover:not(:disabled) {
+    border-bottom-color: var(--border-border-interactive);
     background-color: hsl(var(--card));
   }
 
-  [data-theme="ibm"] .ibm-settings-page [data-radix-select-trigger]:focus {
-    border-bottom-color: hsl(var(--primary));
+  [data-theme="ibm"]
+    .ibm-settings-page
+    [data-radix-select-trigger]:not(.ibm-combo-button):focus {
+    border-bottom-color: var(--border-border-interactive);
+  }
+
+  /* IBM settings: outline buttons (e.g. Refresh) — blue border on hover */
+  [data-theme="ibm"]
+    .ibm-settings-page
+    button.border:hover:not(:disabled):not([data-state]) {
+    border-color: var(--border-border-interactive);
   }
 
   /* IBM Carbon Design System: Flatten cards in settings page */
@@ -525,6 +696,16 @@
   [data-theme="ibm"].dark .fc-card .fc-value,
   [data-theme="ibm"].dark .fc-card .fc-result {
     background-color: rgba(15, 98, 254, 0.2); /* #0F62FE at 20% */
+  }
+
+  /* Switch with cloud brand uses blue background when checked */
+  [role="switch"][data-cloud-brand="true"][data-state="checked"] {
+    background-color: hsl(217 100% 50%) !important;
+  }
+
+  /* Switch thumb (circle) is blue when unchecked and cloud brand is true */
+  [role="switch"][data-cloud-brand="true"] > span[data-state="unchecked"] {
+    background-color: hsl(217 100% 50%) !important;
   }
 
   * {

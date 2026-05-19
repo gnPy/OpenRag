@@ -268,31 +268,67 @@ export function UsersAndRolesSection() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Search + filter row — heights match Settings primitives (h-9) */}
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, email, or ID"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9"
-              />
+          {/* Search + filter — IBM: contained h-12 bar (Knowledge SaaS); OSS: h-9 row */}
+          {isCloudBrand ? (
+            <div className="ibm-settings-toolbar">
+              <div className="ibm-settings-toolbar-search">
+                <Search
+                  className="ml-4 h-4 w-4 shrink-0 text-[var(--icon-secondary)]"
+                  strokeWidth={1.75}
+                />
+                <input
+                  type="search"
+                  placeholder="Search by name, email, or ID"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-3 pr-4 focus:outline-none focus:ring-0"
+                />
+              </div>
+              <Select value={filterRole} onValueChange={setFilterRole}>
+                <SelectTrigger
+                  className={cn(
+                    "h-full w-[180px] rounded-none",
+                    "ibm-combo-button focus:ring-0 focus:ring-offset-0",
+                  )}
+                >
+                  <SelectValue placeholder="All roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All roles</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.name}>
+                      <span className="capitalize">{r.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <Select value={filterRole} onValueChange={setFilterRole}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="All roles" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__all">All roles</SelectItem>
-                {roles.map((r) => (
-                  <SelectItem key={r.id} value={r.name}>
-                    <span className="capitalize">{r.name}</span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, email, or ID"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              <Select value={filterRole} onValueChange={setFilterRole}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="All roles" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all">All roles</SelectItem>
+                  {roles.map((r) => (
+                    <SelectItem key={r.id} value={r.name}>
+                      <span className="capitalize">{r.name}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* User table — matches API Keys table styling */}
           {isLoading ? (

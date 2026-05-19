@@ -31,7 +31,6 @@ import { cn } from "@/lib/utils";
 import { useUpdateSettingsMutation } from "../../api/mutations/useUpdateSettingsMutation";
 import { ModelSelector } from "../../onboarding/_components/model-selector";
 import { getModelLogo } from "../_helpers/model-helpers";
-import { LangflowIcon } from "./langflow-icon";
 
 export function IngestSettingsSection() {
   const isCloudBrand = useIsCloudBrand();
@@ -263,7 +262,7 @@ export function IngestSettingsSection() {
             <div className="flex gap-2">
               <ConfirmationDialog
                 trigger={
-                  <Button ignoreTitleCase={true} variant="outline">
+                  <Button ignoreTitleCase={true} variant="tertiary">
                     Restore flow
                   </Button>
                 }
@@ -275,8 +274,14 @@ export function IngestSettingsSection() {
               />
               <ConfirmationDialog
                 trigger={
-                  <Button>
-                    <LangflowIcon />
+                  <Button
+                    ignoreTitleCase={true}
+                    variant="ghost"
+                    className={cn(
+                      isCloudBrand &&
+                        "ibm-tab-underline ibm-text-action rounded-none shadow-none transition-none hover:bg-accent",
+                    )}
+                  >
                     Edit in Langflow
                   </Button>
                 }
@@ -445,6 +450,7 @@ export function IngestSettingsSection() {
                 id="table-structure"
                 checked={tableStructure}
                 onCheckedChange={setTableStructure}
+                isCloudBrand={isCloudBrand}
               />
             </div>
             <div className="flex items-center justify-between py-3 border-b border-border">
@@ -459,7 +465,12 @@ export function IngestSettingsSection() {
                   Extracts text from images/PDFs. Ingest is slower when enabled.
                 </div>
               </div>
-              <Switch id="ocr" checked={ocr} onCheckedChange={setOcr} />
+              <Switch
+                id="ocr"
+                checked={ocr}
+                onCheckedChange={setOcr}
+                isCloudBrand={isCloudBrand}
+              />
             </div>
             <div className="flex items-center justify-between py-3">
               <div className="flex-1">
@@ -477,6 +488,7 @@ export function IngestSettingsSection() {
                 id="picture-descriptions"
                 checked={pictureDescriptions}
                 onCheckedChange={setPictureDescriptions}
+                isCloudBrand={isCloudBrand}
               />
             </div>
           </div>
@@ -486,9 +498,14 @@ export function IngestSettingsSection() {
               disabled={
                 updateSettingsMutation.isPending || !knowledgeIngestDirty
               }
-              className="min-w-[120px]"
+              ignoreTitleCase={true}
               size="sm"
-              variant="outline"
+              variant={isCloudBrand ? "ghost" : "outline"}
+              className={cn(
+                !isCloudBrand && "min-w-[120px]",
+                isCloudBrand &&
+                  "ibm-tab-underline ibm-text-action rounded-none shadow-none transition-none hover:bg-accent",
+              )}
             >
               {updateSettingsMutation.isPending ? (
                 <>

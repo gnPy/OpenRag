@@ -163,6 +163,8 @@ const config = {
         "text-text-01": "hsl(var(--text-text-01))",
         "link-primary": "hsl(var(--link-primary))",
         "button-tertiary": "hsl(var(--button-tertiary))",
+        "border-interactive": "var(--border-border-interactive)",
+        "border-subtle-contextual": "var(--border-subtle-contextual)",
         "component-icon": "var(--component-icon)",
         "flow-icon": "var(--flow-icon)",
         "placeholder-foreground": "hsl(var(--placeholder-foreground))",

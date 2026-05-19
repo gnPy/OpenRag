@@ -23,6 +23,8 @@ const buttonVariants = cva(
         ghostActive:
           "bg-muted text-foreground hover:bg-secondary-hover hover:text-accent-foreground",
         link: "underline-offset-4 hover:underline text-primary",
+        tertiary:
+          "border [border-color:var(--Button-button-tertiary,#fff)] hover:bg-muted",
       },
       size: {
         default: "h-10 py-2 px-4",

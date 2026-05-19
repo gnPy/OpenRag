@@ -31,7 +31,6 @@ import { cn } from "@/lib/utils";
 import { useUpdateSettingsMutation } from "../../api/mutations/useUpdateSettingsMutation";
 import { ModelSelector } from "../../onboarding/_components/model-selector";
 import { getModelLogo } from "../_helpers/model-helpers";
-import { LangflowIcon } from "./langflow-icon";
 
 const { MAX_SYSTEM_PROMPT_CHARS } = UI_CONSTANTS;
 
@@ -214,10 +213,9 @@ export function AgentSettingsSection() {
       <CardHeader>
         <div className="flex items-center justify-between mb-3">
           <CardTitle
-            className={cn(
-              "text-lg",
-              isCloudBrand && "ibm-settings-section-title",
-            )}
+            className={
+              isCloudBrand ? "ibm-settings-section-title !text-sm" : "text-lg"
+            }
           >
             Agent
           </CardTitle>
@@ -225,7 +223,7 @@ export function AgentSettingsSection() {
             <div className="flex gap-2">
               <ConfirmationDialog
                 trigger={
-                  <Button ignoreTitleCase={true} variant="outline">
+                  <Button ignoreTitleCase={true} variant="tertiary">
                     Restore flow
                   </Button>
                 }
@@ -237,8 +235,15 @@ export function AgentSettingsSection() {
               />
               <ConfirmationDialog
                 trigger={
-                  <Button>
-                    <LangflowIcon />
+                  <Button
+                    ignoreTitleCase={true}
+                    variant={isCloudBrand ? "ghost" : "outline"}
+                    className={cn(
+                      "py-[3px] px-4",
+                      isCloudBrand &&
+                        "ibm-tab-underline ibm-text-action rounded-none shadow-none transition-none hover:bg-accent",
+                    )}
+                  >
                     Edit in Langflow
                   </Button>
                 }
@@ -325,9 +330,15 @@ export function AgentSettingsSection() {
                 updateSettingsMutation.isPending ||
                 systemPrompt.length > MAX_SYSTEM_PROMPT_CHARS
               }
-              className="min-w-[120px]"
+              ignoreTitleCase={true}
               size="sm"
-              variant="outline"
+              variant={isCloudBrand ? "ghost" : "outline"}
+              className={cn(
+                "py-[3px] px-4",
+                !isCloudBrand && "min-w-[120px]",
+                isCloudBrand &&
+                  "ibm-tab-underline ibm-text-action rounded-none shadow-none transition-none hover:bg-accent",
+              )}
             >
               {updateSettingsMutation.isPending ? (
                 <>
