@@ -14,6 +14,7 @@ import jwt
 from cachetools import TTLCache
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
+from config import settings as app_settings
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -24,7 +25,10 @@ _cached_public_key = None
 # Short-lived cache for decoded IBM JWT claims. Traefik has already validated
 # the signature; we cache to avoid repeated decode() calls for the same token.
 # Each hit also rechecks token `exp` as defence-in-depth.
-_IBM_JWT_CLAIMS_CACHE: TTLCache[str, dict] = TTLCache(maxsize=512, ttl=60)
+_IBM_JWT_CLAIMS_CACHE: TTLCache[str, dict] = TTLCache(
+    maxsize=getattr(app_settings, "JWT_CLAIMS_CACHE_MAX_SIZE", 512),
+    ttl=getattr(app_settings, "JWT_CLAIMS_CACHE_TTL_SECONDS", 60),
+)
 
 
 def decode_ibm_jwt(token: str) -> dict | None:

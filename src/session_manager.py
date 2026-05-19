@@ -2,7 +2,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional, Union
+from typing import Any, Optional, Union
 
 import httpx
 import jwt
@@ -79,8 +79,8 @@ class SessionManager:
 
         keys_dir = get_keys_path()
         self.secret_key = secret_key  # Keep for backward compatibility
-        self.users: Dict[str, User] = {}  # user_id -> User
-        self.user_opensearch_clients: Dict[str, Any] = {}  # user_id -> OpenSearch client
+        self.users: dict[str, User] = {}  # user_id -> User
+        self.user_opensearch_clients: dict[str, Any] = {}  # user_id -> OpenSearch client
 
         self.private_key_path = private_key_path or os.path.join(keys_dir, "private_key.pem")
         self.public_key_path = public_key_path or os.path.join(keys_dir, "public_key.pem")
@@ -155,7 +155,7 @@ class SessionManager:
         except Exception as e:
             raise Exception(f"Failed to load RSA keys: {e}")
 
-    async def get_user_info_from_token(self, access_token: str) -> Optional[Dict[str, Any]]:
+    async def get_user_info_from_token(self, access_token: str) -> Optional[dict[str, Any]]:
         """Get user info from Google using access token"""
         try:
             async with httpx.AsyncClient() as client:
@@ -242,7 +242,7 @@ class SessionManager:
             token = jwt.encode(token_payload, self.private_key, algorithm=self.algorithm)
         return f"Bearer {token}"
 
-    def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
+    def verify_token(self, token: str) -> Optional[dict[str, Any]]:
         """Verify JWT token and return decoded claims, using an in-process cache."""
         if IBM_AUTH_ENABLED:
             return None
