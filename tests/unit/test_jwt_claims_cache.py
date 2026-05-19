@@ -91,7 +91,9 @@ class TestVerifyTokenCache:
 
     def test_expired_signature_error_not_cached(self):
         mgr = _make_session_manager()
-        with patch("session_manager.jwt.decode", side_effect=sm.jwt.ExpiredSignatureError) as mock_decode:
+        with patch(
+            "session_manager.jwt.decode", side_effect=sm.jwt.ExpiredSignatureError
+        ) as mock_decode:
             with patch("session_manager.IBM_AUTH_ENABLED", False):
                 r1 = mgr.verify_token(f"Bearer {self.TOKEN}")
                 r2 = mgr.verify_token(f"Bearer {self.TOKEN}")
@@ -103,7 +105,9 @@ class TestVerifyTokenCache:
 
     def test_invalid_token_error_not_cached(self):
         mgr = _make_session_manager()
-        with patch("session_manager.jwt.decode", side_effect=sm.jwt.InvalidTokenError) as mock_decode:
+        with patch(
+            "session_manager.jwt.decode", side_effect=sm.jwt.InvalidTokenError
+        ) as mock_decode:
             with patch("session_manager.IBM_AUTH_ENABLED", False):
                 r1 = mgr.verify_token(f"Bearer {self.TOKEN}")
                 r2 = mgr.verify_token(f"Bearer {self.TOKEN}")
@@ -170,6 +174,7 @@ class TestDecodeIbmJwtCache:
 
     def test_invalid_token_not_cached(self):
         import jwt as pyjwt
+
         with patch("auth.ibm_auth.jwt.decode", side_effect=pyjwt.InvalidTokenError) as mock_decode:
             r1 = ibm_auth.decode_ibm_jwt(self.TOKEN)
             r2 = ibm_auth.decode_ibm_jwt(self.TOKEN)
