@@ -233,7 +233,7 @@
     --layer-contextual-foreground: 0 0% 9%;
     --text-text-01: 0 0% 9%;
     --link-primary: 217 100% 45%;
-    --button-tertiary: 217 100% 45%;
+    --button-tertiary: 0 0% 9%;
     --border-border-interactive: #4589ff;
     --border-subtle-contextual: #525252;
 
@@ -325,7 +325,7 @@
     --layer-contextual-foreground: 0 0% 96%;
     --text-text-01: 0 0% 96%;
     --link-primary: 217 100% 74%;
-    --button-tertiary: 217 100% 74%;
+    --button-tertiary: 0 0% 100%;
     --border-border-interactive: #4589ff;
     --border-subtle-contextual: #525252;
 
