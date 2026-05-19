@@ -52,7 +52,6 @@ class FileTask:
     docling_task_id: str | None = None
     docling_status: DoclingPhaseStatus = DoclingPhaseStatus.PENDING
     phase: IngestionPhase = IngestionPhase.DOCLING
-    filename: str | None = None  # Original filename for display
 
     @property
     def duration_seconds(self) -> float:
