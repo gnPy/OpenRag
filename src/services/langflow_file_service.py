@@ -22,6 +22,7 @@ class LangflowFileService:
         self.flows_service = flows_service
         self.docling_service = docling_service
         self.flow_id_url_ingest = LANGFLOW_URL_INGEST_FLOW_ID
+        self._embedding_dimension_cache: dict[str, int] = {}
 
     _TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 
@@ -70,6 +71,77 @@ class LangflowFileService:
                 final_tweaks["SplitText-QIKhg"]["separator"] = settings["separator"]
 
         return final_tweaks
+
+    async def _detect_embedding_dimensions(
+        self,
+        embedding_model: str,
+        embedding_provider: str | None,
+    ) -> int:
+        """Generate one probe embedding so mapping dimensions match the provider."""
+        from services.models_service import ModelsService
+
+        cache_key = f"{embedding_provider or ''}:{embedding_model}"
+        cached = self._embedding_dimension_cache.get(cache_key)
+        if cached:
+            return cached
+
+        litellm_model_name = await ModelsService().get_litellm_model_name(
+            embedding_model,
+            provider=embedding_provider,
+        )
+        response = await clients.patched_embedding_client.embeddings.create(
+            model=litellm_model_name,
+            input=["dimension probe"],
+        )
+        if not response.data:
+            raise RuntimeError("Embedding provider returned no data for dimension probe")
+
+        first = response.data[0]
+        embedding = first["embedding"] if isinstance(first, dict) else first.embedding
+        dimensions = len(embedding)
+        if dimensions <= 0:
+            raise RuntimeError("Embedding provider returned an empty dimension probe")
+
+        self._embedding_dimension_cache[cache_key] = dimensions
+        return dimensions
+
+    async def _ensure_langflow_ingest_index(self, embedding_model: str | None) -> None:
+        """Pre-create index mappings Langflow cannot manage with a DLS JWT."""
+        if clients.opensearch is None:
+            logger.debug("[LF] OpenSearch admin client unavailable; skipping ingest preflight")
+            return
+
+        try:
+            from config.embedding_constants import OPENAI_DEFAULT_EMBEDDING_MODEL
+            from config.settings import get_index_name, get_openrag_config
+            from utils.embedding_fields import ensure_embedding_field_exists
+            from utils.embeddings import create_index_body
+
+            config = get_openrag_config()
+            index_name = get_index_name()
+            model_name = embedding_model or OPENAI_DEFAULT_EMBEDDING_MODEL
+            embedding_dimensions = await self._detect_embedding_dimensions(
+                model_name,
+                config.knowledge.embedding_provider,
+            )
+            if not await clients.opensearch.indices.exists(index=index_name):
+                await clients.opensearch.indices.create(
+                    index=index_name,
+                    body=await create_index_body(model_name, embedding_dimensions),
+                )
+
+            await ensure_embedding_field_exists(
+                clients.opensearch,
+                model_name,
+                index_name,
+                embedding_dimensions,
+            )
+        except Exception as e:
+            logger.warning(
+                "[LF] Failed to preconfigure OpenSearch index before Langflow ingest",
+                embedding_model=embedding_model,
+                error=str(e),
+            )
 
     async def upload_user_file(self, file_tuple, jwt_token: str | None = None) -> dict[str, Any]:
         """Upload a file using Langflow Files API v2: POST /api/v2/files.
@@ -229,6 +301,7 @@ class LangflowFileService:
         await add_provider_credentials_to_headers(
             headers, config, flows_service=self.flows_service, jwt_token=jwt_token
         )
+        await self._ensure_langflow_ingest_index(embedding_model)
         start_time = time.time()
         logger.info(
             "[INGEST] Run started",
@@ -353,6 +426,7 @@ class LangflowFileService:
         await add_provider_credentials_to_headers(
             headers, config, flows_service=self.flows_service, jwt_token=jwt_token
         )
+        await self._ensure_langflow_ingest_index(embedding_model)
 
         logger.info(
             "[LF] Running URL ingestion flow",

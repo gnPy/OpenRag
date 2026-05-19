@@ -7,9 +7,6 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
-from opensearchpy import OpenSearch, helpers
-from opensearchpy.exceptions import OpenSearchException, RequestError
-
 from lfx.base.vectorstores.model import LCVectorStoreComponent, check_cached_vector_store
 from lfx.base.vectorstores.vector_store_connection_decorator import vector_store_connection
 from lfx.io import (
@@ -25,6 +22,8 @@ from lfx.io import (
 )
 from lfx.log import logger
 from lfx.schema.data import Data
+from opensearchpy import OpenSearch, helpers
+from opensearchpy.exceptions import OpenSearchException, RequestError
 
 REQUEST_TIMEOUT = 60
 MAX_RETRIES = 5
@@ -813,6 +812,13 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
         helpers.bulk(client, requests, max_chunk_bytes=max_chunk_bytes)
         return return_ids
 
+    def _log_index_admin_skip(self, operation: str, error: Exception) -> None:
+        """Log index-admin operations that may be blocked under filter-level DLS."""
+        logger.warning(
+            f"[OpenSearchMultimodel] Could not run index-admin operation '{operation}': {error}. "
+            "Assuming the backend pre-created the required index/mapping and continuing."
+        )
+
     # ---------- param helpers ----------
     def _parse_int_param(self, attr_name: str, default: int) -> int:
         """Parse a string attribute to int, returning *default* on failure."""
@@ -1228,8 +1234,14 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
         )
 
         # Ensure index exists with baseline mapping (index.knn: true is required for vector search)
+        index_exists = True
         try:
-            if not client.indices.exists(index=self.index_name):
+            index_exists = bool(client.indices.exists(index=self.index_name))
+        except OpenSearchException as exists_error:
+            self._log_index_admin_skip("indices.exists", exists_error)
+
+        try:
+            if not index_exists:
                 self.log(f"Creating index '{self.index_name}' with base mapping")
                 client.indices.create(index=self.index_name, body=mapping)
         except RequestError as creation_error:

@@ -791,6 +791,7 @@ test-ci: ensure-langflow-data ensure-backend-volumes ## Start infra, run integra
 	GOOGLE_OAUTH_CLIENT_ID="" \
 	GOOGLE_OAUTH_CLIENT_SECRET="" \
 	OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200 \
+	LANGFLOW_OPENSEARCH_HOST=opensearch LANGFLOW_OPENSEARCH_PORT=9200 \
 	OPENSEARCH_USERNAME=admin OPENSEARCH_PASSWORD=$${OPENSEARCH_PASSWORD} \
 	DISABLE_STARTUP_INGEST=$${DISABLE_STARTUP_INGEST:-true} \
 	uv run pytest tests/integration/core -vv -s -o log_cli=true --log-cli-level=DEBUG; \
@@ -915,6 +916,7 @@ test-ci-local: ensure-langflow-data ensure-backend-volumes ## Same as test-ci bu
 	GOOGLE_OAUTH_CLIENT_ID="" \
 	GOOGLE_OAUTH_CLIENT_SECRET="" \
 	OPENSEARCH_HOST=localhost OPENSEARCH_PORT=9200 \
+	LANGFLOW_OPENSEARCH_HOST=opensearch LANGFLOW_OPENSEARCH_PORT=9200 \
 	OPENSEARCH_USERNAME=admin OPENSEARCH_PASSWORD=$${OPENSEARCH_PASSWORD} \
 	DISABLE_STARTUP_INGEST=$${DISABLE_STARTUP_INGEST:-true} \
 	uv run pytest tests/integration/core -vv -s -o log_cli=true --log-cli-level=DEBUG; \
