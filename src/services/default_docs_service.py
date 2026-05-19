@@ -232,6 +232,7 @@ async def _ingest_default_documents_langflow(
         replace_duplicates=True,
         connector_type=connector_type,
         existing_task_id=existing_task_id,
+        temp_file_paths=[],
     )
 
     logger.info(

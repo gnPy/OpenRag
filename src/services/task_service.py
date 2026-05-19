@@ -171,6 +171,7 @@ class TaskService:
         replace_duplicates: bool = False,
         connector_type: str = "local",
         existing_task_id: str = None,
+        temp_file_paths: list | None = None,
     ) -> str:
         """Create a new upload task for Langflow file processing with upload and ingest"""
         # Use LangflowFileProcessor with user context
@@ -196,7 +197,7 @@ class TaskService:
             processor,
             original_filenames,
             existing_task_id=existing_task_id,
-            temp_file_paths=file_paths,
+            temp_file_paths=temp_file_paths if temp_file_paths is not None else file_paths,
         )
 
     async def create_langflow_url_upload_task(
