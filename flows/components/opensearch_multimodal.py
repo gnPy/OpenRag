@@ -809,8 +809,32 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             return_ids.append(_id)
         if metadatas:
             self.log(f"Sample metadata: {metadatas[0] if metadatas else {}}")
-        helpers.bulk(client, requests, max_chunk_bytes=max_chunk_bytes)
+        try:
+            helpers.bulk(client, requests, max_chunk_bytes=max_chunk_bytes)
+        except Exception as bulk_error:
+            if "Unsupported request type for filter level DLS" not in str(bulk_error):
+                raise
+            logger.warning(
+                "[OpenSearchMultimodel] Bulk ingest is blocked by filter-level DLS; "
+                "falling back to per-document index requests."
+            )
+            self._index_embeddings_individually(client, requests)
         return return_ids
+
+    def _index_embeddings_individually(
+        self,
+        client: OpenSearch,
+        requests: list[dict],
+    ) -> None:
+        """Index documents one at a time when OpenSearch DLS rejects bulk writes."""
+        for request in requests:
+            document_id = request.get("_id") or request.get("id")
+            body = {
+                key: value
+                for key, value in request.items()
+                if key not in {"_op_type", "_index", "_id", "id"}
+            }
+            client.index(index=request["_index"], id=document_id, body=body)
 
     def _log_index_admin_skip(self, operation: str, error: Exception) -> None:
         """Log index-admin operations that may be blocked under filter-level DLS."""

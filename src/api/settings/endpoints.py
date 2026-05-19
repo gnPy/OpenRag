@@ -1313,8 +1313,8 @@ async def rollback_onboarding(
                                 )
                                 from config.settings import get_index_name
                                 from utils.opensearch_delete import (
-                                    bulk_delete_document_ids,
                                     collect_visible_document_ids,
+                                    delete_document_ids,
                                 )
                                 from utils.opensearch_queries import (
                                     build_owned_filename_query,
@@ -1326,7 +1326,7 @@ async def rollback_onboarding(
                                     index=index_name,
                                     query=build_owned_filename_query(filename, user.user_id),
                                 )
-                                deleted_count = await bulk_delete_document_ids(
+                                deleted_count = await delete_document_ids(
                                     opensearch_client,
                                     index=index_name,
                                     document_ids=document_ids,

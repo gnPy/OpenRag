@@ -1,5 +1,7 @@
 from collections.abc import Iterable
 
+from opensearchpy.exceptions import NotFoundError
+
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
@@ -42,7 +44,7 @@ async def collect_visible_document_ids(
     return document_ids
 
 
-async def bulk_delete_document_ids(
+async def delete_document_ids(
     opensearch_client,
     *,
     index: str,
@@ -50,25 +52,18 @@ async def bulk_delete_document_ids(
     refresh: bool = True,
 ) -> int:
     """Delete concrete OpenSearch document IDs through the caller's client."""
-    bulk_body = []
-    for document_id in document_ids:
-        bulk_body.append({"delete": {"_index": index, "_id": document_id}})
-
-    if not bulk_body:
-        return 0
-
-    response = await opensearch_client.bulk(body=bulk_body, refresh=refresh)
     deleted_count = 0
-    for item in response.get("items", []):
-        delete_result = item.get("delete", {})
-        if delete_result.get("result") == "deleted":
-            deleted_count += 1
+    for document_id in document_ids:
+        try:
+            result = await opensearch_client.delete(
+                index=index,
+                id=document_id,
+                refresh=refresh,
+            )
+        except NotFoundError:
+            continue
 
-    if response.get("errors"):
-        logger.warning(
-            "Bulk delete completed with OpenSearch item errors",
-            attempted=len(bulk_body),
-            deleted=deleted_count,
-        )
+        if result.get("result") == "deleted":
+            deleted_count += 1
 
     return deleted_count

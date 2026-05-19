@@ -21,7 +21,7 @@ async def delete_documents_by_filename_core(
 ):
     """Shared delete-by-filename logic for v1 and non-v1 endpoints."""
     from config.settings import get_index_name
-    from utils.opensearch_delete import bulk_delete_document_ids, collect_visible_document_ids
+    from utils.opensearch_delete import collect_visible_document_ids, delete_document_ids
     from utils.opensearch_queries import build_filename_query, build_owned_filename_query
 
     normalized_filename = (filename or "").strip()
@@ -79,7 +79,7 @@ async def delete_documents_by_filename_core(
                 404,
             )
 
-        deleted_count = await bulk_delete_document_ids(
+        deleted_count = await delete_document_ids(
             opensearch_client,
             index=index_name,
             document_ids=owned_document_ids,

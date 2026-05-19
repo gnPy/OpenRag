@@ -8,7 +8,7 @@ class FakeOpenSearchClient:
         self.owned_hits = owned_hits or []
         self.visible_hits = visible_hits or []
         self.search_calls = []
-        self.bulk_calls = []
+        self.delete_calls = []
 
     async def search(self, *, index, body, scroll=None):
         self.search_calls.append({"index": index, "body": body, "scroll": scroll})
@@ -19,12 +19,9 @@ class FakeOpenSearchClient:
             hits = self.visible_hits
         return {"hits": {"hits": hits}}
 
-    async def bulk(self, *, body, refresh=True):
-        self.bulk_calls.append({"body": body, "refresh": refresh})
-        return {
-            "errors": False,
-            "items": [{"delete": {"result": "deleted"}} for _ in body],
-        }
+    async def delete(self, *, index, id, refresh=True):
+        self.delete_calls.append({"index": index, "id": id, "refresh": refresh})
+        return {"result": "deleted"}
 
 
 class FakeSessionManager:
@@ -66,14 +63,9 @@ async def test_delete_documents_by_filename_deletes_owned_ids_with_user_client(m
             ]
         }
     }
-    assert opensearch_client.bulk_calls == [
-        {
-            "body": [
-                {"delete": {"_index": "documents", "_id": "chunk-1"}},
-                {"delete": {"_index": "documents", "_id": "chunk-2"}},
-            ],
-            "refresh": True,
-        }
+    assert opensearch_client.delete_calls == [
+        {"index": "documents", "id": "chunk-1", "refresh": True},
+        {"index": "documents", "id": "chunk-2", "refresh": True},
     ]
 
 
@@ -96,7 +88,7 @@ async def test_delete_documents_by_filename_denies_visible_non_owner(monkeypatch
     assert payload["success"] is False
     assert payload["deleted_chunks"] == 0
     assert "only the document owner" in payload["error"]
-    assert opensearch_client.bulk_calls == []
+    assert opensearch_client.delete_calls == []
 
 
 @pytest.mark.asyncio
@@ -114,4 +106,4 @@ async def test_delete_documents_by_filename_returns_404_when_missing(monkeypatch
     assert status_code == 404
     assert payload["success"] is False
     assert payload["deleted_chunks"] == 0
-    assert opensearch_client.bulk_calls == []
+    assert opensearch_client.delete_calls == []
