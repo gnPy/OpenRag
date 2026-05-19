@@ -12,6 +12,8 @@ from config.settings import IBM_AUTH_ENABLED
 from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
+
+
 @dataclass
 class User:
     """User information from OAuth provider"""
@@ -34,6 +36,7 @@ class User:
         if self.last_login is None:
             self.last_login = datetime.now()
 
+
 @dataclass
 class AnonymousUser(User):
     """Anonymous user"""
@@ -43,7 +46,6 @@ class AnonymousUser(User):
     name: str = "Anonymous User"
     picture: str = None
     provider: str = "none"
-
 
 
 class SessionManager:
@@ -56,12 +58,11 @@ class SessionManager:
         public_key_path: str = None,
     ):
         from config.paths import get_keys_path
+
         keys_dir = get_keys_path()
         self.secret_key = secret_key  # Keep for backward compatibility
         self.users: dict[str, User] = {}  # user_id -> User
-        self.user_opensearch_clients: dict[
-            str, Any
-        ] = {}  # user_id -> OpenSearch client
+        self.user_opensearch_clients: dict[str, Any] = {}  # user_id -> OpenSearch client
 
         self.private_key_path = private_key_path or os.path.join(keys_dir, "private_key.pem")
         self.public_key_path = public_key_path or os.path.join(keys_dir, "public_key.pem")
@@ -120,14 +121,11 @@ class SessionManager:
                 self.algorithm = "RS256"
         logger.info(f"Initialized JWT signing with {self.algorithm}")
 
-
     def _load_rsa_keys(self):
         """Load RSA private and public keys from files"""
         try:
             with open(self.private_key_path, "rb") as f:
-                self.private_key = serialization.load_pem_private_key(
-                    f.read(), password=None
-                )
+                self.private_key = serialization.load_pem_private_key(f.read(), password=None)
 
             with open(self.public_key_path, "rb") as f:
                 self.public_key = serialization.load_pem_public_key(f.read())
@@ -139,9 +137,7 @@ class SessionManager:
         except Exception as e:
             raise Exception(f"Failed to load RSA keys: {e}") from e
 
-    async def get_user_info_from_token(
-        self, access_token: str
-    ) -> dict[str, Any] | None:
+    async def get_user_info_from_token(self, access_token: str) -> dict[str, Any] | None:
         """Get user info from Google using access token"""
         try:
             async with httpx.AsyncClient() as client:
@@ -164,9 +160,7 @@ class SessionManager:
             logger.error("Error getting user info", error=str(e))
             return None
 
-    async def create_user_session(
-        self, access_token: str, issuer: str
-    ) -> str | None:
+    async def create_user_session(self, access_token: str, issuer: str) -> str | None:
         """Create user session from OAuth access token"""
         user_info = await self.get_user_info_from_token(access_token)
         if not user_info:
@@ -281,9 +275,7 @@ class SessionManager:
 
         # Check if we have a cached client for this user
         if user_id not in self.user_opensearch_clients:
-            self.user_opensearch_clients[user_id] = (
-                clients.create_user_opensearch_client(jwt_token)
-            )
+            self.user_opensearch_clients[user_id] = clients.create_user_opensearch_client(jwt_token)
 
         return self.user_opensearch_clients[user_id]
 
