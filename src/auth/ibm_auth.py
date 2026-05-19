@@ -6,8 +6,11 @@ validate_ibm_jwt — full RS256 validation for optional use when
                   IBM_JWT_PUBLIC_KEY_URL is configured.
 fetch_ibm_public_key — fetch and cache IBM's public key PEM.
 """
+import time
+
 import httpx
 import jwt
+from cachetools import TTLCache
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
 
 from utils.logging_config import get_logger
@@ -17,15 +20,28 @@ logger = get_logger(__name__)
 # Module-level cache; populated by fetch_ibm_public_key() if called.
 _cached_public_key = None
 
+# Short-lived cache for decoded IBM JWT claims. Traefik has already validated
+# the signature; we cache to avoid repeated decode() calls for the same token.
+# Each hit also rechecks token `exp` as defence-in-depth.
+_IBM_JWT_CLAIMS_CACHE: TTLCache[str, dict] = TTLCache(maxsize=512, ttl=60)
+
 
 def decode_ibm_jwt(token: str) -> dict | None:
-    """Decode *token* without signature verification.
+    """Decode *token* without signature verification, using an in-process cache.
 
     Used for the ibm-openrag-session cookie path where Traefik has already
     validated the JWT. Returns the claims dict, or None if decoding fails.
     """
+    cached = _IBM_JWT_CLAIMS_CACHE.get(token)
+    if cached is not None:
+        if cached.get("exp", 0) > time.time():
+            return cached
+        _IBM_JWT_CLAIMS_CACHE.pop(token, None)  # evict immediately on stale hit
+
     try:
-        return jwt.decode(token, options={"verify_signature": False})
+        claims = jwt.decode(token, options={"verify_signature": False})
+        _IBM_JWT_CLAIMS_CACHE[token] = claims
+        return claims
     except jwt.InvalidTokenError as exc:
         logger.warning("IBM JWT decode failed", error=str(exc))
         return None

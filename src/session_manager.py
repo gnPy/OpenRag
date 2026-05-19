@@ -1,15 +1,21 @@
-import jwt
-import httpx
-from datetime import datetime, timedelta
-from typing import Dict, Optional, Any, Union
-from dataclasses import dataclass
-
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric import rsa, ec, ed25519, ed448
-
 import os
+import time
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional, Union
+
+import httpx
+import jwt
+from cachetools import TTLCache
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec, ed448, ed25519, rsa
+
+from config.settings import (
+    IBM_AUTH_ENABLED,
+    JWT_CLAIMS_CACHE_MAX_SIZE,
+    JWT_CLAIMS_CACHE_TTL_SECONDS,
+)
 from utils.logging_config import get_logger
-from config.settings import IBM_AUTH_ENABLED
 
 logger = get_logger(__name__)
 @dataclass
@@ -44,6 +50,17 @@ class AnonymousUser(User):
     picture: str = None
     provider: str = "none"
 
+
+# Decoded JWT claims keyed by raw token string (Bearer prefix stripped).
+# TTLCache evicts by time and by LRU when full. Each hit also rechecks
+# token `exp` as defence-in-depth so an expired token is never served
+# from cache. Safe without a lock: UVICORN_WORKERS=1 is enforced at
+# startup and asyncio cooperative scheduling makes dict-level ops atomic
+# between awaits (same pattern as _ENSURED_USER_IDS in dependencies.py).
+_JWT_CLAIMS_CACHE: TTLCache[str, dict] = TTLCache(
+    maxsize=JWT_CLAIMS_CACHE_MAX_SIZE,
+    ttl=JWT_CLAIMS_CACHE_TTL_SECONDS,
+)
 
 
 class SessionManager:
@@ -231,18 +248,25 @@ class SessionManager:
         return f"Bearer {token}"
 
     def verify_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify JWT token and return user info"""
+        """Verify JWT token and return decoded claims, using an in-process cache."""
         if IBM_AUTH_ENABLED:
-            # IBM Auth Mode: Token verification handled externally by Traefik
             return None
+        raw = token.removeprefix("Bearer ")
+
+        cached = _JWT_CLAIMS_CACHE.get(raw)
+        if cached is not None:
+            if cached.get("exp", 0) > time.time():
+                return cached
+            _JWT_CLAIMS_CACHE.pop(raw, None)  # evict immediately on stale hit
+
         try:
-            raw = token.removeprefix("Bearer ")
             payload = jwt.decode(
                 raw,
                 self.public_key,
                 algorithms=[self.algorithm],
                 audience=["opensearch", "openrag"],
             )
+            _JWT_CLAIMS_CACHE[raw] = payload
             return payload
         except jwt.ExpiredSignatureError:
             return None
