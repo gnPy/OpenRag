@@ -190,7 +190,7 @@ class TaskProcessor:
         chunk_size: int = None,
         chunk_overlap: int = None,
         is_sample_data: bool = False,
-        acl: "DocumentACL" = None,
+        acl: "DocumentACL | None" = None,
     ):
         """
         Standard processing pipeline for non-Langflow processors:
@@ -404,6 +404,7 @@ class DocumentFileProcessor(TaskProcessor):
         docling_service=None,
         replace_duplicates: bool = False,
         session_manager=None,
+        settings: dict | None = None,
     ):
         super().__init__(
             document_service,
@@ -421,6 +422,7 @@ class DocumentFileProcessor(TaskProcessor):
         self.session_manager = session_manager or (
             document_service.session_manager if document_service else None
         )
+        self.settings = settings
         if self.session_manager is None:
             raise ValueError("session_manager is required for DocumentFileProcessor")
 
@@ -480,6 +482,17 @@ class DocumentFileProcessor(TaskProcessor):
             except Exception:
                 file_size = 0
 
+            # Parse ACL from settings if present
+            from connectors.base import DocumentACL
+            
+            acl = None
+            if self.settings and (self.settings.get("allowed_users") is not None or self.settings.get("allowed_groups") is not None):
+                acl = DocumentACL(
+                    owner=self.owner_user_id,
+                    allowed_users=self.settings.get("allowed_users", []),
+                    allowed_groups=self.settings.get("allowed_groups", [])
+                )
+
             # Use consolidated standard processing
             result = await self.process_document_standard(
                 file_path=item,
@@ -492,6 +505,7 @@ class DocumentFileProcessor(TaskProcessor):
                 file_size=file_size,
                 connector_type=self.connector_type,
                 is_sample_data=self.is_sample_data,
+                acl=acl,
             )
 
             file_task.status = TaskStatus.COMPLETED

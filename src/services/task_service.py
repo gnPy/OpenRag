@@ -129,6 +129,7 @@ class TaskService:
         owner_email: str = None,
         original_filenames: dict | None = None,
         replace_duplicates: bool = False,
+        settings: dict | None = None,
     ) -> str:
         """Create a new upload task for bulk file processing"""
         # Use default DocumentFileProcessor with user context
@@ -144,6 +145,7 @@ class TaskService:
             docling_service=self.docling_service,
             replace_duplicates=replace_duplicates,
             session_manager=self.session_manager,
+            settings=settings,
         )
         return await self.create_custom_task(
             user_id,

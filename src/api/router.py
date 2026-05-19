@@ -54,6 +54,7 @@ async def upload_ingest_router(
             session_manager=session_manager,
             task_service=task_service,
             user=user,
+            settings_json=settings_json,
         )
 
     logger.debug("Routing to Langflow upload-ingest pipeline via task service")
@@ -78,11 +79,19 @@ async def _traditional_upload_ingest_task(
     session_manager,
     task_service,
     user: User,
+    settings_json: str | None = None,
 ):
     """Task-based traditional upload and ingest for single/multiple files"""
     try:
         if not upload_files:
             return JSONResponse({"error": "Missing files"}, status_code=400)
+
+        settings = None
+        if settings_json:
+            try:
+                settings = json.loads(settings_json)
+            except json.JSONDecodeError as e:
+                return JSONResponse({"error": f"Invalid settings JSON: {e}"}, status_code=400)
 
         user_id = user.user_id
         user_name = user.name
@@ -121,6 +130,7 @@ async def _traditional_upload_ingest_task(
                 owner_email=user_email,
                 original_filenames=file_path_to_original_filename,
                 replace_duplicates=replace_duplicates,
+                settings=settings,
             )
 
             return JSONResponse(
