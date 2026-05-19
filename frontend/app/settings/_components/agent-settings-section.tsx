@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { useUpdateSettingsMutation } from "../../api/mutations/useUpdateSettingsMutation";
 import { ModelSelector } from "../../onboarding/_components/model-selector";
 import { getModelLogo } from "../_helpers/model-helpers";
+import { LangflowIcon } from "./langflow-icon";
 
 const { MAX_SYSTEM_PROMPT_CHARS } = UI_CONSTANTS;
 
@@ -244,6 +245,7 @@ export function AgentSettingsSection() {
                         "ibm-tab-underline ibm-text-action rounded-none shadow-none transition-none hover:bg-accent",
                     )}
                   >
+                    {!isCloudBrand && <LangflowIcon className="mr-2" />}
                     Edit in Langflow
                   </Button>
                 }
