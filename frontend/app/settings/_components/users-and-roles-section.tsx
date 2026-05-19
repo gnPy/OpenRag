@@ -267,7 +267,7 @@ export function UsersAndRolesSection() {
             all permission checks; this UI mirrors the live state.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className={isCloudBrand ? "space-y-0" : "space-y-4"}>
           {/* Search + filter — IBM: contained h-12 bar (Knowledge SaaS); OSS: h-9 row */}
           {isCloudBrand ? (
             <div className="ibm-settings-toolbar">
@@ -348,7 +348,11 @@ export function UsersAndRolesSection() {
           ) : (
             <div className="border rounded-lg overflow-hidden">
               <table className="w-full">
-                <thead className="bg-muted/50">
+                <thead
+                  className={
+                    isCloudBrand ? "bg-muted/50  ag-header-row" : "bg-muted/50"
+                  }
+                >
                   <tr>
                     <th className="text-left text-sm font-medium text-muted-foreground px-4 py-3">
                       User
