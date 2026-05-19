@@ -77,7 +77,7 @@ async def test_traditional_processor_duplicate_exists_with_replace():
 
     with (
         patch("os.path.getsize", return_value=1234),
-        patch("utils.hash_utils.hash_id", return_value="dummy-hash"),
+        patch("models.processors.hash_id", return_value="dummy-hash"),
     ):
         await processor.process_item(upload_task, "/tmp/test.txt", file_task)
 

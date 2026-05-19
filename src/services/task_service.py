@@ -284,7 +284,7 @@ class TaskService:
 
         # Store temp file paths for cleanup after processing
         if temp_file_paths:
-            if not hasattr(upload_task, "temp_file_paths"):
+            if upload_task.temp_file_paths is None:
                 upload_task.temp_file_paths = []
             upload_task.temp_file_paths.extend(temp_file_paths)
 
