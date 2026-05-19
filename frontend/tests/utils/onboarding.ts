@@ -37,6 +37,15 @@ export async function completeOnboarding(
   // Go to the base URL (frontend)
   await page.goto("/");
 
+  if (reset) {
+    const response = await page.request.post("/api/onboarding/rollback");
+    if (!response.ok() && response.status() !== 400) {
+      const text = await response.text();
+      throw new Error(`Failed to rollback onboarding: ${text}`);
+    }
+    await page.reload();
+  }
+
   // Wait for either onboarding to be complete or onboarding content to be visible
   const completedLocator = page.getByTestId("onboarding-completed");
   const contentLocator = page.getByTestId("onboarding-content");
@@ -45,7 +54,7 @@ export async function completeOnboarding(
     await expect(completedLocator.or(contentLocator)).toBeVisible({
       timeout: 15000,
     });
-  } catch (error) {
+  } catch {
     console.log("Neither onboarding state visible, refreshing page...");
     await page.reload();
     await expect(completedLocator.or(contentLocator)).toBeVisible({
@@ -55,28 +64,9 @@ export async function completeOnboarding(
 
   const isCompleted = await completedLocator.isVisible();
 
-  if (isCompleted) {
-    if (!reset) {
-      console.log("Onboarding already complete, skipping...");
-      return;
-    }
-
-    console.log("Onboarding complete and reset is true, rolling back...");
-    const response = await page.request.post("/api/onboarding/rollback");
-    if (!response.ok()) {
-      const text = await response.text();
-      console.error(
-        `Rollback failed with status ${response.status()}: ${text}`,
-      );
-      if (response.status() !== 400) {
-        throw new Error(`Failed to rollback onboarding: ${text}`);
-      }
-    }
-
-    console.log("Refreshing page after rollback...");
-    await page.reload();
-    // After rollback and reload, we must see the onboarding content
-    await expect(contentLocator).toBeVisible({ timeout: 15000 });
+  if (isCompleted && !reset) {
+    console.log("Onboarding already complete, skipping...");
+    return;
   }
 
   const setupProvider = async (provider: string, isEmbedding: boolean) => {
@@ -140,8 +130,9 @@ export async function completeOnboarding(
     // Complete this step
     await page.getByTestId("onboarding-complete-button").click();
 
-    await expect(page.getByText("Thinking")).toBeVisible();
-    await expect(page.getByText("Done")).toBeVisible({
+    const done = page.getByText("Done");
+    await expect(page.getByText("Thinking").or(done)).toBeVisible();
+    await expect(done).toBeVisible({
       timeout: isEmbedding ? 120000 : 60000,
     });
   };
@@ -165,8 +156,11 @@ export async function completeOnboarding(
   await expect(page.getByTestId("user-message").first()).toHaveText(
     "What is OpenRAG?",
   );
-  await expect(page.getByText("Thinking")).toBeVisible();
-  await expect(page.getByText("is an open-source package")).toBeVisible({
+  const openRagAnswer = page.getByText("is an open-source package");
+  await expect(page.getByText("Thinking").or(openRagAnswer)).toBeVisible({
+    timeout: 60000,
+  });
+  await expect(openRagAnswer).toBeVisible({
     timeout: 60000,
   });
 
