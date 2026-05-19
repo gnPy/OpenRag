@@ -4,6 +4,7 @@ import {
   AlertCircle,
   Bell,
   CheckCircle,
+  ChevronRight,
   Clock,
   Loader2,
   X,
@@ -36,6 +37,7 @@ export function TaskNotificationMenu() {
     selectedTaskTrigger,
     cancelTask,
     closeMenu,
+    selectTask,
   } = useTask();
   const [isPastOpen, setIsPastOpen] = useState(true);
   const lastHandledSelectionTriggerRef = useRef(0);
@@ -292,7 +294,8 @@ export function TaskNotificationMenu() {
                 return (
                   <Card
                     key={task.task_id}
-                    className="bg-card/50 border-0 shadow-none"
+                    className="bg-card/50 border-0 shadow-none cursor-pointer hover:bg-muted/30 transition-colors"
+                    onClick={() => selectTask(task.task_id)}
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -300,6 +303,7 @@ export function TaskNotificationMenu() {
                           {getTaskIcon(task.status)}
                           Task {task.task_id.substring(0, 8)}...
                         </CardTitle>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                       </div>
                       <CardDescription className="text-xs">
                         Started {formatRelativeTime(task.created_at)}
@@ -354,7 +358,10 @@ export function TaskNotificationMenu() {
                             <Button
                               variant="destructive"
                               size="sm"
-                              onClick={() => cancelTask(task.task_id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                cancelTask(task.task_id);
+                              }}
                               className="h-7 px-3 text-xs"
                               title="Cancel task"
                             >
@@ -405,22 +412,28 @@ export function TaskNotificationMenu() {
 
                 if (isTerminalFailedTask(task)) {
                   return (
-                    <TaskErrorContent
+                    <div
                       key={task.task_id}
-                      task={task}
-                      mode="past"
-                      defaultExpanded={shouldExpandDetails}
-                      expandTrigger={
-                        shouldExpandDetails ? selectedTaskTrigger : 0
-                      }
-                    />
+                      className="cursor-pointer"
+                      onClick={() => selectTask(task.task_id)}
+                    >
+                      <TaskErrorContent
+                        task={task}
+                        mode="past"
+                        defaultExpanded={shouldExpandDetails}
+                        expandTrigger={
+                          shouldExpandDetails ? selectedTaskTrigger : 0
+                        }
+                      />
+                    </div>
                   );
                 }
 
                 return (
                   <div
                     key={task.task_id}
-                    className="px-4 py-2 hover:bg-muted/50 transition-colors"
+                    className="px-4 py-2 hover:bg-muted/50 transition-colors cursor-pointer"
+                    onClick={() => selectTask(task.task_id)}
                   >
                     <div className="flex items-start gap-3">
                       {getTaskIcon(task.status, hasFailedFiles)}
@@ -450,8 +463,9 @@ export function TaskNotificationMenu() {
                             </div>
                           )}
                       </div>
-                      <div className="self-start pt-0.5">
+                      <div className="self-start pt-0.5 flex items-center gap-1">
                         {getStatusBadge(task.status, hasFailedFiles)}
+                        <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                       </div>
                     </div>
                     {hasFailedFiles && (

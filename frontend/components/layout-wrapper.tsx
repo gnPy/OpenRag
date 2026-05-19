@@ -14,6 +14,7 @@ import {
   ProviderHealthBanner,
   useProviderHealth,
 } from "@/components/provider-health-banner";
+import { TaskDetailsDialog } from "@/components/task-details-dialog";
 import { TaskNotificationMenu } from "@/components/task-notification-menu";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsCloudBrand } from "@/contexts/brand-context";
@@ -100,90 +101,93 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
     isMenuOpen || (isPanelOpen && isOnKnowledgePage && !isMenuOpen);
 
   return (
-    <div
-      className={cn(
-        "h-screen w-screen flex flex-col relative",
-        isCloudBrand ? "bg-background" : "bg-muted dark:bg-black",
-      )}
-    >
-      {/* Banner — full width */}
-      <div className="w-full z-10 bg-background">
-        <AnimatedConditional
-          vertical
-          isOpen={isDoclingUnhealthy}
-          className="w-full"
-        >
-          <DoclingHealthBanner />
-        </AnimatedConditional>
-        {settings?.edited && isOnboardingComplete && (
+    <>
+      <div
+        className={cn(
+          "h-screen w-screen flex flex-col relative",
+          isCloudBrand ? "bg-background" : "bg-muted dark:bg-black",
+        )}
+      >
+        {/* Banner — full width */}
+        <div className="w-full z-10 bg-background">
           <AnimatedConditional
             vertical
-            isOpen={isProviderUnhealthy}
+            isOpen={isDoclingUnhealthy}
             className="w-full"
           >
-            <ProviderHealthBanner />
+            <DoclingHealthBanner />
           </AnimatedConditional>
-        )}
-      </div>
-
-      {/* Header — full width, slides down when onboarding completes */}
-      <AnimatedConditional
-        vertical
-        isOpen={isOnboardingComplete}
-        delay={ANIMATION_DURATION / 2}
-        className="bg-background border-b shrink-0"
-      >
-        <div style={{ height: HEADER_HEIGHT }}>
-          <Header />
-        </div>
-      </AnimatedConditional>
-
-      {/* Body row: nav + main content + right panel */}
-      <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
-        <ChatRenderer settings={settings}>{children}</ChatRenderer>
-
-        {/* Right panel — slides in from the right, pushes main content */}
-        <div
-          className={cn(
-            "overflow-hidden bg-sidebar flex flex-row justify-end transition-[width] duration-200 ease-linear",
-            isRightPanelOpen && "border-l border-sidebar-border",
+          {settings?.edited && isOnboardingComplete && (
+            <AnimatedConditional
+              vertical
+              isOpen={isProviderUnhealthy}
+              className="w-full"
+            >
+              <ProviderHealthBanner />
+            </AnimatedConditional>
           )}
-          style={{ width: isRightPanelOpen ? "360px" : "0px" }}
+        </div>
+
+        {/* Header — full width, slides down when onboarding completes */}
+        <AnimatedConditional
+          vertical
+          isOpen={isOnboardingComplete}
+          delay={ANIMATION_DURATION / 2}
+          className="bg-background border-b shrink-0"
         >
-          <div className="w-[360px] h-full shrink-0">
-            <AnimatePresence mode="wait">
-              {isMenuOpen && (
-                <motion.div
-                  key="notifications"
-                  className="h-full"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  <TaskNotificationMenu />
-                </motion.div>
-              )}
-              {isPanelOpen && !isMenuOpen && isOnKnowledgePage && (
-                <motion.div
-                  key="filters"
-                  className="h-full"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.15 }}
-                >
-                  {panelMode === "ingestion-status" ? (
-                    <FailedTasksInfo failedTasks={failedTasks} />
-                  ) : (
-                    <KnowledgeFilterPanel />
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <div style={{ height: HEADER_HEIGHT }}>
+            <Header />
+          </div>
+        </AnimatedConditional>
+
+        {/* Body row: nav + main content + right panel */}
+        <div className="flex-1 min-h-0 flex flex-row overflow-hidden">
+          <ChatRenderer settings={settings}>{children}</ChatRenderer>
+
+          {/* Right panel — slides in from the right, pushes main content */}
+          <div
+            className={cn(
+              "overflow-hidden bg-sidebar flex flex-row justify-end transition-[width] duration-200 ease-linear",
+              isRightPanelOpen && "border-l border-sidebar-border",
+            )}
+            style={{ width: isRightPanelOpen ? "360px" : "0px" }}
+          >
+            <div className="w-[360px] h-full shrink-0">
+              <AnimatePresence mode="wait">
+                {isMenuOpen && (
+                  <motion.div
+                    key="notifications"
+                    className="h-full"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    <TaskNotificationMenu />
+                  </motion.div>
+                )}
+                {isPanelOpen && !isMenuOpen && isOnKnowledgePage && (
+                  <motion.div
+                    key="filters"
+                    className="h-full"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                  >
+                    {panelMode === "ingestion-status" ? (
+                      <FailedTasksInfo failedTasks={failedTasks} />
+                    ) : (
+                      <KnowledgeFilterPanel />
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      <TaskDetailsDialog />
+    </>
   );
 }
