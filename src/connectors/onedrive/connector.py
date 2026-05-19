@@ -737,7 +737,7 @@ class OneDriveConnector(BaseConnector):
                 # Try: /drives/{driveId}/items/{itemId} with full item ID (including 's' prefix)
                 logger.info(f"Trying drives endpoint: /drives/{drive_id}/items/{item_id}")
                 try:
-                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}"
+                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{file_id}"
                     response = await self._make_graph_request(url, params=params)
                     if response.status_code == 200:
                         return response.json()
@@ -755,7 +755,7 @@ class OneDriveConnector(BaseConnector):
                         f"Trying drives endpoint without 's' prefix: /drives/{drive_id}/items/{clean_item_id}"
                     )
                     try:
-                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{clean_item_id}"
+                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{clean_file_id}"
                         response = await self._make_graph_request(url, params=params)
                         if response.status_code == 200:
                             return response.json()
@@ -811,8 +811,8 @@ class OneDriveConnector(BaseConnector):
                         if content is not None:
                             return content
 
-                    # Try drives endpoint for driveId!itemId format (including the 's' prefix)
-                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}/content"
+                    # Try drives endpoint for driveId!itemId format
+                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{file_id}/content"
                     logger.info(f"Downloading via drives endpoint: {url}")
                 else:
                     url = f"{self._graph_base_url}/me/drive/items/{file_id}/content"
