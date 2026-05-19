@@ -6,6 +6,7 @@ validate_ibm_jwt — full RS256 validation for optional use when
                   IBM_JWT_PUBLIC_KEY_URL is configured.
 fetch_ibm_public_key — fetch and cache IBM's public key PEM.
 """
+
 import httpx
 import jwt
 from cryptography.hazmat.primitives.serialization import load_pem_public_key
@@ -72,6 +73,7 @@ def extract_ibm_credentials(basic_credentials: str) -> tuple[str, str]:
     Returns ("unknown", "") if decoding fails.
     """
     import base64
+
     try:
         raw = basic_credentials[6:] if basic_credentials.startswith("Basic ") else basic_credentials
         decoded = base64.b64decode(raw).decode("utf-8")
