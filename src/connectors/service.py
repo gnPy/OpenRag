@@ -183,6 +183,9 @@ class ConnectorService:
                         "source": """
                             ctx._source.source_url = params.source_url;
                             ctx._source.connector_type = params.connector_type;
+                            if (params.filename != null) {
+                                ctx._source.filename = params.filename;
+                            }
                             if (params.created_time != null) {
                                 ctx._source.created_time = params.created_time;
                             }
@@ -196,6 +199,7 @@ class ConnectorService:
                         "params": {
                             "source_url": document.source_url,
                             "connector_type": connector_type,
+                            "filename": document.filename,
                             "created_time": document.created_time.isoformat()
                             if document.created_time
                             else None,
@@ -268,7 +272,7 @@ class ConnectorService:
         while True:
             # List files from connector with limit
             logger.debug("Calling list_files", page_size=page_size, page_token=page_token)
-            file_list = await connector.list_files(page_token, limit=page_size)
+            file_list = await connector.list_files(page_token, max_files=page_size)
             logger.debug("Got files from connector", file_count=len(file_list.get("files", [])))
             files = file_list["files"]
 
