@@ -104,7 +104,7 @@ class OneDriveConnector(BaseConnector):
 
         # Graph API defaults
         self._graph_api_version = "v1.0"
-        self._default_params = {
+        self._default_params: dict[str, Any] = {
             "$select": "id,name,size,lastModifiedDateTime,createdDateTime,webUrl,file,folder,@microsoft.graph.downloadUrl"
         }
 
@@ -272,7 +272,7 @@ class OneDriveConnector(BaseConnector):
                         logger.warning("_detect_onedrive_url: webUrl is empty in response")
                 else:
                     logger.warning(
-                        f"[CONNECTOR] OneDrive detect URL failed: {response.status_code}"
+                        f"[CONNECTOR] OneDrive detect URL failed, status_code: {response.status_code}"
                     )
 
         except Exception:
@@ -741,6 +741,10 @@ class OneDriveConnector(BaseConnector):
                     response = await self._make_graph_request(url, params=params)
                     if response.status_code == 200:
                         return response.json()
+                    else:
+                        logger.warning(
+                            f"Drives endpoint failed with status {response.status_code}: {response.text}"
+                        )
                 except Exception as e:
                     logger.debug(f"Drives endpoint failed: {e}")
 
@@ -755,6 +759,10 @@ class OneDriveConnector(BaseConnector):
                         response = await self._make_graph_request(url, params=params)
                         if response.status_code == 200:
                             return response.json()
+                        else:
+                            logger.warning(
+                                f"Drives endpoint without 's' prefix failed with status {response.status_code}: {response.text}"
+                            )
                     except Exception as e:
                         logger.debug(f"Drives endpoint (no prefix) failed: {e}")
 
@@ -765,8 +773,12 @@ class OneDriveConnector(BaseConnector):
                     response = await self._make_graph_request(url, params=params)
                     if response.status_code == 200:
                         return response.json()
+                    else:
+                        logger.warning(
+                            f"Standard endpoint failed with status {response.status_code}: {response.text}"
+                        )
                 except Exception as e:
-                    logger.debug(f"Standard endpoint failed: {e}")
+                    logger.debug(f"Standard endpoint exception: {e}")
         else:
             # Standard item ID without '!'
             url = f"{self._graph_base_url}/me/drive/items/{file_id}"
