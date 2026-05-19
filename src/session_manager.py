@@ -2,7 +2,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Optional, Union
+from typing import Any, Union
 
 import httpx
 import jwt
@@ -31,10 +31,10 @@ class User:
     provider: str = "google"
     created_at: datetime = None
     last_login: datetime = None
-    jwt_token: Optional[str] = None
-    opensearch_username: Optional[str] = None
-    opensearch_credentials: Optional[str] = None  # Raw base64 credentials (without "Basic " prefix)
-    db_user_id: Optional[str] = None  # Internal OpenRAG users.id
+    jwt_token: str | None = None
+    opensearch_username: str | None = None
+    opensearch_credentials: str | None = None  # Raw base64 credentials (without "Basic " prefix)
+    db_user_id: str | None = None  # Internal OpenRAG users.id
 
     def __post_init__(self):
         if self.created_at is None:
@@ -151,11 +151,11 @@ class SessionManager:
             self.public_key_pem = open(self.public_key_path, "r").read()
 
         except FileNotFoundError as e:
-            raise Exception(f"RSA key files not found: {e}")
+            raise Exception(f"RSA key files not found: {e}") from e
         except Exception as e:
-            raise Exception(f"Failed to load RSA keys: {e}")
+            raise Exception(f"Failed to load RSA keys: {e}") from e
 
-    async def get_user_info_from_token(self, access_token: str) -> Optional[dict[str, Any]]:
+    async def get_user_info_from_token(self, access_token: str) -> dict[str, Any] | None:
         """Get user info from Google using access token"""
         try:
             async with httpx.AsyncClient() as client:
@@ -178,7 +178,7 @@ class SessionManager:
             logger.error("Error getting user info", error=str(e))
             return None
 
-    async def create_user_session(self, access_token: str, issuer: str) -> Optional[str]:
+    async def create_user_session(self, access_token: str, issuer: str) -> str | None:
         """Create user session from OAuth access token"""
         user_info = await self.get_user_info_from_token(access_token)
         if not user_info:
@@ -242,7 +242,7 @@ class SessionManager:
             token = jwt.encode(token_payload, self.private_key, algorithm=self.algorithm)
         return f"Bearer {token}"
 
-    def verify_token(self, token: str) -> Optional[dict[str, Any]]:
+    def verify_token(self, token: str) -> dict[str, Any] | None:
         """Verify JWT token and return decoded claims, using an in-process cache."""
         if IBM_AUTH_ENABLED:
             return None
@@ -268,13 +268,13 @@ class SessionManager:
         except jwt.InvalidTokenError:
             return None
 
-    def get_user(self, user_id: str) -> Optional[User]:
+    def get_user(self, user_id: str) -> User | None:
         """Get user by ID"""
         if user_id == "anonymous":
             return AnonymousUser()
         return self.users.get(user_id)
 
-    def get_user_from_token(self, token: str) -> Optional[User]:
+    def get_user_from_token(self, token: str) -> User | None:
         """Get user from JWT token"""
         payload = self.verify_token(token)
         if payload:
