@@ -737,7 +737,7 @@ class OneDriveConnector(BaseConnector):
                 # Try: /drives/{driveId}/items/{itemId} with full item ID (including 's' prefix)
                 logger.info(f"Trying drives endpoint: /drives/{drive_id}/items/{item_id}")
                 try:
-                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{file_id}"
+                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}"
                     response = await self._make_graph_request(url, params=params)
                     if response.status_code == 200:
                         return response.json()
@@ -755,7 +755,7 @@ class OneDriveConnector(BaseConnector):
                         f"Trying drives endpoint without 's' prefix: /drives/{drive_id}/items/{clean_item_id}"
                     )
                     try:
-                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{clean_file_id}"
+                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{clean_item_id}"
                         response = await self._make_graph_request(url, params=params)
                         if response.status_code == 200:
                             return response.json()
