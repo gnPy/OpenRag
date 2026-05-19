@@ -226,7 +226,10 @@ type LangflowSpec struct {
 	// are downloaded at pod startup via an init container. When set, all *.json
 	// files under flows/ in langflow-ai/openrag at that ref are fetched into
 	// /app/flows (LANGFLOW_LOAD_FLOWS_PATH). Use a commit SHA for reproducibility.
+	// When empty (the default), the flows baked into the langflow image at
+	// /app/flows are used and no init container is created.
 	// +optional
+	// +kubebuilder:default=""
 	FlowsRef string `json:"flowsRef,omitempty"`
 
 	// FlowsInitImage is the container image used by the flows-download init container.
