@@ -181,9 +181,7 @@ def test_ingest_flows_resolve_callback_config_from_global_vars(flow_path, compon
     assert template["openrag_ingest_token"]["_input_type"] == "StrInput"
     assert "OPENRAG_INGEST_URL" in template["code"]["value"]
     assert "_openrag_ingest_global_placeholders" in template["code"]["value"]
-    assert "value.lower() in" in template["code"]["value"]
-    assert '"none"' in template["code"]["value"]
-    assert '"null"' in template["code"]["value"]
+    assert "value.lower() in" not in template["code"]["value"]
 
 
 @pytest.mark.parametrize(

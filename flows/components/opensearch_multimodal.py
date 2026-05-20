@@ -796,10 +796,7 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
 
     def _openrag_callback_value(self, attr_name: str) -> str:
         value = self._openrag_input_to_str(getattr(self, attr_name, ""))
-        if value == self._openrag_ingest_global_placeholders.get(attr_name) or value.lower() in {
-            "none",
-            "null",
-        }:
+        if value == self._openrag_ingest_global_placeholders.get(attr_name):
             return ""
         return value
 
