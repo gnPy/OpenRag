@@ -54,6 +54,9 @@ dependencies = [
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.21.0", "pytest-mock>=3.12.0", "pytest-cov>=4.0.0"]
+# External connectors. Uncomment and run `uv sync --group connectors` to enable.
+# When absent, ConnectionManager registers only the built-in connectors.
+# connectors = ["openrag-connectors"]
 
 [project.scripts]
 openrag = "tui.main:run_tui"
@@ -61,5 +64,11 @@ openrag = "tui.main:run_tui"
 [tool.uv]
 package = true
 override-dependencies = ["python-dotenv>=1.1.0"]
+
+# Source resolution for openrag-connectors. Uncomment alongside the
+# `connectors` dependency-group entry above to resolve the package from a
+# local sibling checkout. Once published, replace with a version specifier.
+# [tool.uv.sources]
+# openrag-connectors = { path = "../openrag-connectors", editable = true }
 
 

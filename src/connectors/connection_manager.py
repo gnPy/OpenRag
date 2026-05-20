@@ -16,6 +16,21 @@ from .sharepoint import SharePointConnector
 from .onedrive import OneDriveConnector
 from .ibm_cos import IBMCOSConnector
 from .aws_s3 import S3Connector
+from .external import ExternalConnector  # generic adapter for openrag_connectors types
+
+
+def _external_connector_types() -> Dict[str, type]:
+    """Connector types discovered via the openrag_connectors registry.
+
+    Returns a mapping of connector_type -> upstream class. Empty if the
+    package is not installed (allows OpenRAG to run with only built-ins).
+    """
+    try:
+        from openrag_connectors import get as get_connector_cls
+        from openrag_connectors import known_types
+    except ImportError:
+        return {}
+    return {t: get_connector_cls(t) for t in known_types()}
 
 
 @dataclass
@@ -428,7 +443,7 @@ class ConnectionManager:
         1) its required env credentials are present, or
         2) the user has an active saved connection with usable credentials.
         """
-        return {
+        types: Dict[str, Dict[str, Any]] = {
             "google_drive": {
                 "name": GoogleDriveConnector.CONNECTOR_NAME,
                 "description": GoogleDriveConnector.CONNECTOR_DESCRIPTION,
@@ -460,6 +475,16 @@ class ConnectionManager:
                 "available": os.environ.get("IBM_AUTH_ENABLED", "").lower() in ("1", "true", "yes"),
             },
         }
+        # Every connector registered in openrag_connectors plugs in via
+        # entry points.
+        for ct, cls in _external_connector_types().items():
+            types[ct] = {
+                "name": cls.CONNECTOR_NAME,
+                "description": cls.CONNECTOR_DESCRIPTION,
+                "icon": cls.CONNECTOR_ICON,
+                "available": self._is_connector_available(ct, user_id),
+            }
+        return types
 
     def _has_saved_credentials_for_user(
         self, connector_type: str, user_id: Optional[str]
@@ -500,7 +525,12 @@ class ConnectionManager:
             return self._has_saved_credentials_for_user(connector_type, user_id)
 
     def _create_connector(self, config: ConnectionConfig) -> BaseConnector:
-        """Factory method to create connector instances"""
+        """Factory method to create connector instances.
+
+        Built-in OpenRAG connectors are dispatched here; any type registered
+        in the external ``openrag_connectors`` package is constructed via
+        the generic :class:`ExternalConnector` adapter.
+        """
         try:
             if config.connector_type == "google_drive":
                 return GoogleDriveConnector(config.config)
@@ -512,8 +542,8 @@ class ConnectionManager:
                 return IBMCOSConnector(config.config)
             elif config.connector_type == "aws_s3":
                 return S3Connector(config.config)
-            elif config.connector_type == "box":
-                raise NotImplementedError("Box connector not implemented yet")
+            elif config.connector_type in _external_connector_types():
+                return ExternalConnector(config.connector_type, config.config)
             elif config.connector_type == "dropbox":
                 raise NotImplementedError("Dropbox connector not implemented yet")
             else:
