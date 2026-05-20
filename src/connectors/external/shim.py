@@ -32,9 +32,9 @@ logger = logging.getLogger(__name__)
 class ExternalConnector(BaseConnector):
     """Mode-selecting adapter. ``connector_type`` is passed in by ConnectionManager."""
 
-    _backend: "Union[LibraryBackend, ServiceBackend]"
+    _backend: "LibraryBackend | ServiceBackend"
 
-    def __init__(self, connector_type: str, config: Dict[str, Any]):
+    def __init__(self, connector_type: str, config: dict[str, Any]):
         if config is None:
             config = {}
         super().__init__(config)
@@ -81,10 +81,10 @@ class ExternalConnector(BaseConnector):
 
     async def list_files(
         self,
-        page_token: Optional[str] = None,
-        max_files: Optional[int] = None,
+        page_token: str | None = None,
+        max_files: int | None = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         return await self._backend.list_files(page_token=page_token, max_files=max_files)
 
     async def get_file_content(self, file_id: str) -> ConnectorDocument:
@@ -96,17 +96,17 @@ class ExternalConnector(BaseConnector):
     async def cleanup_subscription(self, subscription_id: str) -> bool:
         return await self._backend.cleanup_subscription(subscription_id)
 
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         return await self._backend.handle_webhook(payload)
 
     def handle_webhook_validation(
-        self, request_method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, request_method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         return self._backend.handle_webhook_validation(request_method, headers, query_params)
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         return self._backend.extract_webhook_channel_id(payload, headers)
 
     # ── OAuth helpers (duck-typed by src/api/auth.py for OAuth connectors) ──
@@ -114,7 +114,7 @@ class ExternalConnector(BaseConnector):
     def get_auth_url(self) -> str:
         return self._backend.get_auth_url()
 
-    async def handle_oauth_callback(self, auth_code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(self, auth_code: str) -> dict[str, Any]:
         return await self._backend.handle_oauth_callback(auth_code)
 
     @property

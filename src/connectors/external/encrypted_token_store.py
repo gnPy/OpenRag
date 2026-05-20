@@ -14,7 +14,7 @@ class EncryptedFileTokenStore:
     def __init__(self, file_path: str):
         self.file_path = file_path
 
-    async def load(self) -> Tuple[Optional[str], bool]:
+    async def load(self) -> tuple[str | None, bool]:
         from utils.encryption import read_encrypted_file
 
         return await read_encrypted_file(self.file_path)

@@ -25,7 +25,7 @@ from .encrypted_token_store import EncryptedFileTokenStore
 
 logger = logging.getLogger(__name__)
 
-_CONNECTION_LOCKS: Dict[str, asyncio.Lock] = {}
+_CONNECTION_LOCKS: dict[str, asyncio.Lock] = {}
 
 
 def _lock_for(connection_id: str) -> asyncio.Lock:
@@ -39,7 +39,7 @@ def _lock_for(connection_id: str) -> asyncio.Lock:
 class ServiceBackend:
     """HTTP client mirroring LibraryBackend's surface, parameterized by type."""
 
-    def __init__(self, connector_type: str, config: Dict[str, Any]):
+    def __init__(self, connector_type: str, config: dict[str, Any]):
         self.connector_type = connector_type
         self.config = config
         self.connection_id = config.get("connection_id", "default")
@@ -96,9 +96,9 @@ class ServiceBackend:
 
     async def list_files(
         self,
-        page_token: Optional[str] = None,
-        max_files: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        page_token: str | None = None,
+        max_files: int | None = None,
+    ) -> dict[str, Any]:
         resp = await self._call("list_files", {"page_token": page_token, "max_files": max_files})
         return {
             "files": resp.get("files", []),
@@ -155,7 +155,7 @@ class ServiceBackend:
         resp = await self._call("cleanup_subscription", {"subscription_id": subscription_id})
         return bool(resp.get("ok"))
 
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         body_b64 = base64.b64encode(json.dumps(payload).encode()).decode()
         result = await self.process_webhook_full(
             method="POST",
@@ -166,16 +166,16 @@ class ServiceBackend:
         return result.get("file_ids", [])
 
     def handle_webhook_validation(
-        self, method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         # Validation is sync per BaseConnector contract. The combined
         # process_webhook_full path handles it on the wire; this method is
         # rarely the entry point in service mode.
         return None
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         # Many connectors put the id at a stable JSON path. We can do this
         # without a service round-trip by deferring to the upstream class.
         from openrag_connectors import get as get_connector_cls
@@ -193,10 +193,10 @@ class ServiceBackend:
     async def process_webhook_full(
         self,
         method: str,
-        headers: Dict[str, str],
-        query_params: Dict[str, str],
+        headers: dict[str, str],
+        query_params: dict[str, str],
         body_bytes: bytes,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """One round trip: validation + signature verification + parsing."""
         payload = {
             "method": method,
@@ -219,7 +219,7 @@ class ServiceBackend:
     def get_auth_url(self) -> str:
         return asyncio.get_event_loop().run_until_complete(self._get_auth_url())
 
-    async def _get_auth_url(self, state: Optional[str] = None) -> str:
+    async def _get_auth_url(self, state: str | None = None) -> str:
         body = await self._build_request_body({"state": state} if state else {})
         url = f"{self.service_url}/v1/{self.connector_type}/oauth/authorize_url"
         async with httpx.AsyncClient(timeout=30) as http:
@@ -227,7 +227,7 @@ class ServiceBackend:
             r.raise_for_status()
             return r.json()["url"]
 
-    async def handle_oauth_callback(self, auth_code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(self, auth_code: str) -> dict[str, Any]:
         body = await self._build_request_body({"code": auth_code})
         url = f"{self.service_url}/v1/{self.connector_type}/oauth/callback"
         async with _lock_for(self.connection_id):
@@ -249,7 +249,7 @@ class ServiceBackend:
 
     # ── internals ──────────────────────────────────────────────────────────
 
-    async def _build_request_body(self, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _build_request_body(self, args: dict[str, Any]) -> dict[str, Any]:
         oauth = await self._load_oauth_state()
         config_payload = {
             "connection_id": self.connection_id,
@@ -263,8 +263,8 @@ class ServiceBackend:
         }
         return {"config": config_payload, "oauth": oauth, "args": args}
 
-    async def _load_oauth_state(self) -> Dict[str, Any]:
-        oauth: Dict[str, Any] = {
+    async def _load_oauth_state(self) -> dict[str, Any]:
+        oauth: dict[str, Any] = {
             "client_id": self.client_id or "",
             "client_secret": self.client_secret or "",
             "token_type": "bearer",
@@ -285,7 +285,7 @@ class ServiceBackend:
                 pass
         return oauth
 
-    async def _call(self, operation: str, args: Dict[str, Any]) -> Dict[str, Any]:
+    async def _call(self, operation: str, args: dict[str, Any]) -> dict[str, Any]:
         body = await self._build_request_body(args)
         url = f"{self.service_url}/v1/{self.connector_type}/{operation}"
         async with _lock_for(self.connection_id):
@@ -303,7 +303,7 @@ class ServiceBackend:
     async def _persist_refreshed(self, refreshed_b64: str) -> None:
         await self._persist_refreshed_dict(json.loads(base64.b64decode(refreshed_b64)))
 
-    async def _persist_refreshed_dict(self, refreshed: Dict[str, Any]) -> None:
+    async def _persist_refreshed_dict(self, refreshed: dict[str, Any]) -> None:
         to_save = {
             "access_token": refreshed.get("access_token"),
             "refresh_token": refreshed.get("refresh_token"),

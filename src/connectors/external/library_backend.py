@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional
 class LibraryBackend:
     """Wraps an upstream connector class so the shim can delegate."""
 
-    def __init__(self, connector_type: str, config: Dict[str, Any]):
+    def __init__(self, connector_type: str, config: dict[str, Any]):
         from openrag_connectors import get as get_connector_cls
 
         from .encrypted_token_store import EncryptedFileTokenStore
@@ -37,9 +37,9 @@ class LibraryBackend:
 
     async def list_files(
         self,
-        page_token: Optional[str] = None,
-        max_files: Optional[int] = None,
-    ) -> Dict[str, Any]:
+        page_token: str | None = None,
+        max_files: int | None = None,
+    ) -> dict[str, Any]:
         return await self._connector.list_files(page_token=page_token, max_files=max_files)
 
     async def get_file_content(self, file_id: str):
@@ -51,17 +51,17 @@ class LibraryBackend:
     async def cleanup_subscription(self, subscription_id: str) -> bool:
         return await self._connector.cleanup_subscription(subscription_id)
 
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         return await self._connector.handle_webhook(payload)
 
     def handle_webhook_validation(
-        self, method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         return self._connector.handle_webhook_validation(method, headers, query_params)
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         return self._connector.extract_webhook_channel_id(payload, headers)
 
     # ── OAuth helpers (called by src/api/auth.py via duck typing) ──────────
@@ -69,7 +69,7 @@ class LibraryBackend:
     def get_auth_url(self) -> str:
         return self._connector.get_auth_url()
 
-    async def handle_oauth_callback(self, auth_code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(self, auth_code: str) -> dict[str, Any]:
         return await self._connector.handle_oauth_callback(auth_code)
 
     @property
