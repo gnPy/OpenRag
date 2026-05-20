@@ -378,15 +378,17 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             display_name="OpenRAG Ingest URL",
             value="OPENRAG_INGEST_URL",
             load_from_db=True,
+            input_types=["Text", "Message"],
             show=False,
             advanced=True,
             info="Internal OpenRAG callback URL for backend-owned document indexing.",
         ),
-        SecretStrInput(
+        StrInput(
             name="openrag_ingest_token",
             display_name="OpenRAG Ingest Token",
             value="OPENRAG_INGEST_TOKEN",
             load_from_db=True,
+            input_types=["Text", "Message"],
             show=False,
             advanced=True,
             info="Short-lived token used only for OpenRAG ingest callbacks.",
@@ -396,6 +398,7 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             display_name="OpenRAG Ingest Run ID",
             value="OPENRAG_INGEST_RUN_ID",
             load_from_db=True,
+            input_types=["Text", "Message"],
             show=False,
             advanced=True,
         ),
@@ -787,6 +790,8 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             return ""
         if hasattr(value, "get_secret_value"):
             value = value.get_secret_value()
+        if hasattr(value, "text"):
+            value = value.text
         return str(value or "").strip()
 
     def _openrag_callback_value(self, attr_name: str) -> str:

@@ -180,8 +180,44 @@ def test_ingest_flows_resolve_callback_config_from_global_vars(flow_path, compon
     assert template["openrag_ingest_url"]["load_from_db"] is True
     assert template["openrag_ingest_token"]["load_from_db"] is True
     assert template["openrag_ingest_run_id"]["load_from_db"] is True
+    assert template["openrag_ingest_url"]["input_types"] == ["Text", "Message"]
+    assert template["openrag_ingest_token"]["input_types"] == ["Text", "Message"]
+    assert template["openrag_ingest_run_id"]["input_types"] == ["Text", "Message"]
+    assert template["openrag_ingest_token"]["_input_type"] == "StrInput"
     assert "OPENRAG_INGEST_URL" in template["code"]["value"]
     assert "_openrag_ingest_global_placeholders" in template["code"]["value"]
+
+
+@pytest.mark.parametrize(
+    ("flow_path", "component_id"),
+    [
+        ("flows/ingestion_flow.json", LangflowFileService.INGEST_OPENSEARCH_COMPONENT_ID),
+        ("flows/openrag_url_mcp.json", LangflowFileService.URL_INGEST_OPENSEARCH_COMPONENT_ID),
+    ],
+)
+def test_ingest_flows_wire_callback_global_vars_into_opensearch(flow_path, component_id):
+    flow = json.loads(Path(flow_path).read_text(encoding="utf-8"))
+    nodes = {node.get("id"): node for node in flow["data"]["nodes"]}
+    edges = flow["data"]["edges"]
+    expected = {
+        "openrag_ingest_url": "OPENRAG_INGEST_URL",
+        "openrag_ingest_token": "OPENRAG_INGEST_TOKEN",
+        "openrag_ingest_run_id": "OPENRAG_INGEST_RUN_ID",
+    }
+
+    for field_name, variable_name in expected.items():
+        source_id = f"TextInput-OpenRAGIngest-{field_name.removeprefix('openrag_ingest_')}"
+        text_node = nodes[source_id]
+        input_template = text_node["data"]["node"]["template"]["input_value"]
+        assert input_template["value"] == variable_name
+        assert input_template["load_from_db"] is True
+
+        assert any(
+            edge.get("source") == source_id
+            and edge.get("target") == component_id
+            and edge.get("data", {}).get("targetHandle", {}).get("fieldName") == field_name
+            for edge in edges
+        )
 
 
 @pytest.mark.parametrize(
