@@ -79,18 +79,49 @@ class LangflowConnectorService:
                 document.mimetype or "application/octet-stream",
             )
 
-            # Step 0: Delete existing chunks for this file before re-ingesting
-            # This prevents duplicate chunks when syncing files
+            # Step 0: Delete existing chunks for this file before re-ingesting.
+            # Match on document_id (the stable connector item ID, e.g. the
+            # SharePoint Graph item id) — NOT on filename. On a rename, the
+            # `processed_filename` here is the NEW name while OpenSearch chunks
+            # still carry the OLD name, so a filename-keyed delete misses them
+            # and the re-ingest leaves duplicate chunks (same document_id, two
+            # different filenames). Also use enumerate-then-delete-by-id rather
+            # than delete_by_query, which is silently no-opped under DLS.
             if self.session_manager:
+                from config.settings import get_index_name
+                from utils.opensearch_delete import (
+                    collect_visible_document_ids,
+                    delete_document_ids,
+                )
+
+                opensearch_client = self.session_manager.get_user_opensearch_client(
+                    owner_user_id, jwt_token
+                )
                 try:
-                    from config.settings import get_index_name
-                    opensearch_client = self.session_manager.get_user_opensearch_client(owner_user_id, jwt_token)
-                    delete_body = {"query": {"term": {"filename": processed_filename}}}
-                    delete_result = await opensearch_client.delete_by_query(index=get_index_name(), body=delete_body)
-                    deleted_count = delete_result.get("deleted", 0)
-                    logger.info("Deleted existing chunks before re-ingestion", filename=processed_filename, deleted_count=deleted_count)
+                    chunk_ids = await collect_visible_document_ids(
+                        opensearch_client,
+                        index=get_index_name(),
+                        query={"term": {"document_id": document.id}},
+                    )
+                    deleted_count = await delete_document_ids(
+                        opensearch_client,
+                        index=get_index_name(),
+                        document_ids=chunk_ids,
+                        refresh=True,
+                    )
+                    logger.info(
+                        "Deleted existing chunks before re-ingestion",
+                        document_id=document.id,
+                        filename=processed_filename,
+                        deleted_count=deleted_count,
+                    )
                 except Exception as delete_err:
-                    logger.warning("Failed to delete existing chunks before re-ingestion", filename=processed_filename, error=str(delete_err))
+                    logger.warning(
+                        "Failed to delete existing chunks before re-ingestion",
+                        document_id=document.id,
+                        filename=processed_filename,
+                        error=str(delete_err),
+                    )
 
             langflow_file_id = None  # Initialize to track if upload succeeded
             try:
