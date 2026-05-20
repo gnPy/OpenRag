@@ -73,15 +73,28 @@ class ConnectorService:
             if self.session_manager:
                 try:
                     from config.settings import get_index_name
-                    opensearch_client = self.session_manager.get_user_opensearch_client(owner_user_id, jwt_token)
+
+                    opensearch_client = self.session_manager.get_user_opensearch_client(
+                        owner_user_id, jwt_token
+                    )
                     delete_body = {"query": {"term": {"document_id": document.id}}}
-                    delete_result = await opensearch_client.delete_by_query(index=get_index_name(), body=delete_body)
+                    delete_result = await opensearch_client.delete_by_query(
+                        index=get_index_name(), body=delete_body
+                    )
                     deleted_count = delete_result.get("deleted", 0)
-                    logger.info("Deleted existing chunks before re-ingestion", document_id=document.id, deleted_count=deleted_count)
+                    logger.info(
+                        "Deleted existing chunks before re-ingestion",
+                        document_id=document.id,
+                        deleted_count=deleted_count,
+                    )
                     # Refresh index to make deletion visible before processing
                     await opensearch_client.indices.refresh(index=get_index_name())
                 except Exception as delete_err:
-                    logger.warning("Failed to delete existing chunks before re-ingestion", document_id=document.id, error=str(delete_err))
+                    logger.warning(
+                        "Failed to delete existing chunks before re-ingestion",
+                        document_id=document.id,
+                        error=str(delete_err),
+                    )
 
             # Process using consolidated processing pipeline
             from models.processors import TaskProcessor

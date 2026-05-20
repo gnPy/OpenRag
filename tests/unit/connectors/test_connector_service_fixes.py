@@ -15,7 +15,6 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 
-
 def _make_document(doc_id: str = "doc-123", filename: str = "test.docx"):
     return ConnectorDocument(
         id=doc_id,
@@ -57,10 +56,11 @@ async def test_connector_service_process_connector_document_fixes():
     mock_processor = MagicMock()
     mock_processor.process_document_standard = AsyncMock(return_value={"status": "indexed"})
 
-    with patch("utils.file_utils.auto_cleanup_tempfile") as mock_temp, \
-         patch("connectors.service.open", create=True) as mock_open, \
-         patch("models.processors.TaskProcessor", return_value=mock_processor):
-
+    with (
+        patch("utils.file_utils.auto_cleanup_tempfile") as mock_temp,
+        patch("connectors.service.open", create=True) as mock_open,
+        patch("models.processors.TaskProcessor", return_value=mock_processor),
+    ):
         mock_temp.return_value.__enter__.return_value = "/tmp/test.docx"
 
         result = await service.process_connector_document(
@@ -98,13 +98,15 @@ async def test_langflow_connector_service_sync_connector_files_fixes():
 
     mock_connector = MagicMock()
     mock_connector.is_authenticated = True
-    mock_connector.list_files = AsyncMock(return_value={
-        "files": [
-            {"id": "f1", "name": "keep.docx", "mimeType": "application/pdf"},
-            {"id": "f2", "name": "skip.docx", "mimeType": "application/pdf"},
-        ],
-        "nextPageToken": None
-    })
+    mock_connector.list_files = AsyncMock(
+        return_value={
+            "files": [
+                {"id": "f1", "name": "keep.docx", "mimeType": "application/pdf"},
+                {"id": "f2", "name": "skip.docx", "mimeType": "application/pdf"},
+            ],
+            "nextPageToken": None,
+        }
+    )
     service.get_connector = AsyncMock(return_value=mock_connector)
 
     filename_filter = {"keep.docx"}
@@ -163,9 +165,7 @@ async def test_langflow_connector_service_sync_specific_files_folder_validation(
     mock_connector.list_files = AsyncMock(return_value={"files": []})
     service.get_connector = AsyncMock(return_value=mock_connector)
 
-    file_infos_folders_only = [
-        {"id": "folder-1", "name": "My Folder", "isFolder": True}
-    ]
+    file_infos_folders_only = [{"id": "folder-1", "name": "My Folder", "isFolder": True}]
 
     with pytest.raises(ValueError, match="No files to sync after expanding folders"):
         await service.sync_specific_files(
