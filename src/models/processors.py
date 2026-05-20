@@ -482,7 +482,10 @@ class DocumentFileProcessor(TaskProcessor):
                 em = s.get("embeddingModel")
                 if isinstance(em, str) and em.strip():
                     standard_kwargs["embedding_model"] = em.strip()
-                for ui_key, param in (("chunkSize", "chunk_size"), ("chunkOverlap", "chunk_overlap")):
+                for ui_key, param in (
+                    ("chunkSize", "chunk_size"),
+                    ("chunkOverlap", "chunk_overlap"),
+                ):
                     raw = s.get(ui_key)
                     if raw is not None:
                         try:
