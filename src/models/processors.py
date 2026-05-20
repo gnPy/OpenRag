@@ -476,6 +476,20 @@ class DocumentFileProcessor(TaskProcessor):
                     allowed_groups=self.settings.get("allowed_groups", []),
                 )
 
+            standard_kwargs: dict[str, Any] = {}
+            if self.settings:
+                s = self.settings
+                em = s.get("embeddingModel")
+                if isinstance(em, str) and em.strip():
+                    standard_kwargs["embedding_model"] = em.strip()
+                for ui_key, param in (("chunkSize", "chunk_size"), ("chunkOverlap", "chunk_overlap")):
+                    raw = s.get(ui_key)
+                    if raw is not None:
+                        try:
+                            standard_kwargs[param] = int(raw)
+                        except (TypeError, ValueError):
+                            pass
+
             # Use consolidated standard processing
             result = await self.process_document_standard(
                 file_path=item,
@@ -489,6 +503,7 @@ class DocumentFileProcessor(TaskProcessor):
                 connector_type=self.connector_type,
                 is_sample_data=self.is_sample_data,
                 acl=acl,
+                **standard_kwargs,
             )
 
             file_task.status = TaskStatus.COMPLETED
