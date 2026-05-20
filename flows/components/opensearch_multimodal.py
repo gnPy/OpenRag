@@ -7,6 +7,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
+import httpx
 from lfx.base.vectorstores.model import LCVectorStoreComponent, check_cached_vector_store
 from lfx.base.vectorstores.vector_store_connection_decorator import vector_store_connection
 from lfx.io import (
@@ -128,6 +129,10 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
         "docs_metadata",
         "request_timeout",
         "max_retries",
+        "openrag_ingest_url",
+        "openrag_ingest_token",
+        "openrag_ingest_run_id",
+        "openrag_ingest_batch_size",
     ]
 
     inputs = [
@@ -360,6 +365,37 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             value="3",
             advanced=True,
             info="Number of retries for failed connections before raising an error.",
+        ),
+        StrInput(
+            name="openrag_ingest_url",
+            display_name="OpenRAG Ingest URL",
+            value="",
+            show=False,
+            advanced=True,
+            info="Internal OpenRAG callback URL for backend-owned document indexing.",
+        ),
+        SecretStrInput(
+            name="openrag_ingest_token",
+            display_name="OpenRAG Ingest Token",
+            value="",
+            load_from_db=False,
+            show=False,
+            advanced=True,
+            info="Short-lived token used only for OpenRAG ingest callbacks.",
+        ),
+        StrInput(
+            name="openrag_ingest_run_id",
+            display_name="OpenRAG Ingest Run ID",
+            value="",
+            show=False,
+            advanced=True,
+        ),
+        IntInput(
+            name="openrag_ingest_batch_size",
+            display_name="OpenRAG Ingest Batch Size",
+            value=100,
+            show=False,
+            advanced=True,
         ),
     ]
     outputs = [
@@ -728,6 +764,85 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
         """
         return http_auth is not None and hasattr(http_auth, "service") and http_auth.service == "aoss"
 
+    def _openrag_ingest_callback_config(self) -> tuple[str, str, str] | None:
+        url = str(getattr(self, "openrag_ingest_url", "") or "").strip()
+        token = str(getattr(self, "openrag_ingest_token", "") or "").strip()
+        ingest_run_id = str(getattr(self, "openrag_ingest_run_id", "") or "").strip()
+        if not url and not token and not ingest_run_id:
+            return None
+        if not url or not token or not ingest_run_id:
+            msg = "OpenRAG ingest callback requires url, token, and ingest_run_id."
+            raise ValueError(msg)
+        return url, token, ingest_run_id
+
+    def _post_openrag_ingest_batches(
+        self,
+        *,
+        requests: list[dict],
+        vector_field: str,
+        text_field: str,
+    ) -> None:
+        callback_config = self._openrag_ingest_callback_config()
+        if callback_config is None:
+            return
+
+        url, token, ingest_run_id = callback_config
+        batch_size = max(self._parse_int_param("openrag_ingest_batch_size", 100), 1)
+        timeout = self._parse_int_param("request_timeout", REQUEST_TIMEOUT)
+        headers = {"Authorization": f"Bearer {token}"}
+
+        with httpx.Client(timeout=timeout) as client:
+            total_batches = (len(requests) + batch_size - 1) // batch_size
+            for batch_number, start in enumerate(range(0, len(requests), batch_size), start=1):
+                batch = requests[start : start + batch_size]
+                final = batch_number == total_batches
+                payload = {
+                    "ingest_run_id": ingest_run_id,
+                    "batch_id": batch_number,
+                    "final": final,
+                    "chunks": [
+                        self._openrag_chunk_payload(
+                            request,
+                            vector_field=vector_field,
+                            text_field=text_field,
+                        )
+                        for request in batch
+                    ],
+                }
+                response = client.post(url, json=payload, headers=headers)
+                if response.status_code >= 400:
+                    msg = (
+                        "OpenRAG ingest callback failed "
+                        f"(batch={batch_number}, status={response.status_code}): "
+                        f"{response.text[:1000]}"
+                    )
+                    raise RuntimeError(msg)
+
+        self.log(f"Posted {len(requests)} chunks to OpenRAG backend ingest callback.")
+
+    @staticmethod
+    def _openrag_chunk_payload(
+        request: dict,
+        *,
+        vector_field: str,
+        text_field: str,
+    ) -> dict:
+        metadata = {
+            key: value
+            for key, value in request.items()
+            if key not in {"_op_type", "_index", "_id", "id", vector_field, text_field}
+        }
+        page = metadata.get("page")
+        if isinstance(page, str) and page.isdigit():
+            page = int(page)
+        return {
+            "id": request.get("_id") or request.get("id"),
+            "text": request.get(text_field, ""),
+            "vector": request[vector_field],
+            "page": page if isinstance(page, int) else None,
+            "metadata": metadata,
+        }
+
     def _bulk_ingest_embeddings(
         self,
         client: OpenSearch,
@@ -792,7 +907,12 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
                         # Leave value as-is if it isn't valid JSON
                         pass
 
-            _id = ids[i] if ids else str(uuid.uuid4())
+            metadata_document_id = str(metadata.get("document_id") or "").strip()
+            if metadata_document_id and metadata_document_id.lower() != "none":
+                generated_id = f"{metadata_document_id}_{i}"
+            else:
+                generated_id = str(uuid.uuid4())
+            _id = ids[i] if ids else generated_id
             request = {
                 "_op_type": "index",
                 "_index": index_name,
@@ -809,6 +929,13 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
             return_ids.append(_id)
         if metadatas:
             self.log(f"Sample metadata: {metadatas[0] if metadatas else {}}")
+        if self._openrag_ingest_callback_config() is not None:
+            self._post_openrag_ingest_batches(
+                requests=requests,
+                vector_field=vector_field,
+                text_field=text_field,
+            )
+            return return_ids
         try:
             helpers.bulk(client, requests, max_chunk_bytes=max_chunk_bytes)
         except Exception as bulk_error:
@@ -1234,72 +1361,80 @@ class OpenSearchVectorStoreComponentMultimodalMultiEmbedding(LCVectorStoreCompon
 
         # Get vector dimension for mapping
         dim = len(vectors[0]) if vectors else 768  # default fallback
+        use_openrag_ingest_callback = self._openrag_ingest_callback_config() is not None
 
-        # Check for AOSS
-        auth_kwargs = self._build_auth_kwargs()
-        is_aoss = self._is_aoss_enabled(auth_kwargs.get("http_auth"))
+        is_aoss = False
+        mapping: dict | None = None
 
-        # Validate engine with AOSS
         engine = getattr(self, "engine", "jvector")
-        self._validate_aoss_with_engines(is_aoss=is_aoss, engine=engine)
 
-        # Create mapping with proper KNN settings
-        space_type = getattr(self, "space_type", "l2")
-        ef_construction = getattr(self, "ef_construction", 512)
-        m = getattr(self, "m", 16)
+        if use_openrag_ingest_callback:
+            self.log("Using OpenRAG backend ingest callback; skipping direct OpenSearch writes.")
+        else:
+            # Check for AOSS
+            auth_kwargs = self._build_auth_kwargs()
+            is_aoss = self._is_aoss_enabled(auth_kwargs.get("http_auth"))
 
-        mapping = self._default_text_mapping(
-            dim=dim,
-            engine=engine,
-            space_type=space_type,
-            ef_construction=ef_construction,
-            m=m,
-            vector_field=dynamic_field_name,  # Use dynamic field name
-        )
+            # Validate engine with AOSS
+            self._validate_aoss_with_engines(is_aoss=is_aoss, engine=engine)
 
-        # Ensure index exists with baseline mapping (index.knn: true is required for vector search)
-        index_exists = True
-        try:
-            index_exists = bool(client.indices.exists(index=self.index_name))
-        except OpenSearchException as exists_error:
-            self._log_index_admin_skip("indices.exists", exists_error)
+            # Create mapping with proper KNN settings
+            space_type = getattr(self, "space_type", "l2")
+            ef_construction = getattr(self, "ef_construction", 512)
+            m = getattr(self, "m", 16)
 
-        try:
-            if not index_exists:
-                self.log(f"Creating index '{self.index_name}' with base mapping")
-                client.indices.create(index=self.index_name, body=mapping)
-        except RequestError as creation_error:
-            if creation_error.error == "resource_already_exists_exception":
-                pass  # Index was created concurrently
-            else:
-                error_msg = str(creation_error).lower()
-                if "invalid engine" in error_msg or "illegal_argument" in error_msg:
-                    if "jvector" in error_msg:
-                        msg = (
-                            "The 'jvector' engine is not available in your OpenSearch installation. "
-                            "Use 'nmslib' or 'faiss' for standard OpenSearch, or upgrade to 2.9+."
-                        )
-                        raise ValueError(msg) from creation_error
-                    if "index.knn" in error_msg:
-                        msg = (
-                            "The index has index.knn: false. Delete the existing index and let the "
-                            "component recreate it, or create a new index with a different name."
-                        )
-                        raise ValueError(msg) from creation_error
-                logger.warning(f"Failed to create index '{self.index_name}': {creation_error}")
-                raise
+            mapping = self._default_text_mapping(
+                dim=dim,
+                engine=engine,
+                space_type=space_type,
+                ef_construction=ef_construction,
+                m=m,
+                vector_field=dynamic_field_name,  # Use dynamic field name
+            )
 
-        # Ensure the dynamic field exists in the index
-        self._ensure_embedding_field_mapping(
-            client=client,
-            index_name=self.index_name,
-            field_name=dynamic_field_name,
-            dim=dim,
-            engine=engine,
-            space_type=space_type,
-            ef_construction=ef_construction,
-            m=m,
-        )
+            # Ensure index exists with baseline mapping (index.knn: true is required for vector search)
+            index_exists = True
+            try:
+                index_exists = bool(client.indices.exists(index=self.index_name))
+            except OpenSearchException as exists_error:
+                self._log_index_admin_skip("indices.exists", exists_error)
+
+            try:
+                if not index_exists:
+                    self.log(f"Creating index '{self.index_name}' with base mapping")
+                    client.indices.create(index=self.index_name, body=mapping)
+            except RequestError as creation_error:
+                if creation_error.error == "resource_already_exists_exception":
+                    pass  # Index was created concurrently
+                else:
+                    error_msg = str(creation_error).lower()
+                    if "invalid engine" in error_msg or "illegal_argument" in error_msg:
+                        if "jvector" in error_msg:
+                            msg = (
+                                "The 'jvector' engine is not available in your OpenSearch installation. "
+                                "Use 'nmslib' or 'faiss' for standard OpenSearch, or upgrade to 2.9+."
+                            )
+                            raise ValueError(msg) from creation_error
+                        if "index.knn" in error_msg:
+                            msg = (
+                                "The index has index.knn: false. Delete the existing index and let the "
+                                "component recreate it, or create a new index with a different name."
+                            )
+                            raise ValueError(msg) from creation_error
+                    logger.warning(f"Failed to create index '{self.index_name}': {creation_error}")
+                    raise
+
+            # Ensure the dynamic field exists in the index
+            self._ensure_embedding_field_mapping(
+                client=client,
+                index_name=self.index_name,
+                field_name=dynamic_field_name,
+                dim=dim,
+                engine=engine,
+                space_type=space_type,
+                ef_construction=ef_construction,
+                m=m,
+            )
 
         self.log(f"Indexing {len(texts)} documents into '{self.index_name}' with model '{embedding_model}'...")
         logger.info(f"Will store embeddings in field: {dynamic_field_name}")

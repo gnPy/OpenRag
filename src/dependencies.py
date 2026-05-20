@@ -125,6 +125,14 @@ def get_langflow_file_service(services: dict = Depends(get_services)):
     return services["langflow_file_service"]
 
 
+def get_document_index_writer(services: dict = Depends(get_services)):
+    return services["document_index_writer"]
+
+
+def get_langflow_ingest_token_service(services: dict = Depends(get_services)):
+    return services["langflow_ingest_token_service"]
+
+
 def get_models_service(services: dict = Depends(get_services)):
     return services["models_service"]
 

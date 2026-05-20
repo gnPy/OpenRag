@@ -21,13 +21,18 @@ class LangflowConnectorService:
         session_manager=None,
         flows_service=None,
         docling_service=None,
+        document_index_writer=None,
+        ingest_token_service=None,
     ):
         self.task_service = task_service
         self.session_manager = session_manager
         self.docling_service = docling_service
         self.connection_manager = ConnectionManager()
         self.langflow_service = LangflowFileService(
-            flows_service=flows_service, docling_service=docling_service
+            flows_service=flows_service,
+            docling_service=docling_service,
+            document_index_writer=document_index_writer,
+            ingest_token_service=ingest_token_service,
         )
 
     async def initialize(self):

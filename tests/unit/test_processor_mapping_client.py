@@ -3,10 +3,11 @@ from types import SimpleNamespace
 import pytest
 
 from models.processors import TaskProcessor
+from services.document_index_writer import DocumentIndexWriter
 
 
 @pytest.mark.asyncio
-async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_writes(
+async def test_standard_processor_uses_shared_writer_for_embedding_mapping_and_writes(
     tmp_path,
     monkeypatch,
 ):
@@ -14,7 +15,7 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_wr
         exists_calls=[],
         index_calls=[],
     )
-    admin_client = SimpleNamespace(index_calls=[])
+    admin_client = SimpleNamespace(bulk_calls=[], refresh_calls=[])
     mapping_clients = []
 
     async def exists(*, index, id):
@@ -24,12 +25,22 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_wr
     async def index(**kwargs):
         user_client.index_calls.append(kwargs)
 
-    async def admin_index(**kwargs):
-        admin_client.index_calls.append(kwargs)
-
     user_client.exists = exists
     user_client.index = index
-    admin_client.index = admin_index
+
+    class Indices:
+        async def exists(self, *, index):
+            return True
+
+        async def refresh(self, *, index):
+            admin_client.refresh_calls.append({"index": index})
+
+    async def bulk(**kwargs):
+        admin_client.bulk_calls.append(kwargs)
+        return {"errors": False, "items": []}
+
+    admin_client.indices = Indices()
+    admin_client.bulk = bulk
 
     class SessionManager:
         def get_user_opensearch_client(self, user_id, jwt_token):
@@ -64,19 +75,35 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_wr
             patched_embedding_client=EmbeddingClient(),
         ),
     )
-    monkeypatch.setattr("config.settings.get_index_name", lambda: "documents")
     monkeypatch.setattr(
-        "config.settings.get_openrag_config",
+        "models.processors.clients",
+        SimpleNamespace(
+            opensearch=admin_client,
+            patched_embedding_client=EmbeddingClient(),
+        ),
+    )
+    monkeypatch.setattr("config.settings.get_index_name", lambda: "documents")
+    monkeypatch.setattr("models.processors.get_index_name", lambda: "documents")
+    monkeypatch.setattr("services.document_index_writer.get_index_name", lambda: "documents")
+    monkeypatch.setattr(
+        "services.document_service.get_embedding_model",
+        lambda: "text-embedding-3-small",
+    )
+    monkeypatch.setattr(
+        "models.processors.get_openrag_config",
         lambda: SimpleNamespace(knowledge=SimpleNamespace(embedding_model="")),
     )
     monkeypatch.setattr(
-        "utils.embedding_fields.ensure_embedding_field_exists",
+        "services.document_index_writer.ensure_embedding_field_exists",
         ensure_embedding_field_exists,
     )
 
     file_path = tmp_path / "doc.md"
     file_path.write_text("# Test\n\nhello world", encoding="utf-8")
-    document_service = SimpleNamespace(session_manager=SessionManager())
+    document_service = SimpleNamespace(
+        session_manager=SessionManager(),
+        document_index_writer=DocumentIndexWriter(opensearch_client=admin_client),
+    )
     processor = TaskProcessor(
         document_service=document_service,
         models_service=ModelsService(),
@@ -96,4 +123,9 @@ async def test_standard_processor_uses_admin_client_for_embedding_mapping_and_wr
     assert mapping_clients == [admin_client]
     assert user_client.exists_calls == [{"index": "documents", "id": "file-1"}]
     assert user_client.index_calls == []
-    assert admin_client.index_calls
+    assert admin_client.bulk_calls
+    bulk_body = admin_client.bulk_calls[0]["body"]
+    assert bulk_body[0] == {"index": {"_index": "documents", "_id": "file-1_0"}}
+    assert bulk_body[1]["document_id"] == "file-1"
+    assert bulk_body[1]["owner"] == "user-1"
+    assert bulk_body[1]["chunk_embedding_text_embedding_3_small"] == [0.1, 0.2, 0.3]

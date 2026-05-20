@@ -120,7 +120,7 @@ async def _ensure_opensearch_index():
             await _ensure_keyword_mappings(
                 clients.opensearch,
                 index_name,
-                ["allowed_users", "allowed_groups", "allowed_principals"],
+                ["allowed_users", "allowed_groups", "allowed_principals", "ingest_run_id"],
             )
             return
 
@@ -189,7 +189,7 @@ async def init_index(opensearch_client=None, admin_username: str = None):
             await _ensure_keyword_mappings(
                 os_client,
                 index_name,
-                ["allowed_users", "allowed_groups", "allowed_principals"],
+                ["allowed_users", "allowed_groups", "allowed_principals", "ingest_run_id"],
             )
             if not (IBM_AUTH_ENABLED and PLATFORM_AUTH_DEV_MODE):
                 # Set number of replicas to 0 to not create unused nodes in OpenSearch, in case it was created with more replicas

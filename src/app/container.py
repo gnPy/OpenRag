@@ -22,11 +22,13 @@ from services.auth_service import AuthService
 from services.chat_service import ChatService
 from services.dls_principal_service import DLSPrincipalService
 from services.docling_polling_service import DoclingPollingService
+from services.document_index_writer import DocumentIndexWriter
 from services.document_service import DocumentService
 from services.flows_service import FlowsService
 from services.group_acl_service import GroupACLService
 from services.knowledge_filter_service import KnowledgeFilterService
 from services.langflow_file_service import LangflowFileService
+from services.langflow_ingest_token_service import LangflowIngestTokenService
 from services.langflow_mcp_service import LangflowMCPService
 from services.models_service import ModelsService
 from services.monitor_service import MonitorService
@@ -66,10 +68,13 @@ async def initialize_services():
     session_manager = SessionManager(SESSION_SECRET)
 
     models_service = ModelsService()
+    document_index_writer = DocumentIndexWriter()
+    langflow_ingest_token_service = LangflowIngestTokenService()
     document_service = DocumentService(
         session_manager=session_manager,
         models_service=models_service,
         docling_service=clients.docling_service,
+        document_index_writer=document_index_writer,
     )
     search_service = SearchService(session_manager, models_service)
     register_search_service(search_service)
@@ -99,6 +104,8 @@ async def initialize_services():
     langflow_file_service = LangflowFileService(
         flows_service=flows_service,
         docling_service=clients.docling_service,
+        document_index_writer=document_index_writer,
+        ingest_token_service=langflow_ingest_token_service,
     )
     langflow_mcp_service = LangflowMCPService()
 
@@ -107,6 +114,8 @@ async def initialize_services():
         session_manager=session_manager,
         flows_service=flows_service,
         docling_service=clients.docling_service,
+        document_index_writer=document_index_writer,
+        ingest_token_service=langflow_ingest_token_service,
     )
     openrag_connector_service = ConnectorService(
         patched_async_client=clients,
@@ -207,6 +216,8 @@ async def initialize_services():
         "chat_service": chat_service,
         "flows_service": flows_service,
         "langflow_file_service": langflow_file_service,
+        "document_index_writer": document_index_writer,
+        "langflow_ingest_token_service": langflow_ingest_token_service,
         "auth_service": auth_service,
         "connector_service": connector_service,
         "group_acl_service": group_acl_service,

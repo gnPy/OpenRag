@@ -1,5 +1,4 @@
 import asyncio
-import datetime
 import mimetypes
 import os
 import time
@@ -11,7 +10,6 @@ from utils.document_processing import (
     process_text_file,
     resplit_chunks_character_windows,
 )
-from utils.embedding_fields import ensure_embedding_field_exists
 from utils.file_utils import (
     auto_cleanup_tempfile,
     clean_connector_filename,
@@ -20,7 +18,7 @@ from utils.file_utils import (
 )
 from utils.hash_utils import hash_id
 from utils.logging_config import get_logger
-from utils.opensearch_queries import build_filename_delete_body, build_filename_search_body
+from utils.opensearch_queries import build_filename_search_body
 
 from .tasks import FileTask, TaskStatus, UploadTask
 
@@ -313,71 +311,53 @@ class TaskProcessor:
             )
             return {"status": "error", "error": "No text content could be extracted from document"}
 
-        dimensions = len(embeddings[0])
-
-        # Mapping and write operations are index-admin operations and fail under
-        # document-level security when attempted with a user-scoped OpenSearch
-        # client. Reads still use the scoped client above so duplicate checks
-        # respect the caller's visibility.
-        write_client = clients.opensearch or opensearch_client
-
-        # Ensure the embedding field exists for this model
-        embedding_field_name = await ensure_embedding_field_exists(
-            write_client, embedding_model, get_index_name(), dimensions
+        from services.document_index_writer import (
+            DocumentIndexChunk,
+            DocumentIndexContext,
+            DocumentIndexWriter,
         )
 
-        # Index each chunk as a separate document
-        for i, (chunk, vect) in enumerate(zip(slim_doc["chunks"], embeddings, strict=True)):
-            chunk_doc = {
-                "document_id": file_hash,
-                "filename": original_filename if original_filename else slim_doc["filename"],
-                "mimetype": slim_doc["mimetype"],
-                "page": chunk["page"],
-                "text": chunk["text"],
-                # Store embedding in model-specific field
-                embedding_field_name: vect,
-                # Track which model was used
-                "embedding_model": embedding_model,
-                "embedding_dimensions": len(vect),
-                "file_size": file_size,
-                "connector_type": connector_type,
-                "indexed_time": datetime.datetime.now().isoformat(),
-            }
+        document_index_writer = getattr(self.document_service, "document_index_writer", None)
+        if document_index_writer is None:
+            document_index_writer = DocumentIndexWriter()
 
-            # Set owner and ACL fields
-            if acl:
-                # Use ACL data if provided (from connector)
-                chunk_doc["owner"] = acl.owner if acl.owner else owner_user_id
-                chunk_doc["allowed_users"] = acl.allowed_users
-                chunk_doc["allowed_groups"] = acl.allowed_groups
-                chunk_doc["allowed_principals"] = acl.allowed_principals
-            else:
-                # Fallback to owner_user_id if no ACL (local uploads)
-                chunk_doc["owner"] = owner_user_id
-                chunk_doc["allowed_users"] = []
-                chunk_doc["allowed_groups"] = []
-                chunk_doc["allowed_principals"] = []
+        if acl:
+            owner = acl.owner if acl.owner else owner_user_id
+            allowed_users = acl.allowed_users or []
+            allowed_groups = acl.allowed_groups or []
+            allowed_principals = acl.allowed_principals or []
+        else:
+            owner = owner_user_id
+            allowed_users = []
+            allowed_groups = []
+            allowed_principals = []
 
-            # Set owner metadata fields (for display)
-            if owner_name is not None:
-                chunk_doc["owner_name"] = owner_name
-            if owner_email is not None:
-                chunk_doc["owner_email"] = owner_email
-
-            # Mark as sample data if specified
-            if is_sample_data:
-                chunk_doc["is_sample_data"] = "true"
-            chunk_id = f"{file_hash}_{i}"
-            try:
-                await write_client.index(index=get_index_name(), id=chunk_id, body=chunk_doc)
-            except Exception as e:
-                logger.error(
-                    "OpenSearch indexing failed for chunk",
-                    chunk_id=chunk_id,
-                    error=str(e),
-                )
-                logger.error("Chunk document details", chunk_doc=chunk_doc)
-                raise
+        filename = original_filename if original_filename else slim_doc["filename"]
+        index_context = DocumentIndexContext(
+            document_id=file_hash,
+            filename=filename,
+            mimetype=slim_doc["mimetype"],
+            embedding_model=embedding_model,
+            owner=owner,
+            owner_name=owner_name,
+            owner_email=owner_email,
+            file_size=file_size,
+            connector_type=connector_type,
+            allowed_users=allowed_users,
+            allowed_groups=allowed_groups,
+            allowed_principals=allowed_principals,
+            is_sample_data=is_sample_data,
+        )
+        index_chunks = [
+            DocumentIndexChunk(
+                chunk_id=f"{file_hash}_{i}",
+                text=chunk["text"],
+                vector=vect,
+                page=chunk["page"],
+            )
+            for i, (chunk, vect) in enumerate(zip(slim_doc["chunks"], embeddings, strict=True))
+        ]
+        await document_index_writer.index_chunks(index_context, index_chunks, final=True)
         return {"status": "indexed", "id": file_hash}
 
     async def process_item(self, upload_task: UploadTask, item: Any, file_task: FileTask) -> None:

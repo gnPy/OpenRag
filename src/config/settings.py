@@ -47,6 +47,10 @@ LANGFLOW_INGEST_FLOW_ID = (
 LANGFLOW_URL_INGEST_FLOW_ID = (
     os.getenv("LANGFLOW_URL_INGEST_FLOW_ID") or "72c3d17c-2dac-4a73-b48a-6518473d7830"
 )
+OPENRAG_BACKEND_INTERNAL_URL = os.getenv(
+    "OPENRAG_BACKEND_INTERNAL_URL",
+    "http://openrag-backend:8000",
+).rstrip("/")
 NUDGES_FLOW_ID = os.getenv("NUDGES_FLOW_ID") or "ebc01d31-1976-46ce-a385-b0240327226c"
 
 
@@ -214,6 +218,11 @@ LANGFLOW_CONNECT_TIMEOUT = get_env_float("LANGFLOW_CONNECT_TIMEOUT", 30.0)  # 30
 # Should be >= LANGFLOW_TIMEOUT to allow long-running ingestion to complete
 # Default: 3600 seconds (60 minutes)
 INGESTION_TIMEOUT = get_env_int("INGESTION_TIMEOUT", 3600)
+LANGFLOW_INGEST_CALLBACK_TTL_SECONDS = get_env_int(
+    "LANGFLOW_INGEST_CALLBACK_TTL_SECONDS",
+    INGESTION_TIMEOUT + 300,
+)
+LANGFLOW_INGEST_CALLBACK_BATCH_SIZE = get_env_int("LANGFLOW_INGEST_CALLBACK_BATCH_SIZE", 100)
 
 OPENSEARCH_JWT_TTL_BUFFER_SECONDS = 300
 
@@ -286,6 +295,7 @@ INDEX_BODY = {
             "embedding_model": {"type": "keyword"},
             "source_url": {"type": "keyword"},
             "connector_type": {"type": "keyword"},
+            "ingest_run_id": {"type": "keyword"},
             "owner": {"type": "keyword"},
             "allowed_users": {"type": "keyword"},
             "allowed_groups": {"type": "keyword"},

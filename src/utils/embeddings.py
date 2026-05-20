@@ -36,6 +36,7 @@ async def create_index_body(
         "embedding_dimensions": {"type": "integer"},
         "source_url": {"type": "keyword"},
         "connector_type": {"type": "keyword"},
+        "ingest_run_id": {"type": "keyword"},
         "owner": {"type": "keyword"},
         "owner_email": {"type": "keyword"},
         "allowed_users": {"type": "keyword"},
