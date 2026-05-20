@@ -58,7 +58,7 @@ async def test_connector_service_process_connector_document_fixes():
 
     with (
         patch("utils.file_utils.auto_cleanup_tempfile") as mock_temp,
-        patch("connectors.service.open", create=True) as mock_open,
+        patch("connectors.service.open", create=True),
         patch("models.processors.TaskProcessor", return_value=mock_processor),
     ):
         mock_temp.return_value.__enter__.return_value = "/tmp/test.docx"
@@ -70,6 +70,8 @@ async def test_connector_service_process_connector_document_fixes():
             jwt_token="token-abc",
             ingest_settings=ingest_settings,
         )
+
+    assert result == {"status": "indexed"}
 
     # Verify pre-delete call
     opensearch_client.delete_by_query.assert_called_once()
