@@ -10,6 +10,13 @@ from services.document_index_writer import DocumentIndexContext
 from services.langflow_file_service import LangflowFileService
 from services.langflow_ingest_token_service import LangflowIngestTokenService
 
+CALLBACK_GLOBAL_VARS = {
+    "OPENRAG_INGEST_URL",
+    "OPENRAG_INGEST_TOKEN",
+    "OPENRAG_INGEST_RUN_ID",
+    "OPENRAG_INGEST_BATCH_SIZE",
+}
+
 
 @pytest.mark.asyncio
 async def test_langflow_ingest_callback_indexes_authoritative_token_context():
@@ -170,5 +177,27 @@ def test_ingest_flows_resolve_callback_config_from_global_vars(flow_path, compon
     assert template["openrag_ingest_url"]["value"] == "OPENRAG_INGEST_URL"
     assert template["openrag_ingest_token"]["value"] == "OPENRAG_INGEST_TOKEN"
     assert template["openrag_ingest_run_id"]["value"] == "OPENRAG_INGEST_RUN_ID"
+    assert template["openrag_ingest_url"]["load_from_db"] is True
+    assert template["openrag_ingest_token"]["load_from_db"] is True
+    assert template["openrag_ingest_run_id"]["load_from_db"] is True
     assert "OPENRAG_INGEST_URL" in template["code"]["value"]
     assert "_openrag_ingest_global_placeholders" in template["code"]["value"]
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        "docker-compose.yml",
+        "kubernetes/helm/openrag/values.yaml",
+        "kubernetes/operator/internal/controller/env.go",
+    ],
+)
+def test_langflow_callback_global_vars_are_allowlisted(config_path):
+    config_text = Path(config_path).read_text(encoding="utf-8")
+
+    assert (
+        "LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT" in config_text
+        or "variablesToGetFromEnvironment" in config_text
+    )
+    for variable_name in CALLBACK_GLOBAL_VARS:
+        assert variable_name in config_text
