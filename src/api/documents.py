@@ -129,25 +129,12 @@ async def delete_chunks_by_document_ids(
 ) -> int:
     """Bulk delete OpenSearch chunks by document_id. Returns deleted count.
 
-    DLS-safe: enumerate the visible chunk _ids via search, then issue a single
-    delete per primary id. `delete_by_query` is silently no-opped under DLS
-    (returns deleted:N but leaves docs in place — confirmed in the SharePoint
-    rename repro debug log).
+    DLS-safe: see utils.opensearch_delete.delete_chunks_for_document_ids.
     """
-    if not document_ids:
-        return 0
-    from utils.opensearch_delete import collect_visible_document_ids, delete_document_ids
+    from utils.opensearch_delete import delete_chunks_for_document_ids
 
-    chunk_ids = await collect_visible_document_ids(
-        opensearch_client,
-        index=index_name,
-        query={"terms": {"document_id": document_ids}},
-    )
-    return await delete_document_ids(
-        opensearch_client,
-        index=index_name,
-        document_ids=chunk_ids,
-        refresh=True,
+    return await delete_chunks_for_document_ids(
+        opensearch_client, index=index_name, document_ids=document_ids
     )
 
 

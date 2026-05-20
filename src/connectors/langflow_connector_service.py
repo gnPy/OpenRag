@@ -85,29 +85,19 @@ class LangflowConnectorService:
             # `processed_filename` here is the NEW name while OpenSearch chunks
             # still carry the OLD name, so a filename-keyed delete misses them
             # and the re-ingest leaves duplicate chunks (same document_id, two
-            # different filenames). Also use enumerate-then-delete-by-id rather
-            # than delete_by_query, which is silently no-opped under DLS.
+            # different filenames).
             if self.session_manager:
                 from config.settings import get_index_name
-                from utils.opensearch_delete import (
-                    collect_visible_document_ids,
-                    delete_document_ids,
-                )
+                from utils.opensearch_delete import delete_chunks_for_document_ids
 
                 opensearch_client = self.session_manager.get_user_opensearch_client(
                     owner_user_id, jwt_token
                 )
                 try:
-                    chunk_ids = await collect_visible_document_ids(
+                    deleted_count = await delete_chunks_for_document_ids(
                         opensearch_client,
                         index=get_index_name(),
-                        query={"term": {"document_id": document.id}},
-                    )
-                    deleted_count = await delete_document_ids(
-                        opensearch_client,
-                        index=get_index_name(),
-                        document_ids=chunk_ids,
-                        refresh=True,
+                        document_ids=[document.id],
                     )
                     logger.info(
                         "Deleted existing chunks before re-ingestion",

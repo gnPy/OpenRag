@@ -307,24 +307,13 @@ class TaskProcessor:
         # stored under ids {file_hash}_{i}; if the new chunk count is lower than
         # the prior one, trailing chunks (e.g. with an old filename after a
         # SharePoint rename) would otherwise survive the per-chunk upsert.
-        # DLS-safe: enumerate then delete by primary _id (delete_by_query is
-        # silently filtered under DLS).
         try:
-            from utils.opensearch_delete import (
-                collect_visible_document_ids,
-                delete_document_ids,
-            )
+            from utils.opensearch_delete import delete_chunks_for_document_ids
 
-            stale_chunk_ids = await collect_visible_document_ids(
+            await delete_chunks_for_document_ids(
                 opensearch_client,
                 index=get_index_name(),
-                query={"term": {"document_id": file_hash}},
-            )
-            await delete_document_ids(
-                opensearch_client,
-                index=get_index_name(),
-                document_ids=stale_chunk_ids,
-                refresh=True,
+                document_ids=[file_hash],
             )
         except Exception as e:
             logger.warning(

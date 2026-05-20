@@ -73,3 +73,33 @@ async def delete_document_ids(
             deleted_count += 1
 
     return deleted_count
+
+
+async def delete_chunks_for_document_ids(
+    opensearch_client,
+    *,
+    index: str,
+    document_ids: list[str] | tuple[str, ...],
+    refresh: bool = True,
+) -> int:
+    """Delete every OpenSearch chunk whose ``document_id`` field is in
+    ``document_ids``. DLS-safe: enumerates visible chunk ``_id``s via search,
+    then issues a primary-id delete for each.
+
+    ``delete_by_query`` is silently no-opped under DLS — never use it for
+    deleting chunks that must actually go away (rename / re-ingest / orphan
+    cleanup). Returns the count of chunks successfully deleted.
+    """
+    if not document_ids:
+        return 0
+    chunk_ids = await collect_visible_document_ids(
+        opensearch_client,
+        index=index,
+        query={"terms": {"document_id": list(document_ids)}},
+    )
+    return await delete_document_ids(
+        opensearch_client,
+        index=index,
+        document_ids=chunk_ids,
+        refresh=refresh,
+    )

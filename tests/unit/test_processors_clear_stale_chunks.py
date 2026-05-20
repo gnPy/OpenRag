@@ -158,10 +158,11 @@ async def test_stale_chunks_cleared_before_reindex(monkeypatch):
     ops = [op for op, _ in op_order]
     assert ops, "process_document_standard wrote nothing — fixture is broken"
 
-    # 1) The enumerate-via-search runs first.
+    # 1) The enumerate-via-search runs first. The shared helper always uses a
+    #    `terms` query (single-id callers pass a one-element list).
     assert ops[0] == "search", f"search must run before deletes. Saw: {ops}"
     search_kwargs = op_order[0][1]
-    assert search_kwargs["body"]["query"] == {"term": {"document_id": "abc123"}}
+    assert search_kwargs["body"]["query"] == {"terms": {"document_id": ["abc123"]}}
     assert search_kwargs["index"] == "test-index"
 
     # 2) All deletes complete BEFORE any index() — they must precede re-indexing.
