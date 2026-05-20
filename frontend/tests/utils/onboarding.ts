@@ -63,10 +63,34 @@ export async function completeOnboarding(
   }
 
   const isCompleted = await completedLocator.isVisible();
+  const isFirstStep = await page.getByTestId("openai-llm-tab").isVisible();
 
   if (isCompleted && !reset) {
     console.log("Onboarding already complete, skipping...");
     return;
+  }
+
+  const needsRollback = reset && (isCompleted || !isFirstStep);
+
+  if (needsRollback) {
+    console.log(
+      "Onboarding complete or not on the first step, and reset is true, rolling back...",
+    );
+    const response = await page.request.post("/api/onboarding/rollback");
+    if (!response.ok()) {
+      const text = await response.text();
+      console.error(
+        `Rollback failed with status ${response.status()}: ${text}`,
+      );
+      if (response.status() !== 400) {
+        throw new Error(`Failed to rollback onboarding: ${text}`);
+      }
+    }
+
+    console.log("Refreshing page after rollback...");
+    await page.reload();
+    // After rollback and reload, we must see the onboarding content
+    await expect(contentLocator).toBeVisible({ timeout: 15000 });
   }
 
   const setupProvider = async (provider: string, isEmbedding: boolean) => {
@@ -130,11 +154,21 @@ export async function completeOnboarding(
     // Complete this step
     await page.getByTestId("onboarding-complete-button").click();
 
-    const done = page.getByText("Done");
-    await expect(page.getByText("Thinking").or(done)).toBeVisible();
-    await expect(done).toBeVisible({
+    const doneLocator = page.getByText("Done");
+    const errorLocator = page.getByTestId("onboarding-error");
+
+    await expect(
+      page.getByText("Thinking").or(doneLocator).or(errorLocator),
+    ).toBeVisible();
+
+    await expect(doneLocator.or(errorLocator)).toBeVisible({
       timeout: isEmbedding ? 120000 : 60000,
     });
+
+    if (await errorLocator.isVisible()) {
+      const errorText = await errorLocator.innerText();
+      throw new Error(`Onboarding step failed: ${errorText}`);
+    }
   };
 
   // 1. LLM configuration
@@ -178,6 +212,17 @@ export async function completeOnboarding(
     path.join(__dirname, "../assets", "test-document.md"),
   );
 
-  await expect(page.getByText("Done")).toBeVisible({ timeout: 120000 });
+  const uploadDoneLocator = page.getByText("Done");
+  const uploadErrorLocator = page.getByTestId("onboarding-upload-error");
+
+  await expect(uploadDoneLocator.or(uploadErrorLocator)).toBeVisible({
+    timeout: 120000,
+  });
+
+  if (await uploadErrorLocator.isVisible()) {
+    const errorText = await uploadErrorLocator.innerText();
+    throw new Error(`Onboarding document upload failed: ${errorText}`);
+  }
+
   await expect(page.getByTestId("onboarding-content")).toBeHidden();
 }
