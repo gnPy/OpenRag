@@ -10,19 +10,27 @@ import {
   type ValueGetterParams,
 } from "ag-grid-community";
 import { AgGridReact, type CustomCellRendererProps } from "ag-grid-react";
-import { Cloud, FileIcon, Globe, RefreshCw } from "lucide-react";
+import { AlertTriangle, Cloud, FileIcon, Globe, RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { KnowledgeDropdown } from "@/components/knowledge-dropdown";
 import { ProtectedRoute } from "@/components/protected-route";
+import { Banner, BannerIcon, BannerTitle } from "@/components/ui/banner";
 import { Button } from "@/components/ui/button";
 import { useKnowledgeFilter } from "@/contexts/knowledge-filter-context";
 import { useTask } from "@/contexts/task-context";
-import { type File, useGetSearchQuery } from "../api/queries/useGetSearchQuery";
+import {
+  EMPTY_SEARCH_RESULT,
+  type File,
+  type SearchResult,
+  useGetSearchQuery,
+} from "../api/queries/useGetSearchQuery";
+import { useListFiles } from "../api/queries/useListFiles";
 import "@/components/AgGrid/registerAgGridModules";
 import "@/components/AgGrid/agGridStyles.css";
 import { toast } from "sonner";
 import { KnowledgeActionsDropdown } from "@/components/knowledge-actions-dropdown";
+import { KnowledgeBatchActionsBar } from "@/components/knowledge-batch-actions-bar";
 import { KnowledgeSearchBar } from "@/components/knowledge-search-bar";
 import { KnowledgeSearchInput } from "@/components/knowledge-search-input";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -45,12 +53,25 @@ import {
 import AwsLogo from "../../components/icons/aws-logo";
 import GoogleDriveIcon from "../../components/icons/google-drive-logo";
 import IBMCOSIcon from "../../components/icons/ibm-cos-icon";
-import IBMLogo from "../../components/icons/ibm-logo";
 import OneDriveIcon from "../../components/icons/one-drive-logo";
 import SharePointIcon from "../../components/icons/share-point-logo";
+import { SyncConfirmDialog } from "../../components/sync-confirm-dialog";
 import { useDeleteDocument } from "../api/mutations/useDeleteDocument";
 import { useRefreshOpenragDocs } from "../api/mutations/useRefreshOpenragDocs";
-import { useSyncAllConnectors } from "../api/mutations/useSyncConnector";
+import {
+  type SyncAllPreviewResponse,
+  useSyncAllConnectors,
+  useSyncAllConnectorsPreview,
+} from "../api/mutations/useSyncConnector";
+
+/** List-files uses term filters; "*" means "any" in the UI — do not send it literally. */
+function listFilesFilterParam(values?: string[]): string | undefined {
+  const raw = values?.[0]?.trim();
+  if (!raw || raw === "*") {
+    return undefined;
+  }
+  return raw;
+}
 
 // Function to get the appropriate icon for a connector type
 function getSourceIcon(connectorType?: string) {
@@ -93,7 +114,8 @@ function SearchPage() {
     setRecentTasksExpanded,
     selectTask,
   } = useTask();
-  const { parsedFilterData, queryOverride } = useKnowledgeFilter();
+  const { parsedFilterData, queryOverride, selectedFilter } =
+    useKnowledgeFilter();
   const [selectedRows, setSelectedRows] = useState<File[]>([]);
   const [showBulkDeleteDialog, setShowBulkDeleteDialog] = useState(false);
   const lastErrorRef = useRef<string | null>(null);
@@ -102,7 +124,51 @@ function SearchPage() {
 
   const deleteDocumentMutation = useDeleteDocument();
   const syncAllConnectorsMutation = useSyncAllConnectors();
+  const syncAllPreviewMutation = useSyncAllConnectorsPreview();
   const refreshOpenragDocsMutation = useRefreshOpenragDocs();
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [syncPreview, setSyncPreview] = useState<SyncAllPreviewResponse | null>(
+    null,
+  );
+
+  const handleOpenSyncDialog = useCallback(async () => {
+    setSyncPreview(null);
+    setSyncDialogOpen(true);
+    try {
+      const preview = await syncAllPreviewMutation.mutateAsync();
+      setSyncPreview(preview);
+    } catch (error) {
+      setSyncDialogOpen(false);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to preview sync",
+      );
+    }
+  }, [syncAllPreviewMutation]);
+
+  const handleConfirmSync = useCallback(async () => {
+    try {
+      const result = await syncAllConnectorsMutation.mutateAsync();
+      if (result.status === "no_files") {
+        toast.info(
+          result.message ||
+            "No cloud files to sync. Add files from cloud connectors first.",
+        );
+      } else if (
+        result.synced_connectors &&
+        result.synced_connectors.length > 0
+      ) {
+        toast.success(
+          `Sync started for ${result.synced_connectors.join(", ")}. Check task notifications for progress.`,
+        );
+      } else if (result.errors && result.errors.length > 0) {
+        toast.error("Some connectors failed to sync");
+      }
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to sync connectors",
+      );
+    }
+  }, [syncAllConnectorsMutation]);
 
   useEffect(() => {
     refreshTasks();
@@ -202,14 +268,53 @@ function SearchPage() {
     getFailedFileKey,
   ]);
 
+  // Use server-side file listing for default/wildcard view; search otherwise.
+  // Wildcard follows bar text or saved filter query (bar is cleared when a filter is picked).
+  const effectiveSearchText =
+    queryOverride.trim() || parsedFilterData?.query?.trim() || "";
+  const isWildcardQuery =
+    effectiveSearchText === "" || effectiveSearchText === "*";
+
   const {
-    data: searchData = [],
+    data: listFilesData,
+    isLoading: isListFilesLoading,
+    error: listFilesError,
+    isError: isListFilesError,
+  } = useListFiles(
+    {
+      pageSize: 100,
+      search: isWildcardQuery ? undefined : queryOverride,
+      connectorType: listFilesFilterParam(
+        parsedFilterData?.filters?.connector_types,
+      ),
+      mimetype: listFilesFilterParam(parsedFilterData?.filters?.document_types),
+      owner: listFilesFilterParam(parsedFilterData?.filters?.owners),
+    },
+    {
+      refetchInterval: 5000,
+      enabled: isWildcardQuery,
+    },
+  );
+
+  const {
+    data: searchData = EMPTY_SEARCH_RESULT,
     isLoading: isSearchLoading,
-    error,
-    isError,
+    error: searchError,
+    isError: isSearchError,
   } = useGetSearchQuery(queryOverride, parsedFilterData, {
-    refetchInterval: 5000,
+    enabled: !isWildcardQuery,
   });
+
+  const { files: searchFiles, warnings: searchWarnings } =
+    searchData as SearchResult;
+
+  // Merge data from whichever source is active
+  const effectiveData: File[] = isWildcardQuery
+    ? (listFilesData?.files ?? [])
+    : searchFiles;
+  const isLoading = isWildcardQuery ? isListFilesLoading : isSearchLoading;
+  const error = isWildcardQuery ? listFilesError : searchError;
+  const isError = isWildcardQuery ? isListFilesError : isSearchError;
 
   const isOpenragDocsRow = useCallback((file?: File) => {
     return (
@@ -302,10 +407,11 @@ function SearchPage() {
       lastErrorRef.current = null;
     }
   }, [isError, error]);
+  // Third arg: saved filter only — draft `parsedFilterData` (create mode) must still show task rows.
   const fileResults = buildKnowledgeTableRows(
-    searchData as File[],
+    effectiveData,
     taskFiles,
-    !!parsedFilterData,
+    Boolean(selectedFilter),
   );
 
   const gridRows = fileResults;
@@ -666,7 +772,35 @@ function SearchPage() {
           </h2>
         </div>
         {isCloudBrand ? (
-          <KnowledgeSearchBar />
+          <div className="relative overflow-hidden h-12 shrink-0">
+            <div
+              className={cn(
+                "transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "-translate-y-full pointer-events-none select-none"
+                  : "translate-y-0",
+              )}
+            >
+              <KnowledgeSearchBar />
+            </div>
+            <div
+              className={cn(
+                "absolute top-0 left-0 right-0 h-12 transition-transform duration-200 ease-in-out",
+                selectedRows.length > 0
+                  ? "translate-y-0"
+                  : "translate-y-full pointer-events-none select-none",
+              )}
+            >
+              <KnowledgeBatchActionsBar
+                selectedCount={selectedRows.length}
+                onDelete={() => setShowBulkDeleteDialog(true)}
+                onCancel={() => {
+                  setSelectedRows([]);
+                  gridRef.current?.api.deselectAll();
+                }}
+              />
+            </div>
+          </div>
         ) : (
           /* Search Input Area */
           <div className="flex-1 flex items-center flex-shrink-0 flex-wrap-reverse gap-3 mb-6">
@@ -676,36 +810,14 @@ function SearchPage() {
               type="button"
               variant="outline"
               className="rounded-lg flex-shrink-0"
-              disabled={syncAllConnectorsMutation.isPending}
-              onClick={async () => {
-                try {
-                  toast.info("Syncing all cloud connectors...");
-                  const result = await syncAllConnectorsMutation.mutateAsync();
-                  if (result.status === "no_files") {
-                    toast.info(
-                      result.message ||
-                        "No cloud files to sync. Add files from cloud connectors first.",
-                    );
-                  } else if (
-                    result.synced_connectors &&
-                    result.synced_connectors.length > 0
-                  ) {
-                    toast.success(
-                      `Sync started for ${result.synced_connectors.join(", ")}. Check task notifications for progress.`,
-                    );
-                  } else if (result.errors && result.errors.length > 0) {
-                    toast.error("Some connectors failed to sync");
-                  }
-                } catch (error) {
-                  toast.error(
-                    error instanceof Error
-                      ? error.message
-                      : "Failed to sync connectors",
-                  );
-                }
-              }}
+              disabled={
+                syncAllConnectorsMutation.isPending ||
+                syncAllPreviewMutation.isPending
+              }
+              onClick={handleOpenSyncDialog}
             >
-              {syncAllConnectorsMutation.isPending ? (
+              {syncAllConnectorsMutation.isPending ||
+              syncAllPreviewMutation.isPending ? (
                 <>
                   <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   Syncing...
@@ -757,12 +869,49 @@ function SearchPage() {
             </div>
           </div>
         )}
+        {!isWildcardQuery && searchWarnings.length > 0 && (
+          <div className="mb-4 flex flex-col gap-2">
+            {searchWarnings.map((warning, idx) => {
+              const isEmbeddingWarning =
+                warning.code === "embedding_unavailable";
+              const semanticDown =
+                isEmbeddingWarning &&
+                warning.semantic_search_available === false;
+              const title = isEmbeddingWarning
+                ? semanticDown
+                  ? "Semantic search degraded — keyword results only"
+                  : "Semantic search partially degraded"
+                : warning.message || "Search warning";
+              const details =
+                warning.models && warning.models.length > 0
+                  ? ` Affected embedding model${warning.models.length > 1 ? "s" : ""}: ${warning.models.join(", ")}.`
+                  : "";
+              return (
+                <Banner
+                  key={`${warning.code}-${idx}`}
+                  inset
+                  className="bg-amber-500/10 text-amber-100 border border-amber-500/30"
+                >
+                  <BannerIcon icon={AlertTriangle} />
+                  <BannerTitle>
+                    <span className="font-medium">{title}.</span>
+                    <span className="ml-1 opacity-90">
+                      {isEmbeddingWarning
+                        ? `The provider for some indexed documents is no longer reachable, so results rely on keyword matching.${details} Re-configure the provider or re-ingest those documents with another embedding model to restore semantic search.`
+                        : warning.message}
+                    </span>
+                  </BannerTitle>
+                </Banner>
+              );
+            })}
+          </div>
+        )}
         {isCloudBrand ? (
           <AgGridReact
             className="w-full overflow-auto border"
             columnDefs={columnDefs as ColDef<File>[]}
             defaultColDef={defaultColDef}
-            loading={isSearchLoading || deleteDocumentMutation.isPending}
+            loading={isLoading || deleteDocumentMutation.isPending}
             ref={gridRef}
             theme={themeQuartz.withParams({ browserColorScheme: "inherit" })}
             rowData={gridRows}
@@ -793,7 +942,7 @@ function SearchPage() {
             className="w-full overflow-auto"
             columnDefs={columnDefs as ColDef<File>[]}
             defaultColDef={defaultColDef}
-            loading={isSearchLoading || deleteDocumentMutation.isPending}
+            loading={isLoading || deleteDocumentMutation.isPending}
             ref={gridRef}
             theme={themeQuartz.withParams({ browserColorScheme: "inherit" })}
             rowData={gridRows}
@@ -839,6 +988,18 @@ function SearchPage() {
         <p className="my-2">Documents to be deleted:</p>
         {formatFilesToDelete(selectedRows)}
       </DeleteConfirmationDialog>
+
+      <SyncConfirmDialog
+        open={syncDialogOpen}
+        onOpenChange={setSyncDialogOpen}
+        onConfirm={handleConfirmSync}
+        isLoading={syncAllPreviewMutation.isPending || syncPreview === null}
+        isSyncing={syncAllConnectorsMutation.isPending}
+        isSyncAll
+        orphansByType={syncPreview?.orphans_by_type}
+        orphansAvailableByType={syncPreview?.orphans_available_by_type}
+        syncedCountByType={syncPreview?.synced_count_by_type}
+      />
     </>
   );
 }

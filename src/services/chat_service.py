@@ -19,10 +19,12 @@ class ChatService:
         previous_response_id: str = None,
         stream: bool = False,
         filter_id: str = None,
+        storage_user_id: str = None,
     ):
         """Handle chat requests using the patched OpenAI client"""
         if not prompt:
             raise ValueError("Prompt is required")
+        conversation_user_id = storage_user_id or user_id
 
         # Set authentication context for this request so tools can access it
         if user_id and jwt_token:
@@ -32,7 +34,7 @@ class ChatService:
             return async_chat_stream(
                 clients.patched_llm_client,
                 prompt,
-                user_id,
+                conversation_user_id,
                 previous_response_id=previous_response_id,
                 filter_id=filter_id,
             )
@@ -40,7 +42,7 @@ class ChatService:
             response_text, response_id = await async_chat(
                 clients.patched_llm_client,
                 prompt,
-                user_id,
+                conversation_user_id,
                 previous_response_id=previous_response_id,
                 filter_id=filter_id,
             )
@@ -57,10 +59,15 @@ class ChatService:
         previous_response_id: str = None,
         stream: bool = False,
         filter_id: str = None,
+        owner: str = None,
+        owner_name: str = None,
+        owner_email: str = None,
+        storage_user_id: str = None,
     ):
         """Handle Langflow chat requests"""
         if not prompt:
             raise ValueError("Prompt is required")
+        conversation_user_id = storage_user_id or user_id
 
         if not LANGFLOW_URL or not LANGFLOW_CHAT_FLOW_ID:
             raise ValueError(
@@ -68,7 +75,11 @@ class ChatService:
             )
 
         # Prepare extra headers for JWT authentication and embedding model
-        extra_headers = {}
+        extra_headers = {
+            "X-Langflow-Global-Var-OWNER": str(owner) if owner else "",
+            "X-Langflow-Global-Var-OWNER_NAME": str(owner_name) if owner_name else "",
+            "X-Langflow-Global-Var-OWNER_EMAIL": str(owner_email) if owner_email else "",
+        }
         if jwt_token:
             extra_headers["X-LANGFLOW-GLOBAL-VAR-JWT"] = jwt_token
 
@@ -82,7 +93,6 @@ class ChatService:
         
         # Add provider credentials to headers
         await add_provider_credentials_to_headers(extra_headers, config, flows_service=self.flows_service, jwt_token=jwt_token)
-        logger.debug(f"[LF] Extra headers {extra_headers}")
         # Get context variables for filters, limit, and threshold
         from auth_context import (
             get_score_threshold,
@@ -136,7 +146,7 @@ class ChatService:
         extra_headers["X-LANGFLOW-GLOBAL-VAR-OPENRAG-QUERY-FILTER"] = json.dumps(
             filter_expression
         )
-        logger.info(f"[LF] Extra headers {extra_headers}")
+        logger.info("[CHAT] Langflow chat request", stream=stream, filters_applied=bool(filter_expression))
         # Ensure the Langflow client exists; try lazy init if needed
         langflow_client = await clients.ensure_langflow_client()
         if not langflow_client:
@@ -152,7 +162,7 @@ class ChatService:
                 langflow_client,
                 LANGFLOW_CHAT_FLOW_ID,
                 prompt,
-                user_id,
+                conversation_user_id,
                 extra_headers=extra_headers,
                 previous_response_id=previous_response_id,
                 filter_id=filter_id,
@@ -164,7 +174,7 @@ class ChatService:
                 langflow_client,
                 LANGFLOW_CHAT_FLOW_ID,
                 prompt,
-                user_id,
+                conversation_user_id,
                 extra_headers=extra_headers,
                 previous_response_id=previous_response_id,
                 filter_id=filter_id,
@@ -184,8 +194,10 @@ class ChatService:
         filters: dict = None,
         limit: int = None,
         score_threshold: float = None,
+        storage_user_id: str = None,
     ):
         """Handle Langflow nudges chat requests with knowledge filters"""
+        conversation_user_id = storage_user_id or user_id
 
         if not LANGFLOW_URL or not NUDGES_FLOW_ID:
             raise ValueError(
@@ -261,14 +273,10 @@ class ChatService:
             filter_expression["score_threshold"] = score_threshold
 
         # Pass the complete filter expression as a single header to Langflow (only if we have something to send)
-        logger.info(
-            "Sending OpenRAG query filter to Langflow nudges",
-            filter_expression=filter_expression,
-        )
         extra_headers["X-LANGFLOW-GLOBAL-VAR-OPENRAG-QUERY-FILTER"] = json.dumps(
             filter_expression
         )
-        logger.info(f"[NUDGES] Extra headers {extra_headers}")
+        logger.info("[CHAT] Nudges request", filters_applied=bool(filter_expression))
 
         # Ensure the Langflow client exists; try lazy init if needed
         langflow_client = await clients.ensure_langflow_client()
@@ -281,7 +289,7 @@ class ChatService:
             from agent import get_conversation_thread
 
             conversation_history = get_conversation_thread(
-                user_id, previous_response_id
+                conversation_user_id, previous_response_id
             )
             if conversation_history:
                 conversation_history = "\n".join(
@@ -300,7 +308,7 @@ class ChatService:
             langflow_client,
             NUDGES_FLOW_ID,
             prompt,
-            user_id,
+            conversation_user_id,
             extra_headers=extra_headers,
             store_conversation=False,
         )
@@ -317,13 +325,22 @@ class ChatService:
         jwt_token: str = None,
         previous_response_id: str = None,
         endpoint: str = "langflow",
+        owner: str = None,
+        owner_name: str = None,
+        owner_email: str = None,
+        storage_user_id: str = None,
     ):
         """Send document content as user message to get proper response_id"""
         document_prompt = f"I'm uploading a document called '{filename}'. Here is its content:\n\n{document_content}\n\nPlease confirm you've received this document and are ready to answer questions about it."
+        conversation_user_id = storage_user_id or user_id
 
         if endpoint == "langflow":
             # Prepare extra headers for JWT authentication and embedding model
-            extra_headers = {}
+            extra_headers = {
+                "X-Langflow-Global-Var-OWNER": str(owner) if owner else "",
+                "X-Langflow-Global-Var-OWNER_NAME": str(owner_name) if owner_name else "",
+                "X-Langflow-Global-Var-OWNER_EMAIL": str(owner_email) if owner_email else "",
+            }
             if jwt_token:
                 extra_headers["X-LANGFLOW-GLOBAL-VAR-JWT"] = jwt_token
 
@@ -359,7 +376,7 @@ class ChatService:
             response_text, response_id = await async_chat(
                 clients.patched_llm_client,
                 document_prompt,
-                user_id,
+                conversation_user_id,
                 previous_response_id=previous_response_id,
             )
 
@@ -373,7 +390,7 @@ class ChatService:
             return {"error": "User ID is required", "conversations": []}
 
         # Get metadata from persistent storage
-        conversations_dict = get_user_conversations(user_id)
+        conversations_dict = await get_user_conversations(user_id)
 
         # Get in-memory conversations (with function calls)
         in_memory_conversations = active_conversations.get(user_id, {})
@@ -489,7 +506,7 @@ class ChatService:
 
         try:
             # 1. Get local conversation metadata (no actual messages stored here)
-            conversations_dict = get_user_conversations(user_id)
+            conversations_dict = await get_user_conversations(user_id)
             local_metadata = {}
 
             for response_id, conversation_metadata in conversations_dict.items():
@@ -590,7 +607,9 @@ class ChatService:
         all_conversations.sort(key=lambda c: c.get("last_activity", ""), reverse=True)
 
         logger.debug(
-            f"[DEBUG] Returning {len(all_conversations)} conversations ({len(local_metadata)} from local metadata)"
+            "[CHAT] Returning conversations",
+            total=len(all_conversations),
+            from_local_metadata=len(local_metadata),
         )
 
         return {
@@ -656,8 +675,8 @@ class ChatService:
     async def delete_all_user_sessions(self, user_id: str):
         """Delete all sessions for a user from both local storage and Langflow"""
         from agent import get_user_conversations
-        
-        conversations = get_user_conversations(user_id)
+
+        conversations = await get_user_conversations(user_id)
         session_ids = list(conversations.keys())
         
         results = []

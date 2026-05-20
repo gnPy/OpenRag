@@ -1,10 +1,10 @@
 from fastapi import Depends
-from pydantic import BaseModel
 from fastapi.responses import JSONResponse
-from utils.logging_config import get_logger
+from pydantic import BaseModel
 
-from dependencies import get_session_manager, get_current_user
+from dependencies import get_current_user, get_session_manager, require_permission
 from session_manager import User
+from utils.logging_config import get_logger
 
 logger = get_logger(__name__)
 
@@ -37,9 +37,32 @@ async def delete_documents_by_filename_core(
         )
 
     try:
-        opensearch_client = session_manager.get_user_opensearch_client(
-            user_id, jwt_token
+        opensearch_client = session_manager.get_user_opensearch_client(user_id, jwt_token)
+
+        # Owner check: only the document owner may delete
+        check = await opensearch_client.search(
+            index=get_index_name(),
+            body={
+                "query": {"term": {"filename": normalized_filename}},
+                "size": 1,
+                "_source": ["owner"],
+            },
         )
+        hits = check.get("hits", {}).get("hits", [])
+        if hits:
+            doc_owner = hits[0]["_source"].get("owner")
+            if doc_owner and doc_owner != user_id:
+                return (
+                    {
+                        "success": False,
+                        "deleted_chunks": 0,
+                        "filename": normalized_filename,
+                        "message": None,
+                        "error": "Access denied: only the document owner can delete this file",
+                    },
+                    403,
+                )
+
         delete_query = build_filename_delete_body(normalized_filename)
         result = await opensearch_client.delete_by_query(
             index=get_index_name(),
@@ -99,10 +122,24 @@ async def delete_documents_by_filename_core(
         )
 
 
+async def delete_chunks_by_document_ids(
+    document_ids: list[str],
+    opensearch_client,
+    index_name: str,
+) -> int:
+    """Bulk delete OpenSearch chunks by document_id. Returns deleted count."""
+    if not document_ids:
+        return 0
+    body = {"query": {"terms": {"document_id": document_ids}}}
+    res = await opensearch_client.delete_by_query(index=index_name, body=body, conflicts="proceed")
+    return res.get("deleted", 0)
+
+
 async def _ensure_index_exists(jwt_token: str = None):
     """Create the OpenSearch index if it doesn't exist yet."""
+    from config.settings import IBM_AUTH_ENABLED
+    from config.settings import clients as app_clients
     from main import init_index
-    from config.settings import IBM_AUTH_ENABLED, clients as app_clients
 
     opensearch_client = None
     if IBM_AUTH_ENABLED and jwt_token:
@@ -122,12 +159,10 @@ async def check_filename_exists(
     jwt_token = user.jwt_token
 
     try:
-        opensearch_client = session_manager.get_user_opensearch_client(
-            user.user_id, jwt_token
-        )
+        opensearch_client = session_manager.get_user_opensearch_client(user.user_id, jwt_token)
 
-        from utils.opensearch_queries import build_filename_search_body
         from utils.file_utils import get_filename_aliases
+        from utils.opensearch_queries import build_filename_search_body
 
         candidate_filenames = get_filename_aliases(filename)
         if not candidate_filenames:
@@ -139,10 +174,7 @@ async def check_filename_exists(
         try:
             for candidate in candidate_filenames:
                 search_body = build_filename_search_body(candidate, size=1, source=["filename"])
-                response = await opensearch_client.search(
-                    index=get_index_name(),
-                    body=search_body
-                )
+                response = await opensearch_client.search(index=get_index_name(), body=search_body)
                 hits = response.get("hits", {}).get("hits", [])
                 if hits:
                     exists = True
@@ -160,7 +192,9 @@ async def check_filename_exists(
         logger.error("Error checking filename existence", filename=filename, error=str(e))
         error_str = str(e)
         if "AuthenticationException" in error_str:
-            return JSONResponse({"error": "Access denied: insufficient permissions"}, status_code=403)
+            return JSONResponse(
+                {"error": "Access denied: insufficient permissions"}, status_code=403
+            )
         else:
             return JSONResponse({"error": str(e)}, status_code=500)
 
@@ -168,10 +202,10 @@ async def check_filename_exists(
 async def delete_documents_by_filename(
     body: DeleteDocumentBody,
     session_manager=Depends(get_session_manager),
-    user: User = Depends(get_current_user),
-    ):
+    user: User = Depends(require_permission("knowledge:delete:own")),
+):
     """Delete all documents with a specific filename"""
-    payload, status_code =await delete_documents_by_filename_core(
+    payload, status_code = await delete_documents_by_filename_core(
         filename=body.filename,
         session_manager=session_manager,
         user_id=user.user_id,

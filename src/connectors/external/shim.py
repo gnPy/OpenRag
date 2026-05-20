@@ -85,9 +85,7 @@ class ExternalConnector(BaseConnector):
         max_files: Optional[int] = None,
         **kwargs,
     ) -> Dict[str, Any]:
-        return await self._backend.list_files(
-            page_token=page_token, max_files=max_files
-        )
+        return await self._backend.list_files(page_token=page_token, max_files=max_files)
 
     async def get_file_content(self, file_id: str) -> ConnectorDocument:
         return await self._backend.get_file_content(file_id)
@@ -104,9 +102,7 @@ class ExternalConnector(BaseConnector):
     def handle_webhook_validation(
         self, request_method: str, headers: Dict[str, str], query_params: Dict[str, str]
     ) -> Optional[str]:
-        return self._backend.handle_webhook_validation(
-            request_method, headers, query_params
-        )
+        return self._backend.handle_webhook_validation(request_method, headers, query_params)
 
     def extract_webhook_channel_id(
         self, payload: Dict[str, Any], headers: Dict[str, str]

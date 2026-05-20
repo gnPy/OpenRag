@@ -23,14 +23,15 @@ classifiers = [
 dependencies = [
     "agentd>=0.8.1",
     "aiofiles>=24.1.0",
-    "cryptography>=45.0.6",
+    "aiohttp>=3.13.4",
+    "cryptography>=46.0.6",
     "google-api-python-client>=2.143.0",
     "google-auth-httplib2>=0.2.0",
     "google-auth-oauthlib>=1.2.0",
     "msal>=1.29.0",
     "httpx>=0.27.0",
     "opensearch-py[async]>=3.0.0",
-    "pyjwt>=2.8.0",
+    "pyjwt>=2.12.0",
     "python-multipart>=0.0.20",
     "fastapi>=0.115.0",
     "uvicorn>=0.35.0",
@@ -44,22 +45,40 @@ dependencies = [
     "structlog>=25.4.0",
     "zxcvbn>=4.5.0",
     "prometheus-fastapi-instrumentator>=7.1.0",
-    "litellm==1.83.3",
+    "litellm==1.83.14",
     "pyyaml>=6.0",
     "tiktoken>=0.7.0",
-    "prometheus-fastapi-instrumentator>=7.1.0",
     "fastmcp>=3.2.3",
-    "openai>=2.30.0",
+    "openai==2.24.0",
+    "tenacity>=9.1.4",
+    "pygments>=2.20.0",
+    "pyasn1>=0.6.3",
+    "requests>=2.33.0",
+    "sqlmodel>=0.0.22",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.13.0",
+    "asyncpg>=0.30.0",
+    "cachetools>=5.5.0",
 ]
 
 [dependency-groups]
-dev = ["pytest>=8", "pytest-asyncio>=0.21.0", "pytest-mock>=3.12.0", "pytest-cov>=4.0.0"]
-# External connectors. Uncomment and run `uv sync --group connectors` to enable.
-# When absent, ConnectionManager registers only the built-in connectors.
-# connectors = ["openrag-connectors"]
+dev = [
+    "pytest>=9.0.3",
+    "pytest-asyncio>=0.21.0",
+    "pytest-mock>=3.12.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.15.12",
+    "mypy>=2.0.0",
+]
 
 [project.scripts]
 openrag = "tui.main:run_tui"
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "error::RuntimeWarning",
+]
 
 [tool.uv]
 package = true
@@ -70,5 +89,72 @@ override-dependencies = ["python-dotenv>=1.1.0"]
 # local sibling checkout. Once published, replace with a version specifier.
 # [tool.uv.sources]
 # openrag-connectors = { path = "../openrag-connectors", editable = true }
+# Ruff and mypy run only against files changed in a PR (see
+# .github/workflows/lint-backend.yml). The configs below stay
+# intentionally minimal — broad enforcement is out of scope for the
+# refactor that introduced them.
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+exclude = ["flows/components"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]  # line-length handled by formatter
+
+# FastAPI's idiomatic dependency-injection pattern uses `Depends(...)` and
+# our `require_permission(...)` as call expressions in default-argument
+# position. B008 flags these as bugs ("function call in argument default")
+# but for FastAPI they are by design — the framework introspects them at
+# request time. Whitelist the call sites instead of sprinkling noqa
+# comments across every handler.
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Security",
+    "dependencies.require_permission",
+]
+
+# `bootstrap` must be the first import in any module that uses it
+# (it loads .env and configures structlog before anything else can
+# read env vars or emit logs). Define it as its own isort section
+# placed above standard-library so the formatter never re-sorts it
+# below other imports.
+[tool.ruff.lint.isort]
+section-order = [
+    "future",
+    "bootstrap",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+[tool.ruff.lint.isort.sections]
+bootstrap = ["bootstrap"]
+
+[tool.mypy]
+python_version = "3.13"
+ignore_missing_imports = true
+no_strict_optional = true
+warn_unused_ignores = true
+exclude = ["flows/components"]
+
+# FastAPI handlers in this module declare a Pydantic response model as
+# their return type but legitimately return `JSONResponse(...)` on error
+# paths. The runtime accepts both, but the annotation can't be widened to
+# `SomeResponse | JSONResponse` because FastAPI then tries to derive an
+# OpenAPI schema from the union and fails. Suppress only the resulting
+# return-value mismatches in this one file.
+[[tool.mypy.overrides]]
+module = "api.settings.endpoints"
+disable_error_code = ["return-value"]
 
 

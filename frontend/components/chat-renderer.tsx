@@ -18,6 +18,7 @@ import { Navigation } from "@/components/navigation";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsCloudBrand } from "@/contexts/brand-context";
 import { useChat } from "@/contexts/chat-context";
+import { page } from "@/lib/analytics";
 import {
   ANIMATION_DURATION,
   HEADER_HEIGHT,
@@ -41,6 +42,7 @@ export function ChatRenderer({
   const {
     endpoint,
     refreshTrigger,
+    refreshTriggerSilent,
     refreshConversations,
     startNewConversation,
     setConversationFilter,
@@ -68,10 +70,17 @@ export function ChatRenderer({
     }
   }, [settings?.onboarding?.current_step]);
 
+  useEffect(() => {
+    if (!showLayout) {
+      page("OpenRAG - Onboarding Page Viewed");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Only fetch conversations on chat page
   const isOnChatPage = pathname === "/" || pathname === "/chat";
   const { data: conversations = [], isLoading: isConversationsLoading } =
-    useGetConversationsQuery(endpoint, refreshTrigger, {
+    useGetConversationsQuery(endpoint, refreshTrigger + refreshTriggerSilent, {
       enabled: isOnChatPage && (isAuthenticated || isNoAuthMode),
     }) as { data: ChatConversation[]; isLoading: boolean };
 
@@ -233,8 +242,8 @@ export function ChatRenderer({
     setShowLayout(true);
   };
 
-  // List of paths with smaller max-width
-  const smallWidthPaths = ["/settings", "/upload"];
+  // List of paths with smaller max-width (SaaS settings use full width)
+  const smallWidthPaths = isCloudBrand ? ["/upload"] : ["/upload", "/settings"];
   const isSmallWidthPath = smallWidthPaths.some((path) =>
     pathname.startsWith(path),
   );

@@ -6,7 +6,12 @@ from fastapi.responses import JSONResponse
 from utils.logging_config import get_logger
 from utils.opensearch_utils import OpenSearchDiskSpaceError, DISK_SPACE_ERROR_MESSAGE
 
-from dependencies import get_search_service, get_session_manager, get_current_user
+from dependencies import (
+    get_search_service,
+    get_session_manager,
+    get_current_user,
+    require_permission,
+)
 from session_manager import User
 
 logger = get_logger(__name__)
@@ -25,7 +30,7 @@ async def search(
     body: SearchBody,
     search_service=Depends(get_search_service),
     session_manager=Depends(get_session_manager),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_permission("search:use")),
 ):
     """Search for documents"""
     try:
@@ -33,7 +38,6 @@ async def search(
 
         logger.debug(
             "Search API request",
-            user=str(user),
             user_id=user.user_id,
             has_jwt_token=jwt_token is not None,
             query=body.query,

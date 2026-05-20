@@ -1,7 +1,13 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { AlertCircle, ArrowLeft, FolderOpen, RefreshCw } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  FileSearch,
+  FolderOpen,
+  RefreshCw,
+} from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -12,10 +18,8 @@ import { useIBMCOSBucketStatusQuery } from "@/app/api/queries/useIBMCOSBucketSta
 import { useS3BucketStatusQuery } from "@/app/api/queries/useS3BucketStatusQuery";
 import { type CloudFile, UnifiedCloudPicker } from "@/components/cloud-picker";
 import { IngestSettings } from "@/components/cloud-picker/ingest-settings";
-import {
-  getIngestChunkSettingsError,
-  type IngestSettings as IngestSettingsType,
-} from "@/components/cloud-picker/types";
+import { getIngestChunkSettingsError } from "@/components/cloud-picker/types";
+import { FileBrowserDialog } from "@/components/file-browser-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -23,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTask } from "@/contexts/task-context";
+import { useSessionIngestSettings } from "@/hooks/useSessionIngestSettings";
 
 // Connectors that sync entire buckets/repositories without a file picker
 const DIRECT_SYNC_PROVIDERS = ["ibm_cos", "aws_s3"];
@@ -58,14 +63,11 @@ function BucketView({
   const [selectedBuckets, setSelectedBuckets] = useState<Set<string>>(
     new Set(),
   );
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [browseDialogBucket, setBrowseDialogBucket] = useState<string | null>(
+    null,
+  );
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: invalidateQueryKey });
@@ -226,6 +228,18 @@ function BucketView({
                         </p>
                       )}
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBrowseDialogBucket(bucket.name);
+                      }}
+                    >
+                      <FileSearch size={14} className="mr-1.5" />
+                      Browse Files
+                    </Button>
                   </div>
                 </div>
               );
@@ -264,6 +278,18 @@ function BucketView({
           </Button>
         </div>
       </div>
+
+      {connector.connectionId && browseDialogBucket && (
+        <FileBrowserDialog
+          open
+          onOpenChange={(open) => {
+            if (!open) setBrowseDialogBucket(null);
+          }}
+          connectorType={connector.type}
+          connectionId={connector.connectionId}
+          buckets={[browseDialogBucket]}
+        />
+      )}
     </>
   );
 }
@@ -383,13 +409,7 @@ export default function UploadProviderPage() {
   const syncMutation = useSyncConnector();
 
   const [selectedFiles, setSelectedFiles] = useState<CloudFile[]>([]);
-  const [ingestSettings, setIngestSettings] = useState<IngestSettingsType>({
-    chunkSize: 1000,
-    chunkOverlap: 200,
-    ocr: false,
-    pictureDescriptions: false,
-    embeddingModel: "text-embedding-3-small",
-  });
+  const [ingestSettings, setIngestSettings] = useSessionIngestSettings();
 
   const accessToken = tokenData?.access_token || null;
   const isLoading =
@@ -405,11 +425,9 @@ export default function UploadProviderPage() {
 
   const handleFileSelected = (files: CloudFile[]) => {
     setSelectedFiles(files);
-    console.log(`Selected ${files.length} item(s) from ${provider}:`, files);
-    // You can add additional handling here like triggering sync, etc.
   };
 
-  const handleSync = async (connector: any) => {
+  const handleSync = (connector: { connectionId?: string; type: string }) => {
     if (!connector.connectionId || selectedFiles.length === 0) return;
 
     const chunkErr = getIngestChunkSettingsError(ingestSettings);
@@ -429,6 +447,7 @@ export default function UploadProviderPage() {
             mimeType: file.mimeType,
             downloadUrl: file.downloadUrl,
             size: file.size,
+            isFolder: file.isFolder,
           })),
           settings: ingestSettings,
         },
@@ -437,11 +456,12 @@ export default function UploadProviderPage() {
         onSuccess: (result) => {
           const taskIds = result.task_ids;
           if (taskIds && taskIds.length > 0) {
-            const taskId = taskIds[0]; // Use the first task ID
-            addTask(taskId);
-            // Redirect to knowledge page already to show the syncing document
+            addTask(taskIds[0]);
             router.push("/knowledge");
           }
+        },
+        onError: (err) => {
+          toast.error(err instanceof Error ? err.message : "Sync failed");
         },
       },
     );
@@ -612,7 +632,8 @@ export default function UploadProviderPage() {
           accessToken={accessToken || undefined}
           clientId={connector.clientId}
           baseUrl={connector.baseUrl}
-          onSettingsChange={setIngestSettings}
+          ingestSettings={ingestSettings}
+          onIngestSettingsChange={setIngestSettings}
         />
       </div>
 
