@@ -1,13 +1,13 @@
-from typing import Any, Dict, List, Optional
-
 # Create custom processor for connector files using Langflow
+from typing import Any
+
 from models.processors import LangflowConnectorFileProcessor
 from services.langflow_file_service import LangflowFileService
+from utils.file_utils import clean_connector_filename, get_file_extension
 from utils.logging_config import get_logger
 
 from .base import BaseConnector, ConnectorDocument
 from .connection_manager import ConnectionManager
-from utils.file_utils import get_file_extension, clean_connector_filename
 
 logger = get_logger(__name__)
 
@@ -34,7 +34,7 @@ class LangflowConnectorService:
         """Initialize the service by loading existing connections"""
         await self.connection_manager.load_connections()
 
-    async def get_connector(self, connection_id: str) -> Optional[BaseConnector]:
+    async def get_connector(self, connection_id: str) -> BaseConnector | None:
         """Get a connector by connection ID"""
         return await self.connection_manager.get_connector(connection_id)
 
@@ -46,8 +46,8 @@ class LangflowConnectorService:
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
-        ingest_settings: Optional[Dict[str, Any]] = None,
-    ) -> Dict[str, Any]:
+        ingest_settings: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         """Process a document from a connector using LangflowFileService pattern"""
 
         logger.debug(
@@ -199,6 +199,7 @@ class LangflowConnectorService:
         user_id: str,
         max_files: int = None,
         jwt_token: str = None,
+        filename_filter: set = None,
     ) -> str:
         """Sync files from a connector connection using Langflow processing"""
         if not self.task_service:
@@ -231,11 +232,11 @@ class LangflowConnectorService:
         page_size = min(max_files or 100, 1000) if max_files else 100
 
         while True:
-            # List files from connector with limit
+            # List files from connector with max_files
             logger.debug(
                 "Calling list_files", page_size=page_size, page_token=page_token
             )
-            file_list = await connector.list_files(page_token, limit=page_size)
+            file_list = await connector.list_files(page_token, max_files=page_size)
             logger.debug(
                 "Got files from connector", file_count=len(file_list.get("files", []))
             )
@@ -247,6 +248,15 @@ class LangflowConnectorService:
             for file_info in files:
                 if max_files and len(files_to_process) >= max_files:
                     break
+                # Filter by filename if filter is provided
+                if filename_filter is not None:
+                    file_name = file_info.get("name", "")
+                    if file_name not in filename_filter:
+                        logger.debug(
+                            "Skipping file not in filter",
+                            filename=file_name,
+                        )
+                        continue
                 files_to_process.append(file_info)
 
             # Stop if we have enough files or no more pages
@@ -293,10 +303,10 @@ class LangflowConnectorService:
         self,
         connection_id: str,
         user_id: str,
-        file_ids: List[str],
+        file_ids: list[str],
         jwt_token: str = None,
-        file_infos: List[Dict[str, Any]] = None,
-        ingest_settings: Optional[Dict[str, Any]] = None,
+        file_infos: list[dict[str, Any]] = None,
+        ingest_settings: dict[str, Any] | None = None,
     ) -> str:
         """
         Sync specific files by their IDs using Langflow processing.
@@ -372,16 +382,33 @@ class LangflowConnectorService:
                     )
                     # If we have file_infos with download URLs, use original file_ids
                     # (OneDrive sharing IDs can't be expanded but can be downloaded directly)
+                    # Exclude folders — they have no downloadable content on their own.
                     if file_infos:
-                        logger.info("Using original file IDs with cached download URLs")
-                        expanded_file_ids = file_ids
+                        non_folder_infos = [f for f in file_infos if not f.get("isFolder")]
+                        non_folder_ids = [f["id"] for f in non_folder_infos if f.get("id")]
+                        if non_folder_ids:
+                            logger.info(
+                                "Using original file IDs with cached download URLs (folders excluded)"
+                            )
+                            expanded_file_ids = non_folder_ids
+                        else:
+                            raise ValueError("No files to sync after expanding folders")
                     else:
                         raise ValueError("No files to sync after expanding folders")
 
             except Exception as e:
                 logger.error(f"Failed to expand file_ids via list_files(): {e}")
-                # Fallback to original file_ids if expansion fails
-                expanded_file_ids = file_ids
+                # Preserve intentional validation failures (e.g., folders-only selection)
+                if isinstance(e, ValueError):
+                    raise
+                # Fallback path: still exclude known folders when metadata is available
+                if file_infos:
+                    non_folder_ids = [
+                        f["id"] for f in file_infos if f.get("id") and not f.get("isFolder")
+                    ]
+                    expanded_file_ids = non_folder_ids or file_ids
+                else:
+                    expanded_file_ids = file_ids
             finally:
                 cfg.file_ids = original_file_ids  # type: ignore
                 cfg.folder_ids = original_folder_ids  # type: ignore
@@ -414,6 +441,6 @@ class LangflowConnectorService:
 
         return task_id
 
-    async def _get_connector(self, connection_id: str) -> Optional[BaseConnector]:
+    async def _get_connector(self, connection_id: str) -> BaseConnector | None:
         """Get a connector by connection ID (alias for get_connector)"""
         return await self.get_connector(connection_id)

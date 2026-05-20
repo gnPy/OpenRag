@@ -49,6 +49,7 @@ class ConnectorService:
         jwt_token: str = None,
         owner_name: str = None,
         owner_email: str = None,
+        ingest_settings: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Process a document from a connector using existing processing pipeline"""
 
@@ -67,6 +68,21 @@ class ConnectorService:
                 filename=document.filename,
             )
 
+            # Delete existing chunks for this file before re-ingesting
+            # This prevents duplicate chunks when syncing files
+            if self.session_manager:
+                try:
+                    from config.settings import get_index_name
+                    opensearch_client = self.session_manager.get_user_opensearch_client(owner_user_id, jwt_token)
+                    delete_body = {"query": {"term": {"document_id": document.id}}}
+                    delete_result = await opensearch_client.delete_by_query(index=get_index_name(), body=delete_body)
+                    deleted_count = delete_result.get("deleted", 0)
+                    logger.info("Deleted existing chunks before re-ingestion", document_id=document.id, deleted_count=deleted_count)
+                    # Refresh index to make deletion visible before processing
+                    await opensearch_client.indices.refresh(index=get_index_name())
+                except Exception as delete_err:
+                    logger.warning("Failed to delete existing chunks before re-ingestion", document_id=document.id, error=str(delete_err))
+
             # Process using consolidated processing pipeline
             from models.processors import TaskProcessor
 
@@ -75,6 +91,23 @@ class ConnectorService:
                 models_service=self.models_service,
                 docling_service=self.docling_service,
             )
+
+            standard_kwargs: dict[str, Any] = {}
+            if isinstance(ingest_settings, dict):
+                em = ingest_settings.get("embeddingModel")
+                if isinstance(em, str) and em.strip():
+                    standard_kwargs["embedding_model"] = em.strip()
+                for ui_key, param in (
+                    ("chunkSize", "chunk_size"),
+                    ("chunkOverlap", "chunk_overlap"),
+                ):
+                    raw = ingest_settings.get(ui_key)
+                    if raw is not None:
+                        try:
+                            standard_kwargs[param] = int(raw)
+                        except (TypeError, ValueError):
+                            pass
+
             result = await processor.process_document_standard(
                 file_path=tmp_path,
                 file_hash=document.id,  # Use connector document ID as hash
@@ -86,6 +119,7 @@ class ConnectorService:
                 file_size=len(document.content) if document.content else 0,
                 connector_type=connector_type,
                 acl=document.acl,
+                **standard_kwargs,
             )
 
             logger.info(
