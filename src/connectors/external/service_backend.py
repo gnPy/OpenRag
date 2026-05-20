@@ -99,9 +99,7 @@ class ServiceBackend:
         page_token: Optional[str] = None,
         max_files: Optional[int] = None,
     ) -> Dict[str, Any]:
-        resp = await self._call(
-            "list_files", {"page_token": page_token, "max_files": max_files}
-        )
+        resp = await self._call("list_files", {"page_token": page_token, "max_files": max_files})
         return {
             "files": resp.get("files", []),
             "next_page_token": resp.get("next_page_token"),
@@ -124,9 +122,7 @@ class ServiceBackend:
 
                 meta_b64 = r.headers.get("X-Connector-Document")
                 if not meta_b64:
-                    raise RuntimeError(
-                        "Service response missing X-Connector-Document header"
-                    )
+                    raise RuntimeError("Service response missing X-Connector-Document header")
                 meta = json.loads(base64.b64decode(meta_b64))
 
         acl_dict = meta.get("acl") or {}
@@ -156,9 +152,7 @@ class ServiceBackend:
         return resp["subscription_id"]
 
     async def cleanup_subscription(self, subscription_id: str) -> bool:
-        resp = await self._call(
-            "cleanup_subscription", {"subscription_id": subscription_id}
-        )
+        resp = await self._call("cleanup_subscription", {"subscription_id": subscription_id})
         return bool(resp.get("ok"))
 
     async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
@@ -229,9 +223,7 @@ class ServiceBackend:
         body = await self._build_request_body({"state": state} if state else {})
         url = f"{self.service_url}/v1/{self.connector_type}/oauth/authorize_url"
         async with httpx.AsyncClient(timeout=30) as http:
-            r = await http.post(
-                url, json=body, headers={"Authorization": f"Bearer {self.bearer}"}
-            )
+            r = await http.post(url, json=body, headers={"Authorization": f"Bearer {self.bearer}"})
             r.raise_for_status()
             return r.json()["url"]
 
@@ -309,9 +301,7 @@ class ServiceBackend:
                 return data
 
     async def _persist_refreshed(self, refreshed_b64: str) -> None:
-        await self._persist_refreshed_dict(
-            json.loads(base64.b64decode(refreshed_b64))
-        )
+        await self._persist_refreshed_dict(json.loads(base64.b64decode(refreshed_b64)))
 
     async def _persist_refreshed_dict(self, refreshed: Dict[str, Any]) -> None:
         to_save = {

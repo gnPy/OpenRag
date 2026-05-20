@@ -40,9 +40,7 @@ class LibraryBackend:
         page_token: Optional[str] = None,
         max_files: Optional[int] = None,
     ) -> Dict[str, Any]:
-        return await self._connector.list_files(
-            page_token=page_token, max_files=max_files
-        )
+        return await self._connector.list_files(page_token=page_token, max_files=max_files)
 
     async def get_file_content(self, file_id: str):
         return await self._connector.get_file_content(file_id)
