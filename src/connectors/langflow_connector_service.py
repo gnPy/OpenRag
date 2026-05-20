@@ -118,7 +118,7 @@ class LangflowConnectorService:
             # This prevents duplicate chunks when syncing files
             if self.session_manager:
                 try:
-                    from config.settings import get_index_name
+                    from config.settings import clients, get_index_name
                     from utils.opensearch_delete import (
                         collect_visible_document_ids,
                         delete_document_ids,
@@ -135,7 +135,7 @@ class LangflowConnectorService:
                         query=build_owned_filename_query(processed_filename, owner_user_id),
                     )
                     deleted_count = await delete_document_ids(
-                        opensearch_client,
+                        clients.opensearch,
                         index=index_name,
                         document_ids=document_ids,
                     )

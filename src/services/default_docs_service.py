@@ -368,6 +368,7 @@ async def _ingest_default_documents_url(
 
 async def _delete_existing_default_docs(session_manager, connector_type: str):
     """Delete previously ingested default OpenRAG docs before reingestion."""
+    from config.settings import clients
     from session_manager import AnonymousUser
     from utils.opensearch_delete import collect_visible_document_ids, delete_document_ids
 
@@ -413,7 +414,7 @@ async def _delete_existing_default_docs(session_manager, connector_type: str):
         query=delete_query["query"],
     )
     deleted_chunks = await delete_document_ids(
-        opensearch_client,
+        clients.opensearch,
         index=index_name,
         document_ids=document_ids,
     )

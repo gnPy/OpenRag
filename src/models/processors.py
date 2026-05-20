@@ -154,7 +154,7 @@ class TaskProcessor:
         """
         Delete all chunks of a document with the given filename from OpenSearch.
         """
-        from config.settings import get_index_name
+        from config.settings import clients, get_index_name
         from utils.opensearch_delete import collect_visible_document_ids, delete_document_ids
         from utils.opensearch_queries import build_owned_filename_query
 
@@ -181,7 +181,7 @@ class TaskProcessor:
                     query=build_owned_filename_query(candidate, owner_user_id),
                 )
                 deleted_count += await delete_document_ids(
-                    opensearch_client,
+                    clients.opensearch,
                     index=get_index_name(),
                     document_ids=document_ids,
                 )

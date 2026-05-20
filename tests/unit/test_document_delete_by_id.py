@@ -35,7 +35,7 @@ class FakeSessionManager:
 
 
 @pytest.mark.asyncio
-async def test_delete_documents_by_filename_deletes_owned_ids_with_user_client(monkeypatch):
+async def test_delete_documents_by_filename_deletes_owned_ids_with_backend_client(monkeypatch):
     monkeypatch.setattr("config.settings.get_index_name", lambda: "documents")
     opensearch_client = FakeOpenSearchClient(
         owned_hits=[
@@ -43,6 +43,8 @@ async def test_delete_documents_by_filename_deletes_owned_ids_with_user_client(m
             {"_id": "chunk-2", "_source": {"owner": "user-1"}},
         ]
     )
+    backend_opensearch_client = FakeOpenSearchClient()
+    monkeypatch.setattr("config.settings.clients.opensearch", backend_opensearch_client)
 
     payload, status_code = await delete_documents_by_filename_core(
         filename=" report.pdf ",
@@ -63,7 +65,8 @@ async def test_delete_documents_by_filename_deletes_owned_ids_with_user_client(m
             ]
         }
     }
-    assert opensearch_client.delete_calls == [
+    assert opensearch_client.delete_calls == []
+    assert backend_opensearch_client.delete_calls == [
         {"index": "documents", "id": "chunk-1", "refresh": True},
         {"index": "documents", "id": "chunk-2", "refresh": True},
     ]

@@ -85,7 +85,7 @@ async def test_langflow_ingest_callback_indexes_authoritative_token_context():
 
 
 @pytest.mark.asyncio
-async def test_langflow_file_service_sends_backend_callback_tweaks(monkeypatch):
+async def test_langflow_file_service_sends_backend_callback_global_vars(monkeypatch):
     token_service = LangflowIngestTokenService(secret="test-secret" * 4, ttl_seconds=60)
     captured = {}
 
@@ -133,22 +133,17 @@ async def test_langflow_file_service_sends_backend_callback_tweaks(monkeypatch):
 
     assert result == {"status": "ok"}
     payload = captured["json"]
-    callback_tweaks = payload["tweaks"][LangflowFileService.INGEST_OPENSEARCH_COMPONENT_ID]
-    assert callback_tweaks["openrag_ingest_url"].endswith("/internal/ingest/chunks")
-    assert callback_tweaks["openrag_ingest_run_id"]
+    assert LangflowFileService.INGEST_OPENSEARCH_COMPONENT_ID not in payload["tweaks"]
     headers = captured["headers"]
     assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_URL"].endswith("/internal/ingest/chunks")
-    assert (
-        headers["X-Langflow-Global-Var-OPENRAG_INGEST_TOKEN"]
-        == callback_tweaks["openrag_ingest_token"]
-    )
-    assert (
-        headers["X-Langflow-Global-Var-OPENRAG_INGEST_RUN_ID"]
-        == callback_tweaks["openrag_ingest_run_id"]
-    )
+    assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_TOKEN"]
+    assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_RUN_ID"]
     assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_BATCH_SIZE"]
 
-    decoded_context, _ = token_service.validate_token(callback_tweaks["openrag_ingest_token"])
+    decoded_context, _ = token_service.validate_token(
+        headers["X-Langflow-Global-Var-OPENRAG_INGEST_TOKEN"]
+    )
+    assert decoded_context.ingest_run_id == headers["X-Langflow-Global-Var-OPENRAG_INGEST_RUN_ID"]
     assert decoded_context.owner == "user-1"
     assert decoded_context.filename == "source.pdf"
     assert decoded_context.mimetype == "application/pdf"
@@ -186,6 +181,9 @@ def test_ingest_flows_resolve_callback_config_from_global_vars(flow_path, compon
     assert template["openrag_ingest_token"]["_input_type"] == "StrInput"
     assert "OPENRAG_INGEST_URL" in template["code"]["value"]
     assert "_openrag_ingest_global_placeholders" in template["code"]["value"]
+    assert "value.lower() in" in template["code"]["value"]
+    assert '"none"' in template["code"]["value"]
+    assert '"null"' in template["code"]["value"]
 
 
 @pytest.mark.parametrize(
@@ -237,3 +235,18 @@ def test_langflow_callback_global_vars_are_allowlisted(config_path):
     )
     for variable_name in CALLBACK_GLOBAL_VARS:
         assert variable_name in config_text
+
+
+@pytest.mark.parametrize(
+    "config_path",
+    [
+        "docker-compose.yml",
+        "kubernetes/helm/openrag/templates/langflow/langflow-dotenv.yaml",
+        "kubernetes/operator/internal/controller/env.go",
+    ],
+)
+def test_langflow_callback_global_vars_have_runtime_placeholders(config_path):
+    config_text = Path(config_path).read_text(encoding="utf-8")
+
+    for variable_name in CALLBACK_GLOBAL_VARS:
+        assert f"{variable_name}=" in config_text or f'"{variable_name}":' in config_text

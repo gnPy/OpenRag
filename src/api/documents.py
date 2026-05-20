@@ -79,8 +79,10 @@ async def delete_documents_by_filename_core(
                 404,
             )
 
+        from config.settings import clients
+
         deleted_count = await delete_document_ids(
-            opensearch_client,
+            clients.opensearch,
             index=index_name,
             document_ids=owned_document_ids,
         )

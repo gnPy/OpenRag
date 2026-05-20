@@ -180,8 +180,6 @@ class LangflowFileService:
     def _configure_ingest_callback(
         self,
         *,
-        tweaks: dict[str, Any],
-        component_id: str,
         document_id: str,
         filename: str,
         mimetype: str,
@@ -217,21 +215,11 @@ class LangflowFileService:
             ingest_run_id=ingest_run_id,
         )
         token = self.ingest_token_service.create_token(context)
-        opensearch_tweaks = tweaks.setdefault(component_id, {})
-        opensearch_tweaks.update(
-            {
-                "openrag_ingest_url": f"{OPENRAG_BACKEND_INTERNAL_URL}/internal/ingest/chunks",
-                "openrag_ingest_token": token,
-                "openrag_ingest_run_id": ingest_run_id,
-                "openrag_ingest_batch_size": LANGFLOW_INGEST_CALLBACK_BATCH_SIZE,
-            }
-        )
         logger.info(
             "[LF] Configured backend ingest callback",
-            component_id=component_id,
             document_id=document_id,
             ingest_run_id=ingest_run_id,
-            callback_url=opensearch_tweaks["openrag_ingest_url"],
+            callback_url=f"{OPENRAG_BACKEND_INTERNAL_URL}/internal/ingest/chunks",
         )
         return token, ingest_run_id
 
@@ -426,8 +414,6 @@ class LangflowFileService:
         headers["X-Langflow-Global-Var-ALLOWED_PRINCIPALS"] = json.dumps(allowed_principals or [])
 
         ingest_token, ingest_run_id = self._configure_ingest_callback(
-            tweaks=tweaks,
-            component_id=self.INGEST_OPENSEARCH_COMPONENT_ID,
             document_id=resolved_document_id,
             filename=filename,
             mimetype=mimetype,
@@ -591,8 +577,6 @@ class LangflowFileService:
             "X-Langflow-Global-Var-FILESIZE": "0",
         }
         ingest_token, ingest_run_id = self._configure_ingest_callback(
-            tweaks=tweaks,
-            component_id=self.URL_INGEST_OPENSEARCH_COMPONENT_ID,
             document_id=resolved_document_id,
             filename=docs_url,
             mimetype="text/html",

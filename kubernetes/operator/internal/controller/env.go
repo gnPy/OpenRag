@@ -31,7 +31,7 @@ func NewEnvVarManager() *EnvVarManager {
 			"LANGFLOW_DATABASE_URL": "sqlite:////app/data/langflow.db",
 
 			// Variables to expose to Langflow components
-			"LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT": "JWT,OPENRAG_QUERY_FILTER,OPENSEARCH_PASSWORD,OPENSEARCH_URL,OPENSEARCH_INDEX_NAME,DOCLING_SERVE_URL,DOCLING_TASK_ID,OWNER,OWNER_NAME,OWNER_EMAIL,CONNECTOR_TYPE,DOCUMENT_ID,SOURCE_URL,ALLOWED_USERS,ALLOWED_GROUPS,FILENAME,MIMETYPE,FILESIZE,SELECTED_EMBEDDING_MODEL,OPENAI_API_KEY,ANTHROPIC_API_KEY,WATSONX_API_KEY,WATSONX_ENDPOINT,WATSONX_PROJECT_ID,OLLAMA_BASE_URL,OPENRAG_INGEST_URL,OPENRAG_INGEST_TOKEN,OPENRAG_INGEST_RUN_ID,OPENRAG_INGEST_BATCH_SIZE",
+			"LANGFLOW_VARIABLES_TO_GET_FROM_ENVIRONMENT": "JWT,OPENRAG_QUERY_FILTER,OPENSEARCH_PASSWORD,OPENSEARCH_URL,OPENSEARCH_INDEX_NAME,DOCLING_SERVE_URL,DOCLING_TASK_ID,OWNER,OWNER_NAME,OWNER_EMAIL,CONNECTOR_TYPE,DOCUMENT_ID,SOURCE_URL,ALLOWED_USERS,ALLOWED_GROUPS,ALLOWED_PRINCIPALS,FILENAME,MIMETYPE,FILESIZE,SELECTED_EMBEDDING_MODEL,OPENAI_API_KEY,ANTHROPIC_API_KEY,WATSONX_API_KEY,WATSONX_ENDPOINT,WATSONX_PROJECT_ID,OLLAMA_BASE_URL,OPENRAG_INGEST_URL,OPENRAG_INGEST_TOKEN,OPENRAG_INGEST_RUN_ID,OPENRAG_INGEST_BATCH_SIZE",
 
 			// Authentication and user management
 			"LANGFLOW_SKIP_AUTH_AUTO_LOGIN": "true",
@@ -52,22 +52,27 @@ func NewEnvVarManager() *EnvVarManager {
 			"LANGFLOW_KEY_RETRY_DELAY":       "2",
 
 			// Flow context defaults
-			"JWT":                      "None",
-			"OWNER":                    "None",
-			"OWNER_NAME":               "None",
-			"OWNER_EMAIL":              "None",
-			"DOCLING_TASK_ID":          "None",
-			"CONNECTOR_TYPE":           "system",
-			"CONNECTOR_TYPE_URL":       "url",
-			"DOCUMENT_ID":              "",
-			"SOURCE_URL":               "",
-			"ALLOWED_USERS":            "[]",
-			"ALLOWED_GROUPS":           "[]",
-			"OPENRAG_QUERY_FILTER":     "{}",
-			"FILENAME":                 "None",
-			"MIMETYPE":                 "None",
-			"FILESIZE":                 "0",
-			"SELECTED_EMBEDDING_MODEL": "",
+			"JWT":                       "None",
+			"OWNER":                     "None",
+			"OWNER_NAME":                "None",
+			"OWNER_EMAIL":               "None",
+			"DOCLING_TASK_ID":           "None",
+			"CONNECTOR_TYPE":            "system",
+			"CONNECTOR_TYPE_URL":        "url",
+			"DOCUMENT_ID":               "",
+			"SOURCE_URL":                "",
+			"ALLOWED_USERS":             "[]",
+			"ALLOWED_GROUPS":            "[]",
+			"ALLOWED_PRINCIPALS":        "[]",
+			"OPENRAG_QUERY_FILTER":      "{}",
+			"OPENRAG_INGEST_URL":        "None",
+			"OPENRAG_INGEST_TOKEN":      "None",
+			"OPENRAG_INGEST_RUN_ID":     "None",
+			"OPENRAG_INGEST_BATCH_SIZE": "100",
+			"FILENAME":                  "None",
+			"MIMETYPE":                  "None",
+			"FILESIZE":                  "0",
+			"SELECTED_EMBEDDING_MODEL":  "",
 
 			// Provider API keys (defaults to None, overridden by CR spec)
 			"OPENAI_API_KEY":     "None",
