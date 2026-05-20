@@ -18,15 +18,21 @@ Service mode also requires ``OPENRAG_CONNECTORS_URL`` and
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 from ..base import BaseConnector, ConnectorDocument
+
+if TYPE_CHECKING:
+    from .library_backend import LibraryBackend
+    from .service_backend import ServiceBackend
 
 logger = logging.getLogger(__name__)
 
 
 class ExternalConnector(BaseConnector):
     """Mode-selecting adapter. ``connector_type`` is passed in by ConnectionManager."""
+
+    _backend: "Union[LibraryBackend, ServiceBackend]"
 
     def __init__(self, connector_type: str, config: Dict[str, Any]):
         if config is None:

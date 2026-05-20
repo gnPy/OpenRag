@@ -131,7 +131,7 @@ class ServiceBackend:
 
         acl_dict = meta.get("acl") or {}
         acl = DocumentACL(
-            owner=acl_dict.get("owner"),
+            owner=acl_dict.get("owner"),  # type: ignore[arg-type]
             allowed_users=acl_dict.get("allowed_users") or [],
             allowed_groups=acl_dict.get("allowed_groups") or [],
         )
