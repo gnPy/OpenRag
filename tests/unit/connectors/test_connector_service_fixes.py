@@ -41,6 +41,8 @@ async def test_connector_service_process_connector_document_fixes():
     service.docling_service = MagicMock()
 
     opensearch_client = AsyncMock()
+    opensearch_client.delete_by_query = AsyncMock(return_value={"deleted": 1})
+    opensearch_client.indices.refresh = AsyncMock()
     service.session_manager.get_user_opensearch_client = MagicMock(return_value=opensearch_client)
 
     document = _make_document()
@@ -71,7 +73,11 @@ async def test_connector_service_process_connector_document_fixes():
             ingest_settings=ingest_settings,
         )
 
-    assert result == {"status": "indexed"}
+    assert result == {
+        "status": "indexed",
+        "filename": "test.docx",
+        "source_url": "https://example.com/test.docx",
+    }
 
     # Verify pre-delete call
     opensearch_client.delete_by_query.assert_called_once()
