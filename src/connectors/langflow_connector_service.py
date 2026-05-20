@@ -231,7 +231,7 @@ class LangflowConnectorService:
             raise ValueError(f"Connection '{connection_id}' not authenticated")
 
         # Collect files to process (limited by max_files)
-        files_to_process = []
+        files_to_process: list[dict[str, Any]] = []
         page_token = None
 
         # Calculate page size to minimize API calls
@@ -367,8 +367,8 @@ class LangflowConnectorService:
         # carefully selected IDs passed in.
         if cfg is not None:
             try:
-                cfg.file_ids = file_ids  # type: ignore
-                cfg.folder_ids = None  # type: ignore
+                cfg.file_ids = file_ids
+                cfg.folder_ids = None
 
                 # Expand file IDs — folders become their individual file contents
                 result = await connector.list_files()
@@ -410,8 +410,8 @@ class LangflowConnectorService:
                 else:
                     expanded_file_ids = file_ids
             finally:
-                cfg.file_ids = original_file_ids  # type: ignore
-                cfg.folder_ids = original_folder_ids  # type: ignore
+                cfg.file_ids = original_file_ids
+                cfg.folder_ids = original_folder_ids
 
         processor = LangflowConnectorFileProcessor(
             self,
