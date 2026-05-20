@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -127,10 +129,46 @@ async def test_langflow_file_service_sends_backend_callback_tweaks(monkeypatch):
     callback_tweaks = payload["tweaks"][LangflowFileService.INGEST_OPENSEARCH_COMPONENT_ID]
     assert callback_tweaks["openrag_ingest_url"].endswith("/internal/ingest/chunks")
     assert callback_tweaks["openrag_ingest_run_id"]
+    headers = captured["headers"]
+    assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_URL"].endswith("/internal/ingest/chunks")
+    assert (
+        headers["X-Langflow-Global-Var-OPENRAG_INGEST_TOKEN"]
+        == callback_tweaks["openrag_ingest_token"]
+    )
+    assert (
+        headers["X-Langflow-Global-Var-OPENRAG_INGEST_RUN_ID"]
+        == callback_tweaks["openrag_ingest_run_id"]
+    )
+    assert headers["X-Langflow-Global-Var-OPENRAG_INGEST_BATCH_SIZE"]
 
     decoded_context, _ = token_service.validate_token(callback_tweaks["openrag_ingest_token"])
     assert decoded_context.owner == "user-1"
     assert decoded_context.filename == "source.pdf"
     assert decoded_context.mimetype == "application/pdf"
     assert decoded_context.file_size == len(b"content")
-    assert captured["headers"]["X-Langflow-Global-Var-DOCUMENT_ID"] == decoded_context.document_id
+    assert headers["X-Langflow-Global-Var-DOCUMENT_ID"] == decoded_context.document_id
+
+
+@pytest.mark.parametrize(
+    ("flow_path", "component_id"),
+    [
+        ("flows/ingestion_flow.json", LangflowFileService.INGEST_OPENSEARCH_COMPONENT_ID),
+        ("flows/openrag_url_mcp.json", LangflowFileService.URL_INGEST_OPENSEARCH_COMPONENT_ID),
+    ],
+)
+def test_ingest_flows_resolve_callback_config_from_global_vars(flow_path, component_id):
+    flow = json.loads(Path(flow_path).read_text(encoding="utf-8"))
+    node = next(
+        node
+        for node in flow["data"]["nodes"]
+        if node.get("id") == component_id
+        and node.get("data", {}).get("node", {}).get("display_name")
+        == "OpenSearch (Multi-Model Multi-Embedding)"
+    )
+    template = node["data"]["node"]["template"]
+
+    assert template["openrag_ingest_url"]["value"] == "OPENRAG_INGEST_URL"
+    assert template["openrag_ingest_token"]["value"] == "OPENRAG_INGEST_TOKEN"
+    assert template["openrag_ingest_run_id"]["value"] == "OPENRAG_INGEST_RUN_ID"
+    assert "OPENRAG_INGEST_URL" in template["code"]["value"]
+    assert "_openrag_ingest_global_placeholders" in template["code"]["value"]

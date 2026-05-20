@@ -84,7 +84,6 @@ async def test_standard_processor_uses_shared_writer_for_embedding_mapping_and_w
     )
     monkeypatch.setattr("config.settings.get_index_name", lambda: "documents")
     monkeypatch.setattr("models.processors.get_index_name", lambda: "documents")
-    monkeypatch.setattr("services.document_index_writer.get_index_name", lambda: "documents")
     monkeypatch.setattr(
         "services.document_service.get_embedding_model",
         lambda: "text-embedding-3-small",

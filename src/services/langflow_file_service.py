@@ -235,6 +235,25 @@ class LangflowFileService:
         )
         return token, ingest_run_id
 
+    def _ingest_callback_global_var_headers(
+        self,
+        *,
+        ingest_token: str | None,
+        ingest_run_id: str | None,
+    ) -> dict[str, str]:
+        if not ingest_token or not ingest_run_id:
+            return {}
+        return {
+            "X-Langflow-Global-Var-OPENRAG_INGEST_URL": (
+                f"{OPENRAG_BACKEND_INTERNAL_URL}/internal/ingest/chunks"
+            ),
+            "X-Langflow-Global-Var-OPENRAG_INGEST_TOKEN": ingest_token,
+            "X-Langflow-Global-Var-OPENRAG_INGEST_RUN_ID": ingest_run_id,
+            "X-Langflow-Global-Var-OPENRAG_INGEST_BATCH_SIZE": str(
+                LANGFLOW_INGEST_CALLBACK_BATCH_SIZE
+            ),
+        }
+
     async def _cleanup_failed_callback_ingest(
         self,
         *,
@@ -423,6 +442,12 @@ class LangflowFileService:
             allowed_groups=allowed_groups,
             allowed_principals=allowed_principals,
         )
+        headers.update(
+            self._ingest_callback_global_var_headers(
+                ingest_token=ingest_token,
+                ingest_run_id=ingest_run_id,
+            )
+        )
         if tweaks:
             payload["tweaks"] = tweaks
             logger.debug("[LF] Tweaks configured", tweak_keys=list(tweaks.keys()))
@@ -581,6 +606,12 @@ class LangflowFileService:
             allowed_users=[],
             allowed_groups=[],
             allowed_principals=[],
+        )
+        headers.update(
+            self._ingest_callback_global_var_headers(
+                ingest_token=ingest_token,
+                ingest_run_id=ingest_run_id,
+            )
         )
         if tweaks:
             payload["tweaks"] = tweaks

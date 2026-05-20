@@ -12,7 +12,6 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from config.settings import clients, get_index_name
 from utils.embedding_fields import ensure_embedding_field_exists
 from utils.embeddings import create_index_body
 from utils.group_acl import unique_acl_principals
@@ -57,6 +56,8 @@ class DocumentIndexWriter:
         self.opensearch_client = opensearch_client
 
     def _get_write_client(self) -> Any:
+        from config.settings import clients
+
         client = self.opensearch_client or clients.opensearch
         if client is None:
             raise RuntimeError(
@@ -77,6 +78,8 @@ class DocumentIndexWriter:
         Repeated calls with the same chunk ids are idempotent because the write
         operation is an index/upsert.
         """
+        from config.settings import get_index_name
+
         if not chunks:
             if final:
                 await self._refresh(context.index_name or get_index_name())
@@ -137,6 +140,8 @@ class DocumentIndexWriter:
         """Delete partially indexed chunks for a failed callback run."""
         if not ingest_run_id:
             return 0
+        from config.settings import get_index_name
+
         client = self._get_write_client()
         resolved_index = index_name or get_index_name()
         body = {"query": {"term": {"ingest_run_id": ingest_run_id}}}
