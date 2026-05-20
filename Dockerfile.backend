@@ -41,6 +41,13 @@ COPY src/ ./src/
 COPY flows/ ./flows/
 COPY securityconfig/ ./securityconfig/
 COPY cloud_securityconfig/ ./cloud_securityconfig/
+# Alembic migrations — the runtime calls run_alembic_upgrade("head") on
+# startup. Without these the migration silently no-ops with
+# "alembic.ini not found; skipping schema upgrade", and the SQL DB
+# starts empty (no users / conversations / session_ownership tables).
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+COPY openrag-documents/ ./openrag-documents/
 
 # -----------------------------------------------------------------------------
 # Stage: runtime (minimal image)
@@ -52,7 +59,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     openssl \
     gosu \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir --upgrade "pip>=26.0"
 
 # Create a non-root user/group.
 # UID/GID 1000 is the conventional first non-root account and
