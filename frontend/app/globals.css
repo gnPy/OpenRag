@@ -88,6 +88,7 @@
     --failure-message: hsl(var(--foreground));
     --failure-scroll: #ff6464;
     --failure-muted: #a66262;
+    --failure-component-cause: #525252; /* IBM Gray 70 — OSS component label beside flag */
   }
 
   .dark {
@@ -156,6 +157,7 @@
     --failure-message: #ffc9c9cc;
     --failure-scroll: #ff6464;
     --failure-muted: #a66262;
+    --failure-component-cause: #525252;
   }
 
   /* IBM Light */

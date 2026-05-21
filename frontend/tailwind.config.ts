@@ -192,6 +192,7 @@ const config = {
           message: "var(--failure-message)",
           scroll: "var(--failure-scroll)",
           muted: "var(--failure-muted)",
+          "component-cause": "var(--failure-component-cause)",
         },
       },
       spacing: {

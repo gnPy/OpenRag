@@ -22,6 +22,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useIsCloudBrand } from "@/contexts/brand-context";
 import { Task, useTask } from "@/contexts/task-context";
 import {
   hasFailedFileEntries,
@@ -29,8 +30,10 @@ import {
   isTerminalFailedTask,
 } from "@/lib/task-utils";
 import { parseTimestampMs } from "@/lib/time-utils";
+import { cn } from "@/lib/utils";
 
 export function TaskNotificationMenu() {
+  const isCloudBrand = useIsCloudBrand();
   const {
     tasks,
     isFetching,
@@ -286,7 +289,9 @@ export function TaskNotificationMenu() {
   };
 
   return (
-    <div className="h-full bg-background">
+    <div
+      className={cn("h-full bg-background", isCloudBrand && "ibm-tasks-panel")}
+    >
       <div className="flex flex-col h-full">
         <TaskPanelHeader
           activeCount={activeTasks.length}

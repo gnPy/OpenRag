@@ -77,6 +77,9 @@ const wireTasksState = async (page: Page, initialTasks: MockTask[]) => {
   };
 };
 
+/** Matches accordion summary, e.g. "1 success · 2 failed". */
+const FAILURE_SUMMARY_BUTTON = /\d+\s*success\s*[·,.]\s*\d+\s*failed/i;
+
 const expandFirstFailureAccordion = async (
   page: Page,
   expectedError?: string,
@@ -88,7 +91,7 @@ const expandFirstFailureAccordion = async (
     return;
   }
   await page
-    .getByRole("button", { name: /\d+\s*success\s*·\s*\d+\s*failed/i })
+    .getByRole("button", { name: FAILURE_SUMMARY_BUTTON })
     .first()
     .click();
 };
@@ -115,18 +118,17 @@ const openTasksPanel = async (page: Page) => {
 };
 
 const openPastTasksSection = async (page: Page) => {
-  const failureAccordionTrigger = page.getByRole("button", {
-    name: /\d+\s*success,\s*\d+\s*failed/i,
-  });
-  if (await failureAccordionTrigger.count()) {
-    return;
-  }
-
   const pastTasksToggle = page.getByRole("button", { name: /Past Tasks/i });
-  if (await pastTasksToggle.count()) {
+  await expect(pastTasksToggle.first()).toBeVisible({ timeout: 15000 });
+
+  const failureSummary = page.getByRole("button", {
+    name: FAILURE_SUMMARY_BUTTON,
+  });
+  if ((await failureSummary.count()) === 0) {
     await pastTasksToggle.first().click();
   }
-  await expect(failureAccordionTrigger.first()).toBeVisible({ timeout: 15000 });
+
+  await expect(failureSummary.first()).toBeVisible({ timeout: 15000 });
 };
 
 test("completed task with failures keeps failure log in Tasks panel", async ({
@@ -330,6 +332,6 @@ test("unified panel shows all completed tasks in a single past tasks section", a
   await openTasksPanel(page);
   await expect(page.getByText("Task task-new...")).toBeVisible();
   await expect(page.getByText("Task task-old...")).toBeVisible();
-  // Failure summaries stay collapsed by default; both tasks show the FAILED pill.
-  await expect(page.getByText("FAILED")).toHaveCount(2);
+  // Failure summaries stay collapsed by default; both tasks show the Failed pill.
+  await expect(page.getByText("Failed", { exact: true })).toHaveCount(2);
 });
