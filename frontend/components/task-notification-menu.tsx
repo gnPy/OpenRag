@@ -414,7 +414,12 @@ export function TaskNotificationMenu() {
               onToggle={() => setIsPastOpen((prev) => !prev)}
               emptyText="No past tasks."
               containerClassName=""
-              contentClassName="flex flex-col gap-2 p-4 pt-2 transition-all duration-200"
+              contentClassName={cn(
+                "flex flex-col transition-all duration-200",
+                isCloudBrand
+                  ? "p-0 [&>*:last-child]:border-b [&>*:last-child]:border-muted"
+                  : "gap-2 p-4 pt-2",
+              )}
               renderItem={(task) => {
                 const progress = formatTaskProgress(task);
                 const hasFailedFiles = hasFailedFileEntries(task);
@@ -432,7 +437,10 @@ export function TaskNotificationMenu() {
                 return (
                   <div
                     key={task.task_id}
-                    className="py-mmd px-4 hover:bg-muted/50 transition-colors"
+                    className={cn(
+                      "w-full py-mmd px-4 transition-colors hover:bg-muted/50",
+                      isCloudBrand && "border-t border-muted",
+                    )}
                   >
                     <div className="flex items-start gap-3">
                       {getTaskIcon(task.status, hasFailedFiles, isTotalFailure)}

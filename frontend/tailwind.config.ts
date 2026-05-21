@@ -194,6 +194,16 @@ const config = {
           muted: "var(--failure-muted)",
           "component-cause": "var(--failure-component-cause)",
         },
+        "task-status": {
+          failed: {
+            DEFAULT: "var(--task-status-failed-bg)",
+            foreground: "var(--task-status-failed-fg)",
+          },
+          complete: {
+            DEFAULT: "var(--task-status-complete-bg)",
+            foreground: "var(--task-status-complete-fg)",
+          },
+        },
       },
       spacing: {
         mmd: "13px",

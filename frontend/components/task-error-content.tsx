@@ -16,6 +16,8 @@ import {
   getFailedFileCount,
   getFailedFileEntries,
   getSuccessfulFileCount,
+  isCompletedTotalFailure,
+  isTerminalFailedTask,
 } from "@/lib/task-utils";
 import { formatTaskTimestamp, parseTimestamp } from "@/lib/time-utils";
 import { cn } from "@/lib/utils";
@@ -43,9 +45,17 @@ export function TaskErrorContent({
   const successCount = getSuccessfulFileCount(task);
   const timestamp =
     parseTimestamp(task.created_at) ?? parseTimestamp(task.updated_at);
-  const statusLabel = "Failed";
-  const statusPillClassName =
-    "text-destructive border-failure-pill bg-failure-soft";
+  const isFailedStatus =
+    isTerminalFailedTask(task) || isCompletedTotalFailure(task);
+  const statusLabel = isFailedStatus ? "Failed" : "Complete";
+  const statusPillClassName = cn(
+    "shrink-0 rounded-full px-2 py-1 text-xs",
+    isCloudBrand
+      ? isFailedStatus
+        ? "border-0 bg-task-status-failed text-task-status-failed-foreground"
+        : "border-0 bg-task-status-complete text-task-status-complete-foreground"
+      : "border border-failure-pill bg-failure-soft text-destructive",
+  );
 
   if (failedCount <= 0 && failedEntries.length === 0) {
     return null;
@@ -80,9 +90,14 @@ export function TaskErrorContent({
     <div
       className={cn(
         "w-full",
-        showHeader
-          ? "rounded-mmd border border-muted py-mmd px-4 hover:bg-muted/60 transition-colors"
-          : "pt-2",
+        showHeader &&
+          cn(
+            "py-mmd px-4 transition-colors hover:bg-muted/60",
+            isCloudBrand
+              ? "border-t border-muted"
+              : "rounded-mmd border border-muted",
+          ),
+        !showHeader && "pt-2",
       )}
     >
       <div className="flex w-full min-w-0 flex-col gap-1">
@@ -99,11 +114,7 @@ export function TaskErrorContent({
                   Task {task.task_id.slice(0, 8)}...
                 </p>
                 {!isExpanded && (
-                  <p
-                    className={`shrink-0 rounded-full border px-2 py-1 text-xs ${statusPillClassName}`}
-                  >
-                    {statusLabel}
-                  </p>
+                  <p className={statusPillClassName}>{statusLabel}</p>
                 )}
               </div>
               <p className="min-h-4 text-xxs leading-4 text-muted-foreground whitespace-nowrap">

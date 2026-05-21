@@ -106,7 +106,12 @@ export const FailedTasksInfo = ({ failedTasks }: FailedTasksInfoProps) => {
                 }))
               }
               emptyText={section.emptyText}
-              contentClassName="flex flex-col gap-2 p-4"
+              contentClassName={cn(
+                "flex flex-col",
+                isCloudBrand
+                  ? "p-0 [&>*:last-child]:border-b [&>*:last-child]:border-muted"
+                  : "gap-2 p-4",
+              )}
               renderItem={(task) => (
                 <TaskErrorContent
                   key={`${section.sectionKey}-${task.task_id}`}
