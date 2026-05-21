@@ -1,10 +1,6 @@
-/**
- * Formats raw per-file task error strings for compact UI.
- *
- * TODO(backend): Prefer structured fields on TaskFileEntry when available, e.g.
- * error_summary (one line), failing_step, and component_cause — then use this
- * module only as a fallback for older tasks.
- */
+//formatting error displayed
+//waiting for backend step pf failure, cause etc
+//in meantime make sure we display only one line and search for opensearch, docling or langflow
 
 export const FILE_ERROR_MAX_LINE_LENGTH = 80;
 
