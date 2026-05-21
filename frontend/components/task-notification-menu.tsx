@@ -409,7 +409,7 @@ export function TaskNotificationMenu() {
               onToggle={() => setIsPastOpen((prev) => !prev)}
               emptyText="No past tasks."
               containerClassName=""
-              contentClassName="flex flex-col gap-2 p-4 transition-all duration-200"
+              contentClassName="flex flex-col gap-2 p-4 pt-2 transition-all duration-200"
               renderItem={(task) => {
                 const progress = formatTaskProgress(task);
                 const hasFailedFiles = hasFailedFileEntries(task);
