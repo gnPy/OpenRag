@@ -12,7 +12,11 @@ import {
 import { useIsCloudBrand } from "@/contexts/brand-context";
 import { type Task } from "@/contexts/task-context";
 import { displayFileTaskError } from "@/lib/task-error-display";
-import { getFailedFileEntries } from "@/lib/task-utils";
+import {
+  getFailedFileCount,
+  getFailedFileEntries,
+  getSuccessfulFileCount,
+} from "@/lib/task-utils";
 import { formatTaskTimestamp, parseTimestamp } from "@/lib/time-utils";
 import { cn } from "@/lib/utils";
 
@@ -35,8 +39,8 @@ export function TaskErrorContent({
 
   const failedEntries = useMemo(() => getFailedFileEntries(task), [task]);
 
-  const failedCount = task.failed_files ?? failedEntries.length;
-  const successCount = task.successful_files ?? 0;
+  const failedCount = getFailedFileCount(task);
+  const successCount = getSuccessfulFileCount(task);
   const timestamp =
     parseTimestamp(task.created_at) ?? parseTimestamp(task.updated_at);
   const statusLabel = "Failed";
