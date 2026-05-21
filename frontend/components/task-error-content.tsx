@@ -77,7 +77,7 @@ export function TaskErrorContent({
       className={cn(
         "w-full",
         showHeader
-          ? "rounded-task border border-muted py-mmd px-4 hover:bg-muted/60 transition-colors"
+          ? "rounded-mmd border border-muted py-mmd px-4 hover:bg-muted/60 transition-colors"
           : "pt-2",
       )}
     >
@@ -112,7 +112,7 @@ export function TaskErrorContent({
         <Accordion
           type="single"
           collapsible
-          className="w-full rounded-task border-0"
+          className="w-full rounded-mmd border-0"
           value={accordionValue}
           onValueChange={(value) =>
             setAccordionValue(value === "failed-files" ? "failed-files" : "")

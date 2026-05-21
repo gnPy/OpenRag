@@ -63,6 +63,7 @@
     --badge-foreground: 0 0% 100%; /* #FFFFFF */
 
     --radius: 0.5rem;
+    --radius-mmd: 13px;
 
     --sidebar-background: 0 0% 98%;
 

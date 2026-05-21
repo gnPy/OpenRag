@@ -202,7 +202,7 @@ const config = {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
-        task: "13px",
+        mmd: "var(--radius-mmd)",
       },
       fontFamily: {
         sans: ["var(--font-sans)", ...fontFamily.sans],
