@@ -2,7 +2,7 @@
 
 import { ErrorFilled, IncidentReporter } from "@carbon/icons-react";
 import { ChevronDown } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Accordion,
   AccordionContent,
@@ -19,8 +19,6 @@ interface TaskErrorContentProps {
   mode?: "recent" | "past";
   nowMs?: number;
   showHeader?: boolean;
-  defaultExpanded?: boolean;
-  expandTrigger?: number;
 }
 
 export function TaskErrorContent({
@@ -28,18 +26,8 @@ export function TaskErrorContent({
   mode = "recent",
   nowMs = Date.now(),
   showHeader = true,
-  defaultExpanded = false,
-  expandTrigger = 0,
 }: TaskErrorContentProps) {
-  const [accordionValue, setAccordionValue] = useState(
-    defaultExpanded ? "failed-files" : "",
-  );
-  useEffect(() => {
-    if (defaultExpanded) {
-      setAccordionValue("failed-files");
-    }
-  }, [defaultExpanded, expandTrigger]);
-
+  const [accordionValue, setAccordionValue] = useState("");
   const isExpanded = accordionValue === "failed-files";
 
   const failedEntries = useMemo(() => getFailedFileEntries(task), [task]);
