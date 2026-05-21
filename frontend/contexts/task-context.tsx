@@ -21,6 +21,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useOnboardingState } from "@/hooks/use-onboarding-state";
 import { trackProcessFailure, trackProcessSuccess } from "@/lib/analytics";
 import {
+  getFailedFileCount,
   getSuccessfulFileCount,
   hasFailedFileEntries,
   isTerminalFailedTask,
@@ -333,7 +334,7 @@ export function TaskProvider({ children }: { children: React.ReactNode }) {
           currentTask.status === "completed"
         ) {
           const successfulFiles = getSuccessfulFileCount(currentTask);
-          const failedFiles = currentTask.failed_files || 0;
+          const failedFiles = getFailedFileCount(currentTask);
           const isTotalFailure = failedFiles > 0 && successfulFiles === 0;
 
           if (isTotalFailure) {
