@@ -77,13 +77,18 @@ const wireTasksState = async (page: Page, initialTasks: MockTask[]) => {
   };
 };
 
-const expandFirstFailureAccordion = async (page: Page) => {
-  const failureLog = page.getByText("Failure Log").first();
-  if (await failureLog.isVisible()) {
+const expandFirstFailureAccordion = async (
+  page: Page,
+  expectedError?: string,
+) => {
+  if (
+    expectedError &&
+    (await page.getByText(expectedError).first().isVisible())
+  ) {
     return;
   }
   await page
-    .getByRole("button", { name: /\d+\s*success,\s*\d+\s*failed/i })
+    .getByRole("button", { name: /\d+\s*success\s*·\s*\d+\s*failed/i })
     .first()
     .click();
 };
@@ -178,8 +183,10 @@ test("completed task with failures keeps failure log in Tasks panel", async ({
   );
   await openTasksPanel(page);
   await openPastTasksSection(page);
-  await expandFirstFailureAccordion(page);
-  await expect(page.getByText("Failure Log")).toBeVisible();
+  await expandFirstFailureAccordion(
+    page,
+    "Synthetic ingestion failure for test",
+  );
   await expect(
     page.getByText("Synthetic ingestion failure for test"),
   ).toBeVisible();
@@ -228,8 +235,7 @@ test("completed task with failures requires View click to open tasks panel", asy
   );
   await openTasksPanel(page);
   await openPastTasksSection(page);
-  await expandFirstFailureAccordion(page);
-  await expect(page.getByText("Failure Log")).toBeVisible();
+  await expandFirstFailureAccordion(page, "Auto-open on partial success");
   await expect(page.getByText("Auto-open on partial success")).toBeVisible();
 });
 
@@ -274,8 +280,7 @@ test("new failed task auto-opens tasks panel", async ({ page }) => {
   );
   await openTasksPanel(page);
   await openPastTasksSection(page);
-  await expandFirstFailureAccordion(page);
-  await expect(page.getByText("Failure Log")).toBeVisible();
+  await expandFirstFailureAccordion(page, "Auto-open on failed task");
   await expect(page.getByText("Auto-open on failed task")).toBeVisible();
 });
 
@@ -325,6 +330,6 @@ test("unified panel shows all completed tasks in a single past tasks section", a
   await openTasksPanel(page);
   await expect(page.getByText("Task task-new...")).toBeVisible();
   await expect(page.getByText("Task task-old...")).toBeVisible();
-  // The most recent failure task auto-expands, hiding its INCOMPLETE pill; the older one stays collapsed.
-  await expect(page.getByText("INCOMPLETE")).toHaveCount(1);
+  // Failure summaries stay collapsed by default; both tasks show the FAILED pill.
+  await expect(page.getByText("FAILED")).toHaveCount(2);
 });

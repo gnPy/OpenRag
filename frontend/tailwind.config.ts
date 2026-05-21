@@ -194,10 +194,14 @@ const config = {
           muted: "var(--failure-muted)",
         },
       },
+      spacing: {
+        mmd: "13px",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        task: "13px",
       },
       fontFamily: {
         sans: ["var(--font-sans)", ...fontFamily.sans],
