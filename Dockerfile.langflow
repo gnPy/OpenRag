@@ -1,20 +1,43 @@
 # syntax=docker/dockerfile:1.4
-FROM langflowai/langflow:1.9.0
+# UBI 9 Python 3.11 base image for enterprise compliance
+FROM registry.access.redhat.com/ubi9/python-311:latest
 
-# Install uv and pre-create the Langflow data directory.
-# The base image already runs as uid=1000 and owns /app, so no root or chown needed.
-RUN pip install uv \
-    && pip uninstall -y litellm \
-    && mkdir -p /app/langflow-data
+# Switch to root to install system packages
+USER 0
 
+# Install system dependencies
+RUN microdnf install -y \
+    git \
+    gcc \
+    gcc-c++ \
+    make \
+    ca-certificates \
+    && microdnf clean all
+
+# Install Langflow and dependencies
+RUN pip install --no-cache-dir \
+    langflow==1.9.0 \
+    uv \
+    && pip uninstall -y litellm
+
+# Create application directory and langflow data directory
+WORKDIR /app
+RUN mkdir -p /app/langflow-data
+
+# Copy flows
 COPY flows/ /app/flows/
 
-# Copy the entrypoint before switching to root so the COPY runs as uid=1000
-# (which owns /app), then switch to root so the entrypoint can correct
-# bind-mount permissions at runtime before dropping back to uid=1000.
+# Copy the entrypoint script
 COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoint
-USER root
 
+# Set proper ownership for the app directory
+# UBI images typically use UID 1001, but we'll use 1000 for compatibility
+RUN groupadd --gid 1000 langflow || true \
+    && useradd --uid 1000 --gid 1000 --no-create-home langflow || true \
+    && chown -R 1000:1000 /app
+
+# The entrypoint runs as root to handle bind-mount permissions,
+# then drops to uid=1000 before starting langflow
 EXPOSE 7860
 
 ENTRYPOINT ["langflow-entrypoint"]

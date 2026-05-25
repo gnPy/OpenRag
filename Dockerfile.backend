@@ -1,20 +1,21 @@
 # syntax=docker/dockerfile:1.4
 # BuildKit: enables cache mounts and better layer reuse.
 #
-# Build: docker build -t openrag-backend .
+# Build: docker build -t openrag-backend -f Dockerfile.backend .
 
 # -----------------------------------------------------------------------------
 # Stage: base (system + uv)
 # -----------------------------------------------------------------------------
-FROM python:3.13-slim AS base
+FROM registry.access.redhat.com/ubi9/python-311:latest AS base
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies using microdnf (UBI minimal package manager)
+USER 0
+RUN microdnf install -y \
     curl \
     ca-certificates \
     openssl \
-    \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && rm -rf /var/lib/apt/lists/*
+    && microdnf clean all \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV PATH="/root/.local/bin:$PATH"
 
@@ -24,10 +25,12 @@ ENV PATH="/root/.local/bin:$PATH"
 FROM base AS builder
 
 # Build-time deps only (not in final image)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN microdnf install -y \
     git \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    gcc \
+    gcc-c++ \
+    make \
+    && microdnf clean all
 
 WORKDIR /app
 
@@ -52,14 +55,16 @@ COPY openrag-documents/ ./openrag-documents/
 # -----------------------------------------------------------------------------
 # Stage: runtime (minimal image)
 # -----------------------------------------------------------------------------
-FROM python:3.13-slim AS runtime
+FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install runtime dependencies
+USER 0
+RUN microdnf install -y \
     curl \
     ca-certificates \
     openssl \
-    gosu \
-    && rm -rf /var/lib/apt/lists/* \
+    shadow-utils \
+    && microdnf clean all \
     && pip install --no-cache-dir --upgrade "pip>=26.0"
 
 # Create a non-root user/group.
@@ -95,7 +100,8 @@ RUN mkdir -p keys data config flows/backup openrag-documents \
 
 # entrypoint.sh runs as root, re-chowns volume-mounted directories to appuser
 # (belt-and-suspenders for Docker where :U is not supported), then execs the
-# application as appuser via gosu.
+# application as appuser via runuser (UBI alternative to gosu).
+# Note: The entrypoint script may need to be updated to use 'runuser' instead of 'gosu'
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]
