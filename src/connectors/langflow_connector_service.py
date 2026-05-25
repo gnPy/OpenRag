@@ -229,6 +229,8 @@ class LangflowConnectorService:
         user_id: str,
         max_files: int = None,
         jwt_token: str = None,
+        filename_filter: set = None,
+        replace_duplicates: bool = False,
     ) -> str:
         """Sync files from a connector connection using Langflow processing"""
         if not self.task_service:
@@ -271,6 +273,11 @@ class LangflowConnectorService:
             for file_info in files:
                 if max_files and len(files_to_process) >= max_files:
                     break
+                if filename_filter is not None:
+                    file_name = file_info.get("name", "")
+                    if file_name not in filename_filter:
+                        logger.debug("Skipping file not in filter", filename=file_name)
+                        continue
                 files_to_process.append(file_info)
 
             # Stop if we have enough files or no more pages
@@ -294,6 +301,7 @@ class LangflowConnectorService:
             jwt_token=jwt_token,
             owner_name=owner_name,
             owner_email=owner_email,
+            replace_duplicates=replace_duplicates,
         )
 
         # Use file IDs as items
