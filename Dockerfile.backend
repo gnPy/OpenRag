@@ -64,8 +64,7 @@ RUN dnf install -y --allowerasing \
     ca-certificates \
     openssl \
     shadow-utils \
-    && dnf clean all \
-    && pip install --no-cache-dir --upgrade "pip>=26.0"
+    && dnf clean all
 
 # Create a non-root user/group.
 # UID/GID 1000 is the conventional first non-root account and
