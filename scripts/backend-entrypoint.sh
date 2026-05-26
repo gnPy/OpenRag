@@ -20,7 +20,7 @@ if [ "$(id -u)" = "0" ]; then
         /app/data \
         /app/openrag-documents \
         2>/dev/null || true
-    exec gosu appuser "$@"
+    exec runuser -u appuser -- "$@"
 else
     exec "$@"
 fi
