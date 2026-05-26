@@ -10,7 +10,7 @@ FROM registry.access.redhat.com/ubi9/python-311:latest AS base
 
 # Install system dependencies using dnf (UBI package manager)
 USER 0
-RUN dnf install -y \
+RUN dnf install -y --allowerasing \
     curl \
     ca-certificates \
     openssl \
@@ -25,7 +25,7 @@ ENV PATH="/root/.local/bin:$PATH"
 FROM base AS builder
 
 # Build-time deps only (not in final image)
-RUN dnf install -y \
+RUN dnf install -y --allowerasing \
     git \
     gcc \
     gcc-c++ \
@@ -59,7 +59,7 @@ FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 
 # Install runtime dependencies
 USER 0
-RUN dnf install -y \
+RUN dnf install -y --allowerasing \
     curl \
     ca-certificates \
     openssl \

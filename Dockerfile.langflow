@@ -6,7 +6,7 @@ FROM registry.access.redhat.com/ubi9/python-311:latest
 USER 0
 
 # Install system dependencies
-RUN dnf install -y \
+RUN dnf install -y --allowerasing \
     git \
     gcc \
     gcc-c++ \
