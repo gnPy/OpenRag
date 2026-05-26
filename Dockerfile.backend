@@ -8,13 +8,13 @@
 # -----------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/python-311:latest AS base
 
-# Install system dependencies using microdnf (UBI minimal package manager)
+# Install system dependencies using dnf (UBI package manager)
 USER 0
-RUN microdnf install -y \
+RUN dnf install -y \
     curl \
     ca-certificates \
     openssl \
-    && microdnf clean all \
+    && dnf clean all \
     && curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV PATH="/root/.local/bin:$PATH"
@@ -25,12 +25,12 @@ ENV PATH="/root/.local/bin:$PATH"
 FROM base AS builder
 
 # Build-time deps only (not in final image)
-RUN microdnf install -y \
+RUN dnf install -y \
     git \
     gcc \
     gcc-c++ \
     make \
-    && microdnf clean all
+    && dnf clean all
 
 WORKDIR /app
 
@@ -59,12 +59,12 @@ FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 
 # Install runtime dependencies
 USER 0
-RUN microdnf install -y \
+RUN dnf install -y \
     curl \
     ca-certificates \
     openssl \
     shadow-utils \
-    && microdnf clean all \
+    && dnf clean all \
     && pip install --no-cache-dir --upgrade "pip>=26.0"
 
 # Create a non-root user/group.
