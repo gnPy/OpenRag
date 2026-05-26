@@ -24,5 +24,3 @@ USER 1001
 
 # Start frontend in foreground
 CMD ["npm", "start"]
-
-# Made with Bob
