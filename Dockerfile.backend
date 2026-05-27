@@ -60,7 +60,6 @@ FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 # Install runtime dependencies
 USER 0
 RUN dnf install -y --allowerasing \
-    curl \
     ca-certificates \
     openssl \
     shadow-utils \
