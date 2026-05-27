@@ -12,8 +12,8 @@ USER 0
 # and CVE-2015-8855, CVE-2022-25883 in semver package
 RUN npm uninstall -g nodemon 2>/dev/null || true
 
-COPY frontend/package*.json ./
-RUN npm ci
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --prefer-offline --no-audit
 
 # -----------------------------------------------------------------------------
 # Stage: builder
