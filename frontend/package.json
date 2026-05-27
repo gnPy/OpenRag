@@ -84,7 +84,12 @@
   "overrides": {
     "brace-expansion": "5.0.6",
     "js-cookie": "3.0.7",
-    "picomatch": "4.0.4"
+    "picomatch": "4.0.4",
+    "glob-parent": "5.1.2",
+    "minimatch": "3.0.5",
+    "semver": "7.5.4",
+    "postcss": "8.5.10",
+    "debug": "4.3.7"
   },
   "lint-staged": {
     "**/*.{js,ts,jsx,tsx,css}": "biome check --write --files-ignore-unknown=true"

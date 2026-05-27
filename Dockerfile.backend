@@ -61,12 +61,20 @@ COPY openrag-documents/ ./openrag-documents/
 # -----------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 
-# Install runtime dependencies
+# Install runtime dependencies and apply security updates for CVE remediation
 USER 0
 RUN dnf install -y --allowerasing \
     ca-certificates \
     openssl \
     shadow-utils \
+    && dnf update -y \
+    glibc glibc-common glibc-minimal-langpack \
+    openssl openssl-libs \
+    krb5-libs \
+    perl perl-libs \
+    glib2 \
+    libcap \
+    p11-kit p11-kit-trust \
     && dnf clean all \
     && python -m ensurepip --upgrade \
     && python -m pip install --no-cache-dir --upgrade "pip>=25.3" "setuptools>=78.1.1"

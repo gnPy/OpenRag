@@ -8,6 +8,10 @@ FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS deps
 WORKDIR /opt/app-root/src
 USER 0
 
+# Remove system nodemon to eliminate CVE-2017-16137, CVE-2017-20165 in debug package
+# and CVE-2015-8855, CVE-2022-25883 in semver package
+RUN npm uninstall -g nodemon 2>/dev/null || true
+
 COPY frontend/package*.json ./
 RUN npm ci
 
@@ -33,6 +37,13 @@ FROM registry.access.redhat.com/ubi9/nodejs-20-minimal:latest AS runtime
 
 WORKDIR /opt/app-root/src
 USER 0
+
+# Apply security updates for system packages (glibc, openssl, krb5, etc.)
+RUN microdnf update -y \
+    glibc glibc-common glibc-minimal-langpack \
+    openssl openssl-libs \
+    krb5-libs \
+    && microdnf clean all
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1
