@@ -15,9 +15,13 @@ RUN dnf install -y --allowerasing \
     ca-certificates \
     openssl \
     && dnf clean all \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && python -m ensurepip --upgrade \
+    && python -m pip install --no-cache-dir --upgrade "pip>=25.3" "setuptools>=78.1.1"
 
-ENV PATH="/root/.local/bin:$PATH"
+ENV PATH="/root/.local/bin:$PATH" \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PIP_NO_CACHE_DIR=1
 
 # -----------------------------------------------------------------------------
 # Stage: builder (deps + app)
@@ -63,7 +67,9 @@ RUN dnf install -y --allowerasing \
     ca-certificates \
     openssl \
     shadow-utils \
-    && dnf clean all
+    && dnf clean all \
+    && python -m ensurepip --upgrade \
+    && python -m pip install --no-cache-dir --upgrade "pip>=25.3" "setuptools>=78.1.1"
 
 # Create a non-root user/group.
 # UID/GID 1000 is the conventional first non-root account and
