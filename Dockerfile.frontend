@@ -8,9 +8,14 @@ FROM registry.access.redhat.com/ubi9/nodejs-20:latest AS deps
 WORKDIR /opt/app-root/src
 USER 0
 
-# Remove system nodemon to eliminate CVE-2017-16137, CVE-2017-20165 in debug package
-# and CVE-2015-8855, CVE-2022-25883 in semver package
-RUN npm uninstall -g nodemon 2>/dev/null || true
+# Upgrade vulnerable packages in system nodemon to fix CVEs
+# CVE-2017-16137, CVE-2017-20165 (debug), CVE-2020-28469 (glob-parent),
+# CVE-2022-3517 (minimatch), CVE-2015-8855, CVE-2022-25883 (semver)
+RUN cd /usr/lib/node_modules/nodemon 2>/dev/null && npm install debug@4.3.7 glob-parent@5.1.2 minimatch@10.2.3 semver@7.5.4 --save 2>/dev/null || true \
+    && rm -rf /usr/lib/node_modules/nodemon/node_modules/debug-3.0.1 2>/dev/null || true \
+    && rm -rf /usr/lib/node_modules/nodemon/node_modules/glob-parent-3.0.1 2>/dev/null || true \
+    && rm -rf /usr/lib/node_modules/nodemon/node_modules/minimatch-3.0.1 2>/dev/null || true \
+    && rm -rf /usr/lib/node_modules/nodemon/node_modules/semver-3.0.1 2>/dev/null || true
 
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --prefer-offline --no-audit
