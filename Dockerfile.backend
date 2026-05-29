@@ -14,8 +14,11 @@ RUN dnf install -y --allowerasing \
     curl \
     ca-certificates \
     openssl \
-    && dnf clean all \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh
+    && dnf clean all
+
+# Install uv with pinned version via pip for reproducibility
+ARG UV_VERSION=0.5.11
+RUN pip install --no-cache-dir uv==${UV_VERSION}
 
 ENV PATH="/root/.local/bin:$PATH"
 
@@ -57,21 +60,20 @@ COPY openrag-documents/ ./openrag-documents/
 # -----------------------------------------------------------------------------
 FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
 
-# Install runtime dependencies
+# Create a non-root user/group first.
+# UID/GID 1000 is the conventional first non-root account and
+# matches what Podman's :U volume flag maps to.
 USER 0
+RUN groupadd --gid 1000 appuser \
+    && useradd --uid 1000 --gid 1000 --no-create-home appuser
+
+# Install runtime dependencies
 RUN dnf install -y --allowerasing \
     curl \
     ca-certificates \
     openssl \
-    shadow-utils \
     && dnf clean all \
     && pip install --no-cache-dir --upgrade "pip>=26.0"
-
-# Create a non-root user/group.
-# UID/GID 1000 is the conventional first non-root account and
-# matches what Podman's :U volume flag maps to.
-RUN groupadd --gid 1000 appuser \
-    && useradd --uid 1000 --gid 1000 --no-create-home appuser
 
 WORKDIR /app
 
@@ -98,10 +100,11 @@ RUN mkdir -p keys data config flows/backup openrag-documents \
     && chown -R appuser:appuser /app \
     && chmod +x /entrypoint.sh
 
-# entrypoint.sh runs as root, re-chowns volume-mounted directories to appuser
-# (belt-and-suspenders for Docker where :U is not supported), then execs the
-# application as appuser via runuser (UBI alternative to gosu).
-# Note: The entrypoint script may need to be updated to use 'runuser' instead of 'gosu'
+# Switch to non-root user for runtime
+# Note: Volume mounts should use orchestrator features like Podman's :U flag
+# or proper host UID mapping for permission handling
+USER appuser
+
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]

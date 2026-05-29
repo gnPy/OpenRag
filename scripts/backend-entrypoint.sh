@@ -1,18 +1,21 @@
 #!/bin/sh
-# backend-entrypoint.sh — run as root, fix volume-mount ownership, then drop to appuser.
+# backend-entrypoint.sh — start application as non-root user.
 #
-# When Docker (not Podman) mounts a host directory the ownership reflects the
-# host filesystem, which may not be UID/GID 1000. Podman handles this with the
-# :U compose flag; this script is the belt-and-suspenders fallback for Docker
-# and any other runtime that does not remap UIDs automatically.
+# The container now runs as appuser (UID 1000) by default. If the container
+# is explicitly started as root (e.g., for legacy Docker setups without proper
+# volume UID mapping), this script will fix permissions and drop to appuser.
 #
-# Each path listed below corresponds to a volume mount in docker-compose.yml.
-# The chown is a no-op when the directory is already owned by appuser (e.g.
-# fresh Podman start), so there is no cost to running this unconditionally.
+# Modern deployments should use:
+# - Podman with :U flag for automatic UID mapping
+# - Docker with proper host UID mapping (--user flag or compose user directive)
+# - Kubernetes with fsGroup or runAsUser security context
 
 set -e
 
 if [ "$(id -u)" = "0" ]; then
+    # Running as root (legacy mode) - fix permissions and drop privileges
+    echo "WARNING: Container started as root. Fixing volume permissions and dropping to appuser."
+    echo "Consider using proper UID mapping (Podman :U flag or Docker --user) instead."
     chown -R appuser:appuser \
         /app/keys \
         /app/flows \
@@ -20,7 +23,9 @@ if [ "$(id -u)" = "0" ]; then
         /app/data \
         /app/openrag-documents \
         2>/dev/null || true
-    exec runuser -u appuser -- "$@"
+    # Preserve environment (including PATH with virtualenv) when dropping to appuser
+    exec runuser -u appuser --preserve-environment -- "$@"
 else
+    # Running as non-root (default) - proceed directly
     exec "$@"
 fi

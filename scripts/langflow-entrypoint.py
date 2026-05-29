@@ -1,43 +1,48 @@
 #!/usr/bin/env python3
 """Entrypoint for the OpenRAG Langflow container.
 
-Runs as root to correct /app/langflow-data bind-mount permissions, then drops
-to uid/gid 1000 (langflow user) before exec-ing the main process.
+The container now runs as langflow user (UID 1000) by default. If started as
+root (legacy mode), this script will fix permissions and drop privileges.
 
-On macOS with Podman the virtiofs layer does not faithfully propagate
-host-side chmod into the container, so permissions must be fixed from
-inside the container after the mount is established.
+Modern deployments should use:
+- Podman with :U flag for automatic UID mapping
+- Docker with proper host UID mapping (--user flag or compose user directive)
+- Kubernetes with fsGroup or runAsUser security context
 """
 import os
 import pathlib
 import pwd
 import sys
 
-data_dir = pathlib.Path("/app/langflow-data")
+# Check if running as root (legacy mode)
+if os.getuid() == 0:
+    print("WARNING: Container started as root. Fixing volume permissions and dropping to langflow user.", file=sys.stderr)
+    print("Consider using proper UID mapping (Podman :U flag or Docker --user) instead.", file=sys.stderr)
+    
+    data_dir = pathlib.Path("/app/langflow-data")
+    
+    try:
+        data_dir.chmod(0o777)
+    except OSError:
+        pass
+    
+    # Look up uid 1000's passwd entry so we can restore HOME and USER correctly
+    # after dropping privileges.
+    try:
+        pw = pwd.getpwuid(1000)
+        home = pw.pw_dir
+        user = pw.pw_name
+    except KeyError:
+        home = "/app"
+        user = "langflow"
+    
+    # Drop from root to langflow (uid=1000, gid=1000).
+    os.setgid(1000)
+    os.setuid(1000)
+    
+    # Restore environment variables to reflect the unprivileged user.
+    os.environ["HOME"] = home
+    os.environ["USER"] = user
 
-try:
-    data_dir.chmod(0o777)
-except OSError:
-    pass
-
-# Look up uid 1000's passwd entry so we can restore HOME and USER correctly
-# after dropping privileges.  Running as root (USER root in Dockerfile) sets
-# HOME=/root; leaving it unchanged causes uv to try /root/.cache/uv, which
-# uid 1000 cannot write to.
-try:
-    pw = pwd.getpwuid(1000)
-    home = pw.pw_dir
-    user = pw.pw_name
-except KeyError:
-    home = "/app"
-    user = "langflow"
-
-# Drop from root to langflow (uid=1000, gid=1000).
-os.setgid(1000)
-os.setuid(1000)
-
-# Restore environment variables to reflect the unprivileged user.
-os.environ["HOME"] = home
-os.environ["USER"] = user
-
+# Running as non-root (default) - proceed directly
 os.execvp(sys.argv[1], sys.argv[1:])

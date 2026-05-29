@@ -32,12 +32,19 @@ COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoi
 
 # Set proper ownership for the app directory
 # UBI images typically use UID 1001, but we'll use 1000 for compatibility
-RUN groupadd --gid 1000 langflow || true \
-    && useradd --uid 1000 --gid 1000 --no-create-home langflow || true \
+RUN if ! getent group 1000 >/dev/null; then \
+        groupadd --gid 1000 langflow; \
+    fi \
+    && if ! getent passwd 1000 >/dev/null; then \
+        useradd --uid 1000 --gid 1000 --no-create-home langflow; \
+    fi \
     && chown -R 1000:1000 /app
 
-# The entrypoint runs as root to handle bind-mount permissions,
-# then drops to uid=1000 before starting langflow
+# Switch to non-root user for runtime
+# Note: Volume mounts should use orchestrator features like Podman's :U flag
+# or proper host UID mapping for permission handling
+USER langflow
+
 EXPOSE 7860
 
 ENTRYPOINT ["langflow-entrypoint"]
