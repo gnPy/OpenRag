@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import httpx
@@ -25,7 +25,7 @@ class SharePointConnector(BaseConnector):
     CONNECTOR_DESCRIPTION = "Add knowledge from SharePoint"
     CONNECTOR_ICON = "sharepoint"
 
-    def __init__(self, config: Dict[str, Any]):
+    def __init__(self, config: dict[str, Any]):
         super().__init__(config)
 
         logger.debug(f"SharePoint connector __init__ called with config type: {type(config)}")
@@ -104,7 +104,7 @@ class SharePointConnector(BaseConnector):
             self.oauth = None
 
         # Track subscription ID for webhooks
-        self._subscription_id: Optional[str] = None
+        self._subscription_id: str | None = None
 
         # Add Graph API defaults similar to Google Drive flags
         self._graph_api_version = "v1.0"
@@ -128,7 +128,7 @@ class SharePointConnector(BaseConnector):
 
         # Cache for file metadata including download URLs
         # This allows direct download without Graph API for sharing IDs
-        self._file_infos: Dict[str, Dict[str, Any]] = {}
+        self._file_infos: dict[str, dict[str, Any]] = {}
 
     @property
     def _graph_base_url(self) -> str:
@@ -136,7 +136,7 @@ class SharePointConnector(BaseConnector):
         return f"https://graph.microsoft.com/{self._graph_api_version}"
 
     @property
-    def base_url(self) -> Optional[str]:
+    def base_url(self) -> str | None:
         """Generic base URL property (returns sharepoint_url for SharePoint connector)"""
         return self.sharepoint_url
 
@@ -145,7 +145,7 @@ class SharePointConnector(BaseConnector):
         """Set base URL (updates sharepoint_url internally)"""
         self.sharepoint_url = value
 
-    def set_file_infos(self, file_infos: List[Dict[str, Any]]) -> None:
+    def set_file_infos(self, file_infos: list[dict[str, Any]]) -> None:
         """
         Cache file metadata including download URLs for later use.
         This allows direct download without Graph API calls for sharing IDs.
@@ -161,7 +161,7 @@ class SharePointConnector(BaseConnector):
                 if info.get("downloadUrl"):
                     logger.debug(f"Cached download URL for file {file_id}: {info.get('name')}")
 
-    def get_cached_file_info(self, file_id: str) -> Optional[Dict[str, Any]]:
+    def get_cached_file_info(self, file_id: str) -> dict[str, Any] | None:
         """Get cached file info by ID."""
         return self._file_infos.get(file_id)
 
@@ -191,7 +191,7 @@ class SharePointConnector(BaseConnector):
 
             self._authenticated = authenticated
             return authenticated
-        except Exception as e:
+        except Exception:
             logger.exception("[CONNECTOR] SharePoint authentication failed")
             self._authenticated = False
             return False
@@ -202,7 +202,7 @@ class SharePointConnector(BaseConnector):
             raise RuntimeError("SharePoint OAuth not initialized - missing credentials")
         return self.oauth.create_authorization_url(self.redirect_uri)
 
-    async def handle_oauth_callback(self, auth_code: str) -> Dict[str, Any]:
+    async def handle_oauth_callback(self, auth_code: str) -> dict[str, Any]:
         """Handle OAuth callback"""
         if not self.oauth:
             raise RuntimeError("SharePoint OAuth not initialized - missing credentials")
@@ -224,11 +224,11 @@ class SharePointConnector(BaseConnector):
             logger.error(f"OAuth callback failed: {e}")
             raise
 
-    async def _detect_base_url(self) -> Optional[str]:
+    async def _detect_base_url(self) -> str | None:
         """Override base class method to detect SharePoint URL"""
         return await self._detect_sharepoint_url()
 
-    async def _detect_sharepoint_url(self) -> Optional[str]:
+    async def _detect_sharepoint_url(self) -> str | None:
         """Auto-detect SharePoint URL from Microsoft Graph API"""
         logger.info("_detect_sharepoint_url: Starting SharePoint URL detection")
         try:
@@ -277,7 +277,7 @@ class SharePointConnector(BaseConnector):
                         "[CONNECTOR] SharePoint detect URL failed", status_code=response.status_code
                     )
 
-        except Exception as e:
+        except Exception:
             logger.exception("[CONNECTOR] SharePoint URL detection failed")
 
         return None
@@ -385,7 +385,7 @@ class SharePointConnector(BaseConnector):
         expiry = datetime.utcnow() + timedelta(days=3)  # 3 days max for Graph
         return expiry.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
 
-    def _parse_sharepoint_url(self) -> Optional[Dict[str, str]]:
+    def _parse_sharepoint_url(self) -> dict[str, str] | None:
         """Parse SharePoint URL to extract site information for Graph API"""
         if not self.sharepoint_url:
             return None
@@ -405,8 +405,8 @@ class SharePointConnector(BaseConnector):
         return None
 
     async def list_files(
-        self, page_token: Optional[str] = None, max_files: Optional[int] = None, **kwargs
-    ) -> Dict[str, Any]:
+        self, page_token: str | None = None, max_files: int | None = None, **kwargs
+    ) -> dict[str, Any]:
         """List all files using Microsoft Graph API - BaseConnector interface"""
         try:
             # Ensure authentication
@@ -473,7 +473,7 @@ class SharePointConnector(BaseConnector):
             logger.error(f"Failed to list SharePoint files: {e}")
             return {"files": [], "next_page_token": None}  # Return empty result instead of raising
 
-    async def _extract_sharepoint_acl(self, file_id: str, file_metadata: Dict) -> DocumentACL:
+    async def _extract_sharepoint_acl(self, file_id: str, file_metadata: dict) -> DocumentACL:
         """
         Extract ACL from SharePoint item.
 
@@ -642,15 +642,23 @@ class SharePointConnector(BaseConnector):
             logger.error(f"Failed to get SharePoint file content {file_id}: {e}")
             raise
 
-    async def _get_file_metadata_by_id(self, file_id: str) -> Optional[Dict[str, Any]]:
+    async def _get_file_metadata_by_id(self, file_id: str) -> dict[str, Any] | None:
         """Get file metadata by ID using Graph API"""
         try:
-            # Try site-specific path first, then fallback to user drive
-            site_info = self._parse_sharepoint_url()
-            if site_info:
-                url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{file_id}"
+            # Check if ID contains '!' which indicates driveId!itemId format
+            if "!" in file_id:
+                parts = file_id.rsplit("!", 1)
+                if len(parts) == 2:
+                    drive_id, item_id = parts
+                    url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}"
+                else:
+                    url = f"{self._graph_base_url}/me/drive/items/{file_id}"
             else:
-                url = f"{self._graph_base_url}/me/drive/items/{file_id}"
+                site_info = self._parse_sharepoint_url()
+                if site_info:
+                    url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{file_id}"
+                else:
+                    url = f"{self._graph_base_url}/me/drive/items/{file_id}"
 
             params = dict(self._default_params)
 
@@ -693,11 +701,23 @@ class SharePointConnector(BaseConnector):
     async def _download_file_content(self, file_id: str) -> bytes:
         """Download file content by file ID using Graph API"""
         try:
-            site_info = self._parse_sharepoint_url()
-            if site_info:
-                url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{file_id}/content"
+            # Check if ID contains '!' which indicates driveId!itemId format
+            if "!" in file_id:
+                parts = file_id.rsplit("!", 1)
+                if len(parts) == 2:
+                    drive_id, item_id = parts
+                    if not item_id.startswith("s"):
+                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}/content"
+                    else:
+                        url = f"{self._graph_base_url}/me/drive/items/{file_id}/content"
+                else:
+                    url = f"{self._graph_base_url}/me/drive/items/{file_id}/content"
             else:
-                url = f"{self._graph_base_url}/me/drive/items/{file_id}/content"
+                site_info = self._parse_sharepoint_url()
+                if site_info:
+                    url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{file_id}/content"
+                else:
+                    url = f"{self._graph_base_url}/me/drive/items/{file_id}/content"
 
             token = self.oauth.get_access_token()
             headers = {"Authorization": f"Bearer {token}"}
@@ -711,9 +731,9 @@ class SharePointConnector(BaseConnector):
             logger.error(f"Failed to download file content for {file_id}: {e}")
             raise
 
-    async def _list_selected_files(self) -> Dict[str, Any]:
+    async def _list_selected_files(self) -> dict[str, Any]:
         """List only selected files/folders (selective sync)."""
-        files: List[Dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
 
         # Process selected file IDs
         if self.cfg.file_ids:
@@ -742,16 +762,26 @@ class SharePointConnector(BaseConnector):
 
         return {"files": files, "next_page_token": None}
 
-    async def _list_folder_contents(self, folder_id: str) -> List[Dict[str, Any]]:
+    async def _list_folder_contents(self, folder_id: str) -> list[dict[str, Any]]:
         """List all files in a folder recursively."""
-        files: List[Dict[str, Any]] = []
+        files: list[dict[str, Any]] = []
 
         try:
-            site_info = self._parse_sharepoint_url()
-            if site_info:
-                url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{folder_id}/children"
-            else:
-                url = f"{self._graph_base_url}/me/drive/items/{folder_id}/children"
+            drive_id = None
+            if "!" in folder_id:
+                parts = folder_id.rsplit("!", 1)
+                if len(parts) == 2:
+                    potential_drive_id, item_id = parts
+                    if not item_id.startswith("s"):
+                        drive_id = potential_drive_id
+                        url = f"{self._graph_base_url}/drives/{drive_id}/items/{item_id}/children"
+
+            if not drive_id:
+                site_info = self._parse_sharepoint_url()
+                if site_info:
+                    url = f"{self._graph_base_url}/sites/{site_info['host_name']}:/sites/{site_info['site_name']}:/drive/items/{folder_id}/children"
+                else:
+                    url = f"{self._graph_base_url}/me/drive/items/{folder_id}/children"
 
             params = dict(self._default_params)
 
@@ -760,15 +790,38 @@ class SharePointConnector(BaseConnector):
 
             items = data.get("value", [])
             for item in items:
+                parent_ref = item.get("parentReference", {})
+                item_drive_id = parent_ref.get("driveId") or drive_id
+                item_id = item.get("id")
+                if item_id and "!" in item_id:
+                    final_item_id = item_id
+                else:
+                    final_item_id = f"{item_drive_id}!{item_id}" if item_drive_id else item_id
+
                 if item.get("file"):  # It's a file
-                    file_meta = await self._get_file_metadata_by_id(item.get("id"))
-                    if file_meta:
-                        files.append(file_meta)
+                    file_meta = {
+                        "id": final_item_id,
+                        "name": item.get("name", ""),
+                        "path": f"/drive/items/{item_id}",
+                        "size": int(item.get("size") or 0),
+                        "modified": item.get("lastModifiedDateTime"),
+                        "created": item.get("createdDateTime"),
+                        "mime_type": item.get("file", {}).get(
+                            "mimeType", self._get_mime_type(item.get("name", ""))
+                        ),
+                        "url": item.get("webUrl", ""),
+                        "download_url": item.get("@microsoft.graph.downloadUrl"),
+                    }
+                    files.append(file_meta)
                 elif item.get("folder"):  # It's a subfolder, recurse
-                    subfolder_files = await self._list_folder_contents(item.get("id"))
+                    subfolder_files = await self._list_folder_contents(final_item_id)
                     files.extend(subfolder_files)
         except Exception as e:
-            logger.error(f"Failed to list folder contents for {folder_id}: {e}")
+            import traceback
+
+            logger.error(
+                f"Failed to list folder contents for {folder_id}: {e}\n{traceback.format_exc()}"
+            )
 
         return files
 
@@ -783,7 +836,7 @@ class SharePointConnector(BaseConnector):
             logger.error(f"Failed to download from URL {download_url}: {e}")
             raise
 
-    def _parse_graph_date(self, date_str: Optional[str]) -> datetime:
+    def _parse_graph_date(self, date_str: str | None) -> datetime:
         """Parse Microsoft Graph date string to datetime"""
         if not date_str:
             return datetime.now()
@@ -800,8 +853,8 @@ class SharePointConnector(BaseConnector):
         self,
         url: str,
         method: str = "GET",
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
+        data: dict | None = None,
+        params: dict | None = None,
     ) -> httpx.Response:
         """Make authenticated API request to Microsoft Graph"""
         token = self.oauth.get_access_token()
@@ -829,23 +882,23 @@ class SharePointConnector(BaseConnector):
 
     # Webhook methods - BaseConnector interface
     def handle_webhook_validation(
-        self, request_method: str, headers: Dict[str, str], query_params: Dict[str, str]
-    ) -> Optional[str]:
+        self, request_method: str, headers: dict[str, str], query_params: dict[str, str]
+    ) -> str | None:
         """Handle webhook validation (Graph API specific)"""
         if request_method == "POST" and "validationToken" in query_params:
             return query_params["validationToken"]
         return None
 
     def extract_webhook_channel_id(
-        self, payload: Dict[str, Any], headers: Dict[str, str]
-    ) -> Optional[str]:
+        self, payload: dict[str, Any], headers: dict[str, str]
+    ) -> str | None:
         """Extract channel/subscription ID from webhook payload"""
         notifications = payload.get("value", [])
         if notifications:
             return notifications[0].get("subscriptionId")
         return None
 
-    async def handle_webhook(self, payload: Dict[str, Any]) -> List[str]:
+    async def handle_webhook(self, payload: dict[str, Any]) -> list[str]:
         """Handle webhook notification and return affected file IDs"""
         affected_files = []
 

@@ -82,6 +82,7 @@ from dependencies import (
 )
 from services.docling_service import DoclingConfig, get_docling_preset_configs
 from session_manager import User
+from utils import provider_health_cache
 from utils.langflow_utils import LangflowNotReadyError, wait_for_langflow
 from utils.logging_config import get_logger
 from utils.telemetry import Category, MessageId, TelemetryClient
@@ -210,6 +211,7 @@ async def get_settings(
                 ocr=knowledge_config.ocr,
                 picture_descriptions=knowledge_config.picture_descriptions,
                 index_name=knowledge_config.index_name,
+                disable_ingest_with_langflow=knowledge_config.disable_ingest_with_langflow,
             ),
             agent=AgentConfig(
                 llm_model=agent_config.llm_model,
@@ -460,6 +462,15 @@ async def update_settings(
             except Exception as e:
                 logger.error(f"Failed to update docling settings in flow: {str(e)}")
 
+        if body.disable_ingest_with_langflow is not None:
+            current_config.knowledge.disable_ingest_with_langflow = (
+                body.disable_ingest_with_langflow
+            )
+            config_updated = True
+            logger.info(
+                f"Disable Langflow ingestion changed to {body.disable_ingest_with_langflow}"
+            )
+
         if body.chunk_size is not None:
             effective_overlap = (
                 body.chunk_overlap
@@ -708,6 +719,8 @@ async def update_settings(
         # Save the updated configuration
         if not config_manager.save_config_file(current_config):
             return JSONResponse({"error": "Failed to save configuration"}, status_code=500)
+
+        provider_health_cache.invalidate()
 
         # Refresh patched client immediately so subsequent requests pick up latest config.
         await clients.refresh_patched_client()
@@ -1064,6 +1077,8 @@ async def onboarding(
                             {"error": "Failed to save configuration"}, status_code=500
                         )
 
+                    provider_health_cache.invalidate()
+
                     ingestion_jwt = (
                         user.jwt_token if IBM_AUTH_ENABLED and user and user.jwt_token else None
                     )
@@ -1098,6 +1113,7 @@ async def onboarding(
                     )
 
         if config_manager.save_config_file(current_config):
+            provider_health_cache.invalidate()
             set_fields = [k for k, v in body.model_dump(exclude_unset=True).items()]
             logger.info(
                 "Onboarding configuration updated successfully",
@@ -1533,6 +1549,7 @@ async def refresh_openrag_docs(
             session_manager=session_manager,
             force=True,
             reason="manual",
+            jwt_token=user.jwt_token if getattr(user, "jwt_token", None) else None,
         )
         return RefreshOpenRAGDocsResponse(
             message=(
