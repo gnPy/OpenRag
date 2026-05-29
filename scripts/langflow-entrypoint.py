@@ -37,9 +37,12 @@ except KeyError:
 # Create home directory if it doesn't exist and set proper permissions
 home_path = pathlib.Path(home)
 if not home_path.exists():
-    home_path.mkdir(parents=True, exist_ok=True)
-    home_path.chmod(0o755)
-    shutil.chown(home, user=1000, group=1000)
+    try:
+        home_path.mkdir(parents=True, exist_ok=True)
+        home_path.chmod(0o755)
+        shutil.chown(home, user=1000, group=1000)
+    except (OSError, PermissionError):
+        pass
 
 # Drop from root to langflow (uid=1000, gid=1000) only when we have the
 # privilege to do so. Under OpenShift the container already runs as an
