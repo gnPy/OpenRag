@@ -11,13 +11,15 @@ inside the container after the mount is established.
 import os
 import pathlib
 import pwd
+import shutil
 import sys
 
+# Ensure langflow-data directory is writable by the langflow user
 data_dir = pathlib.Path("/app/langflow-data")
-
 try:
     data_dir.chmod(0o777)
-except OSError:
+    shutil.chown(data_dir, user=1000, group=1000)
+except (OSError, PermissionError):
     pass
 
 # Look up uid 1000's passwd entry so we can restore HOME and USER correctly
@@ -31,6 +33,13 @@ try:
 except KeyError:
     home = "/app"
     user = "langflow"
+
+# Create home directory if it doesn't exist and set proper permissions
+home_path = pathlib.Path(home)
+if not home_path.exists():
+    home_path.mkdir(parents=True, exist_ok=True)
+    home_path.chmod(0o755)
+    shutil.chown(home, user=1000, group=1000)
 
 # Drop from root to langflow (uid=1000, gid=1000).
 os.setgid(1000)

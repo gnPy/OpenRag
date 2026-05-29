@@ -15,8 +15,10 @@ RUN dnf install -y --allowerasing \
     && dnf clean all
 
 # Install pysqlite3-binary first to provide SQLite >= 3.35.0 (UBI9 has 3.34.1)
+# Then create sitecustomize.py to override sqlite3 module globally
 # This is required by chromadb which is a dependency of langflow
-RUN pip install --no-cache-dir pysqlite3-binary
+RUN pip install --no-cache-dir pysqlite3-binary \
+    && python -c "import site, pathlib; p=pathlib.Path(site.getsitepackages()[0])/'sitecustomize.py'; p.write_text('import sys\\nimport pysqlite3\\nsys.modules[\"sqlite3\"]=pysqlite3\\n')"
 
 # Install Langflow and dependencies
 RUN pip install --no-cache-dir \
@@ -44,8 +46,8 @@ RUN if ! getent group 1000 >/dev/null; then \
     && chown -R root:0 /app \
     && chmod -R g+rwX /app
 
-# Switch to non-root user
-USER 1000
+# NOTE: Container runs as root initially so entrypoint can fix permissions
+# The entrypoint script drops to UID 1000 before executing the main process
 
 EXPOSE 7860
 
