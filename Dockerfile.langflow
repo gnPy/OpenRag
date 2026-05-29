@@ -14,11 +14,14 @@ RUN dnf install -y --allowerasing \
     ca-certificates \
     && dnf clean all
 
+# Install pysqlite3-binary first to provide SQLite >= 3.35.0 (UBI9 has 3.34.1)
+# This is required by chromadb which is a dependency of langflow
+RUN pip install --no-cache-dir pysqlite3-binary
+
 # Install Langflow and dependencies
 RUN pip install --no-cache-dir \
     langflow==1.9.0 \
-    uv \
-    && pip uninstall -y litellm
+    uv
 
 # Create application directory and langflow data directory
 WORKDIR /app
@@ -30,14 +33,20 @@ COPY flows/ /app/flows/
 # Copy the entrypoint script
 COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoint
 
-# Set proper ownership for the app directory
-# UBI images typically use UID 1001, but we'll use 1000 for compatibility
-RUN groupadd --gid 1000 langflow || true \
-    && useradd --uid 1000 --gid 1000 --no-create-home langflow || true \
-    && chown -R 1000:1000 /app
+# Set proper ownership for the app directory with OpenShift compatibility
+# Use root group (GID 0) with group-write permissions for OpenShift arbitrary UIDs
+RUN if ! getent group 1000 >/dev/null; then \
+        groupadd --gid 1000 langflow; \
+    fi \
+    && if ! getent passwd 1000 >/dev/null; then \
+        useradd --uid 1000 --gid 1000 --no-create-home langflow; \
+    fi \
+    && chown -R root:0 /app \
+    && chmod -R g+rwX /app
 
-# The entrypoint runs as root to handle bind-mount permissions,
-# then drops to uid=1000 before starting langflow
+# Switch to non-root user
+USER 1000
+
 EXPOSE 7860
 
 ENTRYPOINT ["langflow-entrypoint"]
