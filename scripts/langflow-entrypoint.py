@@ -41,9 +41,12 @@ if not home_path.exists():
     home_path.chmod(0o755)
     shutil.chown(home, user=1000, group=1000)
 
-# Drop from root to langflow (uid=1000, gid=1000).
-os.setgid(1000)
-os.setuid(1000)
+# Drop from root to langflow (uid=1000, gid=1000) only when we have the
+# privilege to do so. Under OpenShift the container already runs as an
+# arbitrary non-root UID, in which case there is nothing to drop.
+if os.getuid() == 0:
+    os.setgid(1000)
+    os.setuid(1000)
 
 # Restore environment variables to reflect the unprivileged user.
 os.environ["HOME"] = home
