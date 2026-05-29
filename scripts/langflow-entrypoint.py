@@ -21,10 +21,19 @@ if os.getuid() == 0:
     
     data_dir = pathlib.Path("/app/langflow-data")
     
+    # Recursively chown data directory to langflow user
     try:
-        data_dir.chmod(0o777)
-    except OSError:
-        pass
+        import shutil
+        # Change ownership of data_dir and all contents to uid 1000, gid 1000
+        for root, dirs, files in os.walk(data_dir):
+            os.chown(root, 1000, 1000)
+            for d in dirs:
+                os.chown(os.path.join(root, d), 1000, 1000)
+            for f in files:
+                os.chown(os.path.join(root, f), 1000, 1000)
+    except OSError as e:
+        print(f"ERROR: Failed to change ownership of {data_dir}: {e}", file=sys.stderr)
+        sys.exit(1)
     
     # Look up uid 1000's passwd entry so we can restore HOME and USER correctly
     # after dropping privileges.
@@ -37,6 +46,8 @@ if os.getuid() == 0:
         user = "langflow"
     
     # Drop from root to langflow (uid=1000, gid=1000).
+    # Clear supplementary groups first while we still have privilege
+    os.setgroups([])
     os.setgid(1000)
     os.setuid(1000)
     

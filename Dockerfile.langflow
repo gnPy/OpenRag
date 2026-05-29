@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:1.4
 # UBI 9 Python 3.11 base image for enterprise compliance
-FROM registry.access.redhat.com/ubi9/python-311:latest
+# Pinned to specific digest for reproducibility
+FROM registry.access.redhat.com/ubi9/python-311@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c
 
 # Switch to root to install system packages
 USER 0
@@ -15,10 +16,10 @@ RUN dnf install -y --allowerasing \
     && dnf clean all
 
 # Install Langflow and dependencies
+# Note: litellm is a required dependency of langflow, so we keep it installed
 RUN pip install --no-cache-dir \
     langflow==1.9.0 \
-    uv \
-    && pip uninstall -y litellm
+    uv
 
 # Create application directory and langflow data directory
 WORKDIR /app
@@ -31,19 +32,21 @@ COPY flows/ /app/flows/
 COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoint
 
 # Set proper ownership for the app directory
-# UBI images typically use UID 1001, but we'll use 1000 for compatibility
+# OpenShift-friendly: use root group (GID 0) with group-write permissions
+# This allows arbitrary UIDs in GID 0 to write to /app
 RUN if ! getent group 1000 >/dev/null; then \
         groupadd --gid 1000 langflow; \
     fi \
     && if ! getent passwd 1000 >/dev/null; then \
         useradd --uid 1000 --gid 1000 --no-create-home langflow; \
     fi \
-    && chown -R 1000:1000 /app
+    && chown -R root:0 /app \
+    && chmod -R g+rwX /app
 
-# Switch to non-root user for runtime
+# Switch to non-root user for runtime (numeric UID for OpenShift compatibility)
 # Note: Volume mounts should use orchestrator features like Podman's :U flag
 # or proper host UID mapping for permission handling
-USER langflow
+USER 1000
 
 EXPOSE 7860
 

@@ -6,7 +6,8 @@
 # -----------------------------------------------------------------------------
 # Stage: base (system + uv)
 # -----------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-311:latest AS base
+# Pinned to specific digest for reproducibility
+FROM registry.access.redhat.com/ubi9/python-311@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c AS base
 
 # Install system dependencies using dnf (UBI package manager)
 USER 0
@@ -58,7 +59,8 @@ COPY openrag-documents/ ./openrag-documents/
 # -----------------------------------------------------------------------------
 # Stage: runtime (minimal image)
 # -----------------------------------------------------------------------------
-FROM registry.access.redhat.com/ubi9/python-311:latest AS runtime
+# Pinned to specific digest for reproducibility
+FROM registry.access.redhat.com/ubi9/python-311@sha256:a0bdb55576fc5b8d6704279307817828ef027e1065533ceba133fe9516003a6c AS runtime
 
 # Create a non-root user/group first.
 # UID/GID 1000 is the conventional first non-root account and
@@ -77,9 +79,8 @@ RUN dnf install -y --allowerasing \
 
 WORKDIR /app
 
+# Copy application from builder (includes securityconfig and cloud_securityconfig)
 COPY --from=builder /app /app
-COPY securityconfig/ ./securityconfig/
-COPY cloud_securityconfig/ ./cloud_securityconfig/
 COPY scripts/backend-entrypoint.sh /entrypoint.sh
 
 ENV VIRTUAL_ENV=/app/.venv
