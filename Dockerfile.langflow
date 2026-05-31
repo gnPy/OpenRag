@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
 # UBI 9 Python 3.11 base image for enterprise compliance
-FROM registry.access.redhat.com/ubi9/python-311:latest
+FROM registry.access.redhat.com/ubi9/python-311:9.5
 
 # Switch to root to install system packages
 USER 0
@@ -34,6 +34,20 @@ COPY flows/ /app/flows/
 
 # Copy the entrypoint script
 COPY --chmod=755 scripts/langflow-entrypoint.py /usr/local/bin/langflow-entrypoint
+
+# Pre-create all writable dirs with OpenShift-safe permissions
+RUN mkdir -p /app/data/.mem0 \
+             /app/data/.cache \
+             /app/data/.gunicorn \
+    && chgrp -R 0 /app/data \
+    && chmod -R g=u /app/data
+
+# Bake env vars into image — covers cases where entrypoint is bypassed
+ENV HOME=/app/data
+ENV XDG_CACHE_HOME=/app/data/.cache
+ENV MEM0_DIR=/app/data/.mem0
+ENV LANGFLOW_CONFIG_DIR=/app/data
+ENV GUNICORN_CMD_ARGS="--worker-tmp-dir /app/data/.gunicorn"
 
 # Set proper ownership for the app directory with OpenShift compatibility
 # Use root group (GID 0) with group-write permissions for OpenShift arbitrary UIDs
