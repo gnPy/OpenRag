@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.4
-# UBI 9 Python 3.11 base image for enterprise compliance
-FROM registry.access.redhat.com/ubi9/python-311:9.5
+# UBI 9 Python 3.12 base image for enterprise compliance
+FROM registry.access.redhat.com/ubi9/python-312:9.5
 
 # Switch to root to install system packages
 USER 0
