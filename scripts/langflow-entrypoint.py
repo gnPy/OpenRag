@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Entrypoint for the OpenRAG Langflow container.
 
-Runs as root to correct /app/langflow-data bind-mount permissions, then drops
+Runs as root to correct /app/data bind-mount permissions, then drops
 to uid/gid 1000 (langflow user) before exec-ing the main process.
 
 On macOS with Podman the virtiofs layer does not faithfully propagate
@@ -14,8 +14,8 @@ import pwd
 import shutil
 import sys
 
-# Ensure langflow-data directory is writable by the langflow user
-data_dir = pathlib.Path("/app/langflow-data")
+# Ensure data directory is writable by the langflow user
+data_dir = pathlib.Path("/app/data")
 try:
     data_dir.chmod(0o777)
     shutil.chown(data_dir, user=1000, group=1000)

@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir \
 
 # Create application directory and langflow data directory
 WORKDIR /app
-RUN mkdir -p /app/langflow-data
+RUN mkdir -p /app/data
 
 # Copy flows
 COPY flows/ /app/flows/
